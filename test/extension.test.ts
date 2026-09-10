@@ -1,3 +1,5 @@
+// biome-ignore-all format: fixture-heavy regression tests preserve readable shell and XML literals
+
 import assert from "node:assert/strict";
 import { chmod, mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";

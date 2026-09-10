@@ -40,9 +40,7 @@ const docxPatchesSchema = Type.Object(
 		lineNumbering: Type.Optional(
 			Type.Object(
 				{
-					mode: Type.Optional(
-						StringEnum(["off", "continuous", "newPage", "newSection"] as const),
-					),
+					mode: Type.Optional(StringEnum(["off", "continuous", "newPage", "newSection"] as const)),
 					start: Type.Optional(Type.Number()),
 					count_by: Type.Optional(Type.Number()),
 				},
