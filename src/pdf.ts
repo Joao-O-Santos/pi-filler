@@ -1,4 +1,4 @@
-import { mkdir, readdir, rm, stat } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, rename, rm, stat } from "node:fs/promises";
 import { basename, dirname, extname, join, resolve } from "node:path";
 import { type TruncationResult, truncateHead } from "@earendil-works/pi-coding-agent";
 import { commandError, type RunCommandOptions, runCommand } from "./process.js";
@@ -48,10 +48,11 @@ export async function readPdfText(
 	range: PageRange = {},
 	options?: RunCommandOptions,
 ): Promise<PdfTextResult> {
+	const source = resolve(path);
 	const result = await runCommand(
 		"pdftotext",
-		["-layout", ...pageArgs(range), path, "-"],
-		commandOptions(options, dirname(path)),
+		["-layout", ...pageArgs(range), source, "-"],
+		commandOptions(options, dirname(source)),
 	);
 	if (result.code !== 0) throw commandError(result, "pdftotext");
 	const truncation = truncateHead(result.stdout.toString("utf8"));
@@ -78,17 +79,12 @@ export async function searchPdf(
 	query: string,
 	options: RunCommandOptions & PageRange & { ignoreCase?: boolean; literal?: boolean } = {},
 ): Promise<PdfSearchResult> {
-	const args = [
-		"--color",
-		"never",
-		"--with-filename",
-		"--page-number",
-		...searchPageArgs(options),
-	];
+	const source = resolve(path);
+	const args = ["--color", "never", "--with-filename", "--page-number", ...searchPageArgs(options)];
 	if (options.ignoreCase) args.push("--ignore-case");
 	if (options.literal) args.push("--fixed-strings");
-	args.push("--", query, path);
-	const result = await runCommand("pdfgrep", args, commandOptions(options, dirname(path)));
+	args.push("--", query, source);
+	const result = await runCommand("pdfgrep", args, commandOptions(options, dirname(source)));
 	if (result.code !== 0 && result.code !== 1) throw commandError(result, "pdfgrep");
 	const matches = parseSearchOutput(result.stdout.toString("utf8"));
 	return {
@@ -119,11 +115,17 @@ function generatedPage(name: string, prefixName: string): number | undefined {
 	return match ? Number(match[1]) : undefined;
 }
 
+async function generatedPages(directory: string, prefixName: string): Promise<string[]> {
+	return (await readdir(directory))
+		.map((name) => ({ name, page: generatedPage(name, prefixName) }))
+		.filter((entry): entry is { name: string; page: number } => entry.page !== undefined)
+		.sort((a, b) => a.page - b.page)
+		.map(({ name }) => name);
+}
+
 async function clearGenerated(directory: string, prefixName: string): Promise<void> {
-	for (const name of await readdir(directory)) {
-		if (generatedPage(name, prefixName) !== undefined) {
-			await rm(join(directory, name), { force: true });
-		}
+	for (const name of await generatedPages(directory, prefixName)) {
+		await rm(join(directory, name), { force: true });
 	}
 }
 
@@ -133,23 +135,28 @@ export async function renderPdfPages(
 	range: PageRange = {},
 	options?: RunCommandOptions,
 ): Promise<string[]> {
-	const prefix = await outputPrefix(output, path);
+	const source = resolve(path);
+	const prefix = await outputPrefix(output, source);
 	const directory = dirname(prefix);
 	const prefixName = basename(prefix);
-	await clearGenerated(directory, prefixName);
+	const temporaryDirectory = await mkdtemp(join(directory, `.${prefixName}.`));
+	const temporaryPrefix = join(temporaryDirectory, prefixName);
+	try {
+		const result = await runCommand(
+			"pdftocairo",
+			["-png", ...pageArgs(range), source, temporaryPrefix],
+			commandOptions(options, dirname(source)),
+		);
+		if (result.code !== 0) throw commandError(result, "pdftocairo");
 
-	const result = await runCommand(
-		"pdftocairo",
-		["-png", ...pageArgs(range), path, prefix],
-		commandOptions(options, dirname(path)),
-	);
-	if (result.code !== 0) throw commandError(result, "pdftocairo");
-
-	const generated = (await readdir(directory))
-		.map((name) => ({ name, page: generatedPage(name, prefixName) }))
-		.filter((entry): entry is { name: string; page: number } => entry.page !== undefined)
-		.sort((a, b) => a.page - b.page)
-		.map(({ name }) => join(directory, name));
-	if (generated.length === 0) throw new Error("pdftocairo produced no PNG files");
-	return generated;
+		const names = await generatedPages(temporaryDirectory, prefixName);
+		if (names.length === 0) throw new Error("pdftocairo produced no PNG files");
+		await clearGenerated(directory, prefixName);
+		for (const name of names) {
+			await rename(join(temporaryDirectory, name), join(directory, name));
+		}
+		return names.map((name) => join(directory, name));
+	} finally {
+		await rm(temporaryDirectory, { recursive: true, force: true });
+	}
 }

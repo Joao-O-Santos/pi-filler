@@ -75,7 +75,7 @@ function localName(name: string): string {
 function parseXml(bytes: Uint8Array | undefined, part: string): XmlObject {
 	if (!bytes) throw new Error(`DOCX is missing required part ${part}`);
 	try {
-		return parser.parse(new TextDecoder().decode(bytes)) as XmlObject;
+		return parser.parse(new TextDecoder().decode(bytes), true) as XmlObject;
 	} catch (error) {
 		throw new Error(`Invalid XML in ${part}: ${error instanceof Error ? error.message : error}`);
 	}
@@ -166,6 +166,10 @@ function countTags(value: unknown, suffix: string): number {
 	return findAll(value, suffix).length;
 }
 
+function hasValues(value: object | undefined): boolean {
+	return Boolean(value && Object.keys(value).length > 0);
+}
+
 const metadataNamespaces: Record<string, string> = {
 	title: DC_NS,
 	subject: DC_NS,
@@ -179,7 +183,10 @@ function childText(value: XmlObject, name: string): string | undefined {
 	for (const [key, child] of Object.entries(value)) {
 		if (key.startsWith("@_") || localName(key) !== name) continue;
 		if (typeof child === "string" || typeof child === "number") return String(child);
-		if (isObject(child) && typeof child["#text"] === "string") return child["#text"];
+		if (isObject(child)) {
+			const text = child["#text"];
+			if (typeof text === "string" || typeof text === "number") return String(text);
+		}
 	}
 	return undefined;
 }
@@ -190,7 +197,7 @@ function setChildText(value: XmlObject, name: string, text: string): void {
 	);
 	if (existing) {
 		const child = value[existing];
-		if (isObject(child) && "#text" in child) child["#text"] = text;
+		if (isObject(child)) child["#text"] = text;
 		else value[existing] = text;
 		return;
 	}
@@ -264,49 +271,68 @@ function ensureChild(parent: XmlObject, name: string, prefix: string): XmlObject
 	return child;
 }
 
+function patchPage(section: XmlObject, patch: NonNullable<DocxPatchSet["page"]>, prefix: string): void {
+	const size = ensureChild(section, "pgSz", prefix);
+	const width = numberAttr(size, "w");
+	const height = numberAttr(size, "h");
+	if (
+		patch.orientation !== undefined &&
+		patch.width === undefined &&
+		patch.height === undefined &&
+		width !== undefined &&
+		height !== undefined &&
+		((patch.orientation === "landscape" && width < height) ||
+			(patch.orientation === "portrait" && width > height))
+	) {
+		setAttr(size, "w", height, prefix);
+		setAttr(size, "h", width, prefix);
+	}
+	if (patch.width !== undefined) setAttr(size, "w", patch.width, prefix);
+	if (patch.height !== undefined) setAttr(size, "h", patch.height, prefix);
+	if (patch.orientation !== undefined) setAttr(size, "orient", patch.orientation, prefix);
+}
+
 function applyPatch(pkg: Package, patch: DocxPatchSet): string[] {
 	const changed = new Set<string>();
-	if (patch.page || patch.margins || patch.lineNumbering || patch.pageNumbering) {
+	const documentPatch =
+		hasValues(patch.page) ||
+		hasValues(patch.margins) ||
+		hasValues(patch.lineNumbering) ||
+		hasValues(patch.pageNumbering);
+	if (documentPatch) {
 		const document = parseXml(pkg["word/document.xml"], "word/document.xml");
 		const documentRoot = rootObject(document, "document");
 		const prefix = namespacePrefix(documentRoot, WORD_NS, "w");
 		const sectPr = firstSection(document, prefix);
 
-		if (patch.page) {
-			const size = ensureChild(sectPr, "pgSz", prefix);
-			if (patch.page.width !== undefined) setAttr(size, "w", patch.page.width, prefix);
-			if (patch.page.height !== undefined) setAttr(size, "h", patch.page.height, prefix);
-			if (patch.page.orientation !== undefined) {
-				setAttr(size, "orient", patch.page.orientation, prefix);
-			}
-		}
-		if (patch.margins) {
+		if (hasValues(patch.page)) patchPage(sectPr, patch.page ?? {}, prefix);
+		if (hasValues(patch.margins)) {
 			const margin = ensureChild(sectPr, "pgMar", prefix);
-			for (const [name, value] of Object.entries(patch.margins)) {
+			for (const [name, value] of Object.entries(patch.margins ?? {})) {
 				setAttr(margin, name, value, prefix);
 			}
 		}
-		if (patch.lineNumbering) {
-			if (patch.lineNumbering.mode === "off") removeDirect(sectPr, "lnNumType");
+		if (hasValues(patch.lineNumbering)) {
+			if (patch.lineNumbering?.mode === "off") removeDirect(sectPr, "lnNumType");
 			else {
 				const line = ensureChild(sectPr, "lnNumType", prefix);
-				if (patch.lineNumbering.mode) {
+				if (patch.lineNumbering?.mode) {
 					setAttr(line, "restart", patch.lineNumbering.mode, prefix);
 				}
-				if (patch.lineNumbering.start !== undefined) {
+				if (patch.lineNumbering?.start !== undefined) {
 					setAttr(line, "start", patch.lineNumbering.start, prefix);
 				}
-				if (patch.lineNumbering.count_by !== undefined) {
+				if (patch.lineNumbering?.count_by !== undefined) {
 					setAttr(line, "countBy", patch.lineNumbering.count_by, prefix);
 				}
 			}
 		}
-		if (patch.pageNumbering) {
+		if (hasValues(patch.pageNumbering)) {
 			const page = ensureChild(sectPr, "pgNumType", prefix);
-			if (patch.pageNumbering.start !== undefined) {
+			if (patch.pageNumbering?.start !== undefined) {
 				setAttr(page, "start", patch.pageNumbering.start, prefix);
 			}
-			if (patch.pageNumbering.format !== undefined) {
+			if (patch.pageNumbering?.format !== undefined) {
 				setAttr(page, "fmt", patch.pageNumbering.format, prefix);
 			}
 		}
@@ -314,7 +340,7 @@ function applyPatch(pkg: Package, patch: DocxPatchSet): string[] {
 		changed.add("word/document.xml");
 	}
 
-	if (patch.metadata || patch.clearCoreMetadata) {
+	if (hasValues(patch.metadata) || patch.clearCoreMetadata) {
 		const core = parseXml(pkg["docProps/core.xml"], "docProps/core.xml");
 		const props = rootObject(core, "coreProperties");
 		if (patch.clearCoreMetadata) {
@@ -329,6 +355,23 @@ function applyPatch(pkg: Package, patch: DocxPatchSet): string[] {
 		changed.add("docProps/core.xml");
 	}
 	return [...changed];
+}
+
+function validatePatch(patch: DocxPatchSet): void {
+	const requested =
+		hasValues(patch.page) ||
+		hasValues(patch.margins) ||
+		hasValues(patch.lineNumbering) ||
+		hasValues(patch.pageNumbering) ||
+		hasValues(patch.metadata) ||
+		patch.clearCoreMetadata === true;
+	if (!requested) throw new Error("DOCX patch requires at least one change");
+	if (
+		patch.lineNumbering?.mode === "off" &&
+		(patch.lineNumbering.start !== undefined || patch.lineNumbering.count_by !== undefined)
+	) {
+		throw new Error("Line numbering mode=off cannot include start or count_by");
+	}
 }
 
 function validateRequested(formatting: DocxFormatting, patch: DocxPatchSet): void {
@@ -413,7 +456,7 @@ function validatePackage(pkg: Package): void {
 }
 
 async function load(path: string): Promise<Package> {
-	return unpack(new Uint8Array(await readFile(path)));
+	return unpack(new Uint8Array(await readFile(resolve(path))));
 }
 
 export async function inspectDocx(path: string): Promise<DocxFormatting> {
@@ -431,6 +474,7 @@ export async function patchDocx(
 	const input = resolve(inputPath);
 	const output = resolve(outputPath);
 	if (input === output) throw new Error("DOCX patch output must differ from input");
+	validatePatch(patch);
 	const pkg = await load(input);
 	validatePackage(pkg);
 	const changedParts = applyPatch(pkg, patch);

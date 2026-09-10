@@ -29,12 +29,13 @@ Required executables are `pandoc`, `pdftotext`, `pdftocairo`, and
 ## PDF
 
 PDF text reading uses `pdftotext -layout`. Search uses `pdfgrep` so
-matches remain page-aware. Image reads render selected pages through
-`pdftocairo -png`.
+matches remain page-aware and may be restricted to a page range. Image
+reads render selected pages through `pdftocairo -png`.
 
-Before rendering, matching old output files are removed. Generated page
-files are discovered after the command and sorted by numeric page
-number.
+Rendering happens under a temporary sibling directory. Existing outputs
+for the requested prefix are replaced only after `pdftocairo` succeeds,
+so a failed render does not destroy a previous successful result.
+Generated page files are sorted by numeric page number.
 
 ## DOCX text and generation
 
@@ -48,7 +49,8 @@ validation succeeds.
 ## DOCX OOXML
 
 `fflate` reads and writes ZIP packages. `fast-xml-parser` handles the
-small set of XML parts needed by the supported patches.
+small set of XML parts needed by the supported patches. XML is checked
+for well-formedness before the parsed representation is accepted.
 
 Inspection and mutation match XML names by local name and preserve or
 derive the document's namespace prefix when writing Word attributes.
@@ -74,6 +76,7 @@ Inspection and mutations validate required package parts and parse every
 XML and relationship part. Internal targets from every `.rels` part
 must resolve to an existing package part.
 
+Patches reject empty requests and incompatible line-number settings.
 Patches are validated against the requested resulting formatting. Writes
 and patches use temporary sibling files and atomic renames. Source files
 are not modified.

@@ -16,44 +16,44 @@ const docxPatchesSchema = Type.Object(
 		page: Type.Optional(
 			Type.Object(
 				{
-					width: Type.Optional(Type.Number()),
-					height: Type.Optional(Type.Number()),
+					width: Type.Optional(Type.Integer({ minimum: 1 })),
+					height: Type.Optional(Type.Integer({ minimum: 1 })),
 					orientation: Type.Optional(StringEnum(["portrait", "landscape"] as const)),
 				},
-				{ additionalProperties: false },
+				{ additionalProperties: false, minProperties: 1 },
 			),
 		),
 		margins: Type.Optional(
 			Type.Object(
 				{
-					top: Type.Optional(Type.Number()),
-					bottom: Type.Optional(Type.Number()),
-					left: Type.Optional(Type.Number()),
-					right: Type.Optional(Type.Number()),
-					header: Type.Optional(Type.Number()),
-					footer: Type.Optional(Type.Number()),
-					gutter: Type.Optional(Type.Number()),
+					top: Type.Optional(Type.Integer()),
+					bottom: Type.Optional(Type.Integer()),
+					left: Type.Optional(Type.Integer()),
+					right: Type.Optional(Type.Integer()),
+					header: Type.Optional(Type.Integer()),
+					footer: Type.Optional(Type.Integer()),
+					gutter: Type.Optional(Type.Integer()),
 				},
-				{ additionalProperties: false },
+				{ additionalProperties: false, minProperties: 1 },
 			),
 		),
 		lineNumbering: Type.Optional(
 			Type.Object(
 				{
 					mode: Type.Optional(StringEnum(["off", "continuous", "newPage", "newSection"] as const)),
-					start: Type.Optional(Type.Number()),
-					count_by: Type.Optional(Type.Number()),
+					start: Type.Optional(Type.Integer({ minimum: 0 })),
+					count_by: Type.Optional(Type.Integer({ minimum: 1 })),
 				},
-				{ additionalProperties: false },
+				{ additionalProperties: false, minProperties: 1 },
 			),
 		),
 		pageNumbering: Type.Optional(
 			Type.Object(
 				{
-					start: Type.Optional(Type.Number()),
+					start: Type.Optional(Type.Integer({ minimum: 0 })),
 					format: Type.Optional(Type.String()),
 				},
-				{ additionalProperties: false },
+				{ additionalProperties: false, minProperties: 1 },
 			),
 		),
 		metadata: Type.Optional(
@@ -66,7 +66,7 @@ const docxPatchesSchema = Type.Object(
 					description: Type.Optional(Type.String()),
 					lastModifiedBy: Type.Optional(Type.String()),
 				},
-				{ additionalProperties: false },
+				{ additionalProperties: false, minProperties: 1 },
 			),
 		),
 		clearCoreMetadata: Type.Optional(
@@ -75,7 +75,7 @@ const docxPatchesSchema = Type.Object(
 			}),
 		),
 	},
-	{ additionalProperties: false },
+	{ additionalProperties: false, minProperties: 1 },
 );
 
 export const fillerSchema = Type.Object({

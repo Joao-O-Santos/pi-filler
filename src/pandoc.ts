@@ -36,7 +36,12 @@ async function runPandoc(
 }
 
 async function extractDocxMarkdown(path: string, options?: RunCommandOptions): Promise<string> {
-	const output = await runPandoc(["--from=docx", "--to=gfm", "--wrap=none", path], options, path);
+	const source = resolve(path);
+	const output = await runPandoc(
+		["--from=docx", "--to=gfm", "--wrap=none", source],
+		options,
+		source,
+	);
 	return output.toString("utf8");
 }
 
@@ -85,7 +90,7 @@ export async function writeDocx(
 	);
 	await mkdir(dirname(output), { recursive: true });
 	const args = ["--from=gfm", "--to=docx", "--output", temporary];
-	if (options.referenceDocx) args.push("--reference-doc", options.referenceDocx);
+	if (options.referenceDocx) args.push("--reference-doc", resolve(options.referenceDocx));
 	args.push(source);
 	try {
 		const result = await runCommand("pandoc", args, {

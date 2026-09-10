@@ -24,8 +24,16 @@
   `SIGTERM`.
 - Honor PDF page ranges during search and use pdfgrep's native
   fixed-string mode for literal queries.
+- Preserve prior PDF render outputs when a replacement render fails.
 - Reject unsupported PDF search views instead of silently accepting
   them.
+- Resolve helper input paths consistently before invoking external
+  commands.
+- Validate XML syntax instead of relying on tolerant parsing.
+- Reject empty DOCX patch requests and incompatible line-number
+  settings.
+- Keep page dimensions consistent when orientation alone is changed.
+- Preserve attributes on core-metadata elements when their text changes.
 - Standardize line-number restart modes on OOXML values.
 - Rename the misleading anonymization option to `clearCoreMetadata`.
 - Make Word-attribute handling tolerant of alternate namespace prefixes.
