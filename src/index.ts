@@ -130,7 +130,9 @@ function assertSupported(input: FillerInput): void {
 		if (input.action === "write" && (input.view !== undefined || !input.output)) {
 			throw new Error("DOCX write requires output and does not accept view");
 		}
-		if (input.action === "search" && !input.query) throw new Error("DOCX search requires query");
+		if (input.action === "search" && !input.query) {
+			throw new Error("DOCX search requires query");
+		}
 		if (input.action === "patch" && (input.view !== undefined || !input.output)) {
 			throw new Error("DOCX patch requires output and does not accept view");
 		}
@@ -139,6 +141,7 @@ function assertSupported(input: FillerInput): void {
 		}
 		return;
 	}
+
 	if (input.action === "read" && input.view !== "text" && input.view !== "image") {
 		throw new Error("PDF read requires view=text or view=image");
 	}
@@ -148,7 +151,9 @@ function assertSupported(input: FillerInput): void {
 	if (input.action === "write" || input.action === "patch") {
 		throw new Error("PDF write and patch operations are not supported");
 	}
-	if (input.action === "search" && !input.query) throw new Error("PDF search requires query");
+	if (input.action === "search" && !input.query) {
+		throw new Error("PDF search requires query");
+	}
 	if (input.action === "read" && input.view === "image" && !input.output) {
 		throw new Error("PDF image reads require output");
 	}
@@ -197,6 +202,7 @@ export async function executeFiller(
 				details: result as unknown as Record<string, unknown>,
 			};
 		}
+
 		const output = normalizePath(input.output ?? "", cwd);
 		if (output === path) throw new Error("DOCX write output must differ from input");
 		const referenceDocx = input.reference_docx
@@ -227,6 +233,7 @@ export async function executeFiller(
 		const result = await readPdfText(path, range, { signal });
 		return { text: result.text, details: { truncation: result.truncation } };
 	}
+
 	const output = normalizePath(input.output ?? "", cwd);
 	const result = await withFileMutationQueue(output, () =>
 		renderPdfPages(path, output, range, { signal }),
