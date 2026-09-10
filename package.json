@@ -52,5 +52,9 @@
 		"tsx": "latest",
 		"typebox": "latest",
 		"typescript": "latest"
+	},
+	"dependencies": {
+		"fast-xml-parser": "^5.11.1",
+		"fflate": "^0.8.3"
 	}
 }

@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
-import { chmod, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { unzipSync, zipSync } from "fflate";
+import { inspectDocx, patchDocx } from "../src/docx.js";
 import extension, { executeFiller, normalizePath } from "../src/index.js";
 import { readDocxText, searchDocx, writeDocx } from "../src/pandoc.js";
 import { readPdfText, renderPdfPages, searchPdf } from "../src/pdf.js";
@@ -129,6 +131,109 @@ test("reports Pandoc failures and rejects DOCX input/output identity", async () 
 		/DOCX write output must differ from input/,
 	);
 });
+
+async function writeFixture(path: string): Promise<void> {
+	const xml = (value: string) => new TextEncoder().encode(`<?xml version="1.0"?>${value}`);
+	const files = {
+		"[Content_Types].xml": xml(
+			'<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"/>',
+		),
+		"word/document.xml": xml(
+			'<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p/><w:sectPr><w:pgSz w:w="12240" w:h="15840"/><w:pgMar w:top="1440" w:bottom="1440" w:left="1440" w:right="1440"/><w:lnNumType w:restart="continuous"/><w:pgNumType w:start="1" w:fmt="decimal"/></w:sectPr></w:body></w:document>',
+		),
+		"word/_rels/document.xml.rels": xml(
+			'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Target="media/image.png" Type="image"/></Relationships>',
+		),
+		"word/media/image.png": new Uint8Array([1, 2, 3]),
+		"word/comments.xml": xml(
+			'<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:comment w:id="0"/></w:comments>',
+		),
+		"docProps/core.xml": xml(
+			'<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>Original</dc:title><dc:creator>Alice</dc:creator></cp:coreProperties>',
+		),
+		"custom/unknown.bin": new Uint8Array([9, 8, 7]),
+	};
+	await writeFile(path, zipSync(files));
+}
+
+test("inspects and patches DOCX OOXML while preserving unknown parts", async () => {
+	const directory = await mkdtemp(join(tmpdir(), "pi-filler-ooxml-"));
+	const input = join(directory, "input.docx");
+	const output = join(directory, "output.docx");
+	await writeFixture(input);
+	const before = await inspectDocx(input);
+	assert.equal(before.sectionCount, 1);
+	assert.equal(before.page.width, 12240);
+	assert.equal(before.lineNumbering.mode, "continuous");
+	assert.equal(before.comments, 1);
+	assert.equal(before.metadata.title, "Original");
+	const dry = await patchDocx(
+		input,
+		output,
+		{
+			page: { orientation: "landscape", width: 15840, height: 12240 },
+			margins: { top: 720, bottom: 720 },
+			lineNumbering: { mode: "restart", start: 1, count_by: 5 },
+			pageNumbering: { start: 3, format: "upperRoman" },
+			metadata: { title: "Changed" },
+		},
+		true,
+	);
+	assert.equal(dry.written, false);
+	assert.ok(dry.changedParts.includes("word/document.xml"));
+	assert.ok(dry.changedParts.includes("docProps/core.xml"));
+	assert.equal(await statSafe(output), false);
+	const result = await patchDocx(input, output, {
+		page: { orientation: "landscape", width: 15840, height: 12240 },
+		margins: { top: 720, bottom: 720 },
+		lineNumbering: { mode: "restart", start: 1, count_by: 5 },
+		pageNumbering: { start: 3, format: "upperRoman" },
+		metadata: { title: "Changed" },
+	});
+	assert.equal(result.written, true);
+	assert.deepEqual(await unzipUnknown(output), [9, 8, 7]);
+	const after = await inspectDocx(output);
+	assert.equal(after.page.orientation, "landscape");
+	assert.equal(after.margins.top, 720);
+	assert.equal(after.lineNumbering.count_by, 5);
+	assert.equal(after.pageNumbering.format, "upperRoman");
+	assert.equal(after.metadata.title, "Changed");
+});
+
+test("rejects unknown OOXML patches and invalid packages", async () => {
+	const directory = await mkdtemp(join(tmpdir(), "pi-filler-ooxml-invalid-"));
+	const input = join(directory, "input.docx");
+	await writeFixture(input);
+	await assert.rejects(
+		() =>
+			executeFiller(
+				{
+					format: "docx",
+					action: "patch",
+					path: input,
+					output: join(directory, "out.docx"),
+					patches: { unknown: true },
+				},
+				directory,
+			),
+		/Unknown DOCX patch/,
+	);
+	await writeFile(join(directory, "bad.docx"), "not zip");
+	await assert.rejects(() => inspectDocx(join(directory, "bad.docx")), /Invalid DOCX ZIP/);
+});
+
+async function statSafe(path: string): Promise<boolean> {
+	try {
+		await stat(path);
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+async function unzipUnknown(path: string): Promise<number[]> {
+	return Array.from(unzipSync(new Uint8Array(await readFile(path)))["custom/unknown.bin"]);
+}
 
 test("dispatches PDF operations and rejects unsupported combinations", async () => {
 	const { directory } = await fakeCommands();

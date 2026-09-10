@@ -29,15 +29,15 @@ slice. The supervisor reviews and commits each coherent increment.
 
 ## OOXML
 
-- [ ] Select one ZIP and one namespace-capable XML dependency after a
-  small implementation bakeoff.
-- [ ] Inspect page setup, margins, sections, numbering, comments,
+- [x] Select `fflate` for ZIP preservation and `fast-xml-parser` for
+  namespace-aware XML inspection and mutation.
+- [x] Inspect page setup, margins, sections, numbering, comments,
   tracked changes, and core metadata.
-- [ ] Patch page setup, margins, line numbering, page numbering, and
+- [x] Patch page setup, margins, line numbering, page numbering, and
   core metadata/anonymization.
-- [ ] Support dry runs, sibling temporary writes, post-write validation,
+- [x] Support dry runs, sibling temporary writes, post-write validation,
   and changed/preserved package-part reporting.
-- [ ] Add deterministic DOCX fixtures and preservation regression tests.
+- [x] Add deterministic DOCX fixtures and preservation regression tests.
 
 ## Release preparation
 
@@ -52,10 +52,5 @@ slice. The supervisor reviews and commits each coherent increment.
 ## Verification
 
 - `npm run format:fix`
-- `npm run typecheck`
-- `npm run lint`
-- `npm test` (8 passing tests)
-- `make verify` (not rerun after the DOCX increment)
-- `npm run typecheck`
-- `npm run lint`
-- `npm run format:fix`
+- `make verify` (10 passing tests)
+- `git diff --check`
