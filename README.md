@@ -7,32 +7,69 @@ workflows and final office-format submission requirements. It delegates
 what mature tools already do well and keeps Word-specific mutations
 small, typed, and inspectable.
 
-The intended core uses Pandoc for DOCX conversion, Poppler tools for PDF
-text and rendering, and `pdfgrep` for page-aware PDF search. Targeted
-DOCX formatting changes operate directly on OOXML rather than relying on
-a full office suite.
+The core uses Pandoc for DOCX conversion, Poppler tools for PDF text and
+rendering, and `pdfgrep` for page-aware PDF search. DOCX formatting
+changes operate directly on OOXML rather than relying on a full office
+suite.
 
 ## Status
 
-The repository is scaffolded from `pi-tin`. Implementation has not begun.
-See `PLAN.md` for the current build sequence and accepted constraints.
+v0.0.0 is complete and ready for release. The extension reads and
+searches PDFs and DOCX files, renders PDF pages, generates DOCX from
+Markdown with reference documents, inspects DOCX formatting, and applies
+typed formatting patches. All operations use external command-line tools
+or Pandoc with bounded output and transactional writes.
 
-## Principles
+See `ARCHITECTURE.md` for the tool surface and `CHANGELOG.md` for
+release notes.
 
--   One small model-facing `filler` tool.
--   Required external tools: Pandoc, `pdftotext`, `pdftocairo`, and
-    `pdfgrep`.
--   LibreOffice optional for rendering only.
--   Source files remain untouched by default.
--   Typed, narrow DOCX patches rather than arbitrary XML editing.
--   No broad PDF toolkit or office-suite abstraction.
--   No shared Bakery runtime-utils dependency unless repeated real needs
-    justify one later.
--   Current upstream releases are preferred over pinned versions.
+## Supported operations
+
+**PDF:**
+- Read and extract text with optional page ranges
+- Search with literal or regular-expression queries and page-aware results
+- Render selected pages to PNG images
+
+**DOCX:**
+- Read and extract text through Pandoc
+- Search extracted text (case-insensitive, line-based)
+- Generate from Markdown with optional reference.docx
+- Inspect formatting state (page size/orientation, margins, sections, line
+  numbering, page numbering, comments, tracked changes, core metadata)
+- Apply typed formatting patches: page setup, margins, line numbering mode,
+  page numbering start/format, core metadata, anonymization
+- Preserve all untouched package parts
+
+**Constraints:**
+- Output is bounded to 50KB and 2000 lines
+- Writes and patches require distinct output paths
+- Patches include dry-run support
+- Mutations are transactional via temporary files
+
+## External tool requirements
+
+Required:
+- `pandoc` — DOCX read/write conversions
+- `pdftotext` — PDF text extraction
+- `pdftocairo` — PDF page rendering
+- `pdfgrep` — PDF page-aware search
+
+Optional:
+- `libreoffice` — future DOCX-to-PDF rendering
+
+## Known limitations
+
+- DOCX patches affect the first section only
+- Line numbering modes are limited to `off`, `continuous`, `newPage`,
+  `newSection`
+- OOXML namespace handling preserves only existing prefixes in
+  serialized output; complex documents with alternate namespaces may
+  require manual review
+- PDF write and patch operations are deferred
 
 ## Development
 
-```sh
+``` sh
 npm install
 make verify
 make site
