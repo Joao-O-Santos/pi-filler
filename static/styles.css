@@ -1,0 +1,27 @@
+html {
+	font-family: system-ui, sans-serif;
+	line-height: 1.55;
+	max-width: 72rem;
+	margin: auto;
+	padding: 1rem;
+}
+
+body {
+	margin: 0;
+}
+
+nav {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 1rem;
+	margin-bottom: 2rem;
+}
+
+pre {
+	overflow-x: auto;
+}
+
+footer {
+	margin-top: 3rem;
+	font-size: 0.9rem;
+}

@@ -1,0 +1,30 @@
+name: Verify
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@main
+
+      - name: Use current Node.js
+        uses: actions/setup-node@main
+        with:
+          node-version: current
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Install current Pandoc
+        run: node scripts/install-latest-pandoc.mjs
+
+      - name: Verify
+        run: make verify
