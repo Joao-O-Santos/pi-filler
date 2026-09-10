@@ -218,6 +218,17 @@ function coreMetadata(pkg: Package): Record<string, string> {
 	return result;
 }
 
+function countTrackedChanges(pkg: Package, document: XmlObject): number {
+	let count = countTags(document, "ins") + countTags(document, "del");
+	const contentPart = /^word\/(?:header\d+|footer\d+|footnotes|endnotes|comments)\.xml$/;
+	for (const [part, bytes] of Object.entries(pkg)) {
+		if (!contentPart.test(part)) continue;
+		const content = parseXml(bytes, part);
+		count += countTags(content, "ins") + countTags(content, "del");
+	}
+	return count;
+}
+
 function inspectPackage(pkg: Package): DocxFormatting {
 	const document = parseXml(pkg["word/document.xml"], "word/document.xml");
 	const sectPrs = findAll(document, "sectPr");
@@ -230,7 +241,7 @@ function inspectPackage(pkg: Package): DocxFormatting {
 		page: {
 			width: numberAttr(size, "w"),
 			height: numberAttr(size, "h"),
-			orientation: attr(size, "orient"),
+			orientation: size ? (attr(size, "orient") ?? "portrait") : undefined,
 		},
 		margins: Object.fromEntries(
 			["top", "bottom", "left", "right", "header", "footer", "gutter"]
@@ -247,7 +258,7 @@ function inspectPackage(pkg: Package): DocxFormatting {
 		comments: pkg["word/comments.xml"]
 			? countTags(parseXml(pkg["word/comments.xml"], "word/comments.xml"), "comment")
 			: 0,
-		trackedChanges: countTags(document, "ins") + countTags(document, "del"),
+		trackedChanges: countTrackedChanges(pkg, document),
 		metadata: coreMetadata(pkg),
 	};
 }
@@ -271,7 +282,11 @@ function ensureChild(parent: XmlObject, name: string, prefix: string): XmlObject
 	return child;
 }
 
-function patchPage(section: XmlObject, patch: NonNullable<DocxPatchSet["page"]>, prefix: string): void {
+function patchPage(
+	section: XmlObject,
+	patch: NonNullable<DocxPatchSet["page"]>,
+	prefix: string,
+): void {
 	const size = ensureChild(section, "pgSz", prefix);
 	const width = numberAttr(size, "w");
 	const height = numberAttr(size, "h");

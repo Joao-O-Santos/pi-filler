@@ -18,21 +18,24 @@ async function executable(path: string, content: string): Promise<void> {
 	await chmod(path, 0o755);
 }
 
-async function docxFixture(path: string): Promise<void> {
-	await writeFile(
-		path,
-		zipSync({
-			"[Content_Types].xml": xml(
-				'<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"/>',
-			),
-			"word/document.xml": xml(
-				'<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:sectPr><w:pgSz w:w="12240" w:h="15840"/></w:sectPr></w:body></w:document>',
-			),
-			"docProps/core.xml": xml(
-				'<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title xml:lang="en">Original</dc:title></cp:coreProperties>',
-			),
-		}),
-	);
+async function docxFixture(path: string, withHeaderRevision = false): Promise<void> {
+	const files: Record<string, Uint8Array> = {
+		"[Content_Types].xml": xml(
+			'<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"/>',
+		),
+		"word/document.xml": xml(
+			'<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:sectPr><w:pgSz w:w="12240" w:h="15840"/></w:sectPr></w:body></w:document>',
+		),
+		"docProps/core.xml": xml(
+			'<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title xml:lang="en">Original</dc:title></cp:coreProperties>',
+		),
+	};
+	if (withHeaderRevision) {
+		files["word/header1.xml"] = xml(
+			'<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p><w:ins w:id="1"><w:r><w:t>Added</w:t></w:r></w:ins></w:p></w:hdr>',
+		);
+	}
+	await writeFile(path, zipSync(files));
 }
 
 async function exists(path: string): Promise<boolean> {
@@ -179,6 +182,16 @@ test("DOCX inspection rejects malformed XML", async () => {
 		}),
 	);
 	await assert.rejects(() => inspectDocx(input), /Invalid XML in word\/document\.xml/);
+});
+
+test("DOCX inspection applies defaults and counts revisions outside the body", async () => {
+	const directory = await mkdtemp(join(tmpdir(), "pi-filler-audit-inspect-"));
+	const input = join(directory, "input.docx");
+	await docxFixture(input, true);
+
+	const formatting = await inspectDocx(input);
+	assert.equal(formatting.page.orientation, "portrait");
+	assert.equal(formatting.trackedChanges, 1);
 });
 
 test("DOCX patch rejects no-op and incompatible requests", async () => {
