@@ -17,7 +17,7 @@ test("PDF search honors page ranges and fixed-string mode", async () => {
 	const log = join(directory, "pdfgrep-args");
 	await executable(
 		join(directory, "pdfgrep"),
-		`#!/bin/sh\nprintf '%s\\n' "$@" > "$PDFGREP_LOG"\nprintf '2:Needle found\\n'\n`,
+		`#!/bin/sh\nprintf '%s\\n' "$@" > "$PDFGREP_LOG"\nprintf 'fixture.pdf:2:Needle found\\n'\n`,
 	);
 	const input = join(directory, "fixture.pdf");
 	await writeFile(input, "fixture");
@@ -35,7 +35,7 @@ test("PDF search honors page ranges and fixed-string mode", async () => {
 	});
 	assert.deepEqual(result.matches, [{ page: 2, text: "Needle found" }]);
 	const args = await readFile(log, "utf8");
-	assert.match(args, /--no-filename/);
+	assert.match(args, /--with-filename/);
 	assert.match(args, /--fixed-strings/);
 	assert.match(args, /--page-range\n2-4/);
 });
@@ -45,7 +45,7 @@ test("PDF search honors one-sided page ranges", async () => {
 	const log = join(directory, "pdfgrep-args");
 	await executable(
 		join(directory, "pdfgrep"),
-		`#!/bin/sh\nprintf '%s\\n' "$@" > "$PDFGREP_LOG"\nprintf '3:Needle found\\n'\n`,
+		`#!/bin/sh\nprintf '%s\\n' "$@" > "$PDFGREP_LOG"\nprintf 'fixture.pdf:3:Needle found\\n'\n`,
 	);
 	const input = join(directory, "fixture.pdf");
 	await writeFile(input, "fixture");

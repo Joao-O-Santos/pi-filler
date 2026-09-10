@@ -67,8 +67,8 @@ function parseSearchOutput(output: string): PdfSearchMatch[] {
 		.split(/\r?\n/)
 		.filter(Boolean)
 		.map((line) => {
-			const match = line.match(/^(\d+):(.*)$/);
-			if (!match) throw new Error(`Unexpected pdfgrep output: ${line}`);
+			const match = line.match(/:(\d+):(.*)$/);
+			if (!match) return { page: 0, text: line };
 			return { page: Number(match[1]), text: match[2] ?? "" };
 		});
 }
@@ -81,7 +81,7 @@ export async function searchPdf(
 	const args = [
 		"--color",
 		"never",
-		"--no-filename",
+		"--with-filename",
 		"--page-number",
 		...searchPageArgs(options),
 	];
