@@ -23,7 +23,7 @@ $(PUBLIC_DIR)/%.html: %.md templates/header.html templates/menu.html templates/f
 
 sync-static: | $(PUBLIC_DIR)
 	@cp -R $(STATIC_DIR)/. $(PUBLIC_DIR)/
-	@cp logo.svg $(PUBLIC_DIR)/logo.svg
+	@cp logo.png $(PUBLIC_DIR)/logo.png
 
 verify:
 	@npm run check

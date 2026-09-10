@@ -18,7 +18,7 @@
 	"files": [
 		"src",
 		"README.md",
-		"logo.svg",
+		"logo.png",
 		"LICENSE"
 	],
 	"scripts": {

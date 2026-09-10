@@ -1,6 +1,6 @@
 # pi-filler
 
-<p align="center"><img src="logo.svg" alt="pi-filler logo" width="220"></p>
+<p align="center"><img src="logo.png" alt="pi-filler logo" width="220"></p>
 
 Deterministic DOCX and PDF tooling for Pi.
 
