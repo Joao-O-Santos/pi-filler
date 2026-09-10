@@ -11,6 +11,75 @@ import { type DocxPatchSet, inspectDocx, patchDocx } from "./docx.js";
 import { readDocxText, searchDocx, writeDocx } from "./pandoc.js";
 import { readPdfText, renderPdfPages, searchPdf } from "./pdf.js";
 
+const docxPatchesSchema = Type.Object(
+	{
+		page: Type.Optional(
+			Type.Object(
+				{
+					width: Type.Optional(Type.Number()),
+					height: Type.Optional(Type.Number()),
+					orientation: Type.Optional(StringEnum(["portrait", "landscape"] as const)),
+				},
+				{ additionalProperties: false },
+			),
+		),
+		margins: Type.Optional(
+			Type.Object(
+				{
+					top: Type.Optional(Type.Number()),
+					bottom: Type.Optional(Type.Number()),
+					left: Type.Optional(Type.Number()),
+					right: Type.Optional(Type.Number()),
+					header: Type.Optional(Type.Number()),
+					footer: Type.Optional(Type.Number()),
+					gutter: Type.Optional(Type.Number()),
+				},
+				{ additionalProperties: false },
+			),
+		),
+		lineNumbering: Type.Optional(
+			Type.Object(
+				{
+					mode: Type.Optional(
+						StringEnum(["off", "continuous", "newPage", "newSection"] as const),
+					),
+					start: Type.Optional(Type.Number()),
+					count_by: Type.Optional(Type.Number()),
+				},
+				{ additionalProperties: false },
+			),
+		),
+		pageNumbering: Type.Optional(
+			Type.Object(
+				{
+					start: Type.Optional(Type.Number()),
+					format: Type.Optional(Type.String()),
+				},
+				{ additionalProperties: false },
+			),
+		),
+		metadata: Type.Optional(
+			Type.Object(
+				{
+					title: Type.Optional(Type.String()),
+					subject: Type.Optional(Type.String()),
+					creator: Type.Optional(Type.String()),
+					keywords: Type.Optional(Type.String()),
+					description: Type.Optional(Type.String()),
+					lastModifiedBy: Type.Optional(Type.String()),
+				},
+				{ additionalProperties: false },
+			),
+		),
+		clearCoreMetadata: Type.Optional(
+			Type.Boolean({
+				description: "Clear common fields in docProps/core.xml; not comment or revision authors",
+			}),
+		),
+	},
+	{ additionalProperties: false },
+);
+
 export const fillerSchema = Type.Object({
 	format: StringEnum(["docx", "pdf"] as const),
 	action: StringEnum(["read", "search", "write", "patch"] as const),
@@ -19,9 +88,9 @@ export const fillerSchema = Type.Object({
 	output: Type.Optional(Type.String({ description: "Output file or image prefix" })),
 	query: Type.Optional(Type.String({ description: "Search query" })),
 	reference_docx: Type.Optional(Type.String({ description: "Reference DOCX for writes" })),
-	patches: Type.Optional(Type.Unknown({ description: "Strict typed DOCX formatting patches" })),
+	patches: Type.Optional(docxPatchesSchema),
 	dry_run: Type.Optional(Type.Boolean({ description: "Validate and report without writing" })),
-	literal: Type.Optional(Type.Boolean({ description: "Treat a search query as literal text" })),
+	literal: Type.Optional(Type.Boolean({ description: "Treat a PDF search query as literal text" })),
 	ignore_case: Type.Optional(Type.Boolean({ description: "Ignore case while searching" })),
 	first_page: Type.Optional(Type.Integer({ minimum: 1 })),
 	last_page: Type.Optional(Type.Integer({ minimum: 1 })),
@@ -48,81 +117,6 @@ function validatePageRange(input: FillerInput): void {
 	) {
 		throw new Error("first_page cannot be greater than last_page");
 	}
-}
-
-function validatePatches(value: unknown): DocxPatchSet {
-	if (!value || typeof value !== "object" || Array.isArray(value)) {
-		throw new Error("DOCX patches must be an object");
-	}
-	const input = value as Record<string, unknown>;
-	const checkObject = (
-		name: string,
-		fields: Record<string, string>,
-	): Record<string, unknown> | undefined => {
-		const candidate = input[name];
-		if (candidate === undefined) return undefined;
-		if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) {
-			throw new Error(`DOCX ${name} patch must be an object`);
-		}
-		const object = candidate as Record<string, unknown>;
-		for (const key of Object.keys(object)) {
-			if (!(key in fields)) throw new Error(`Unknown DOCX patch: ${name}.${key}`);
-			if (typeof object[key] !== fields[key]) {
-				throw new Error(`DOCX ${name}.${key} must be ${fields[key]}`);
-			}
-		}
-		return object;
-	};
-	const allowed = new Set([
-		"page",
-		"margins",
-		"lineNumbering",
-		"pageNumbering",
-		"metadata",
-		"anonymize",
-	]);
-	for (const key of Object.keys(input))
-		if (!allowed.has(key)) throw new Error(`Unknown DOCX patch: ${key}`);
-	if (input.anonymize !== undefined && typeof input.anonymize !== "boolean") {
-		throw new Error("DOCX anonymize must be boolean");
-	}
-	const page = checkObject("page", { width: "number", height: "number", orientation: "string" });
-	if (
-		page?.orientation !== undefined &&
-		!["portrait", "landscape"].includes(page.orientation as string)
-	) {
-		throw new Error("DOCX page.orientation must be portrait or landscape");
-	}
-	checkObject("margins", {
-		top: "number",
-		bottom: "number",
-		left: "number",
-		right: "number",
-		header: "number",
-		footer: "number",
-		gutter: "number",
-	});
-	const line = checkObject("lineNumbering", {
-		mode: "string",
-		start: "number",
-		count_by: "number",
-	});
-	if (
-		line?.mode !== undefined &&
-		!["off", "continuous", "restart", "newPage"].includes(line.mode as string)
-	) {
-		throw new Error("DOCX lineNumbering.mode is invalid");
-	}
-	checkObject("pageNumbering", { start: "number", format: "string" });
-	checkObject("metadata", {
-		title: "string",
-		subject: "string",
-		creator: "string",
-		keywords: "string",
-		description: "string",
-		lastModifiedBy: "string",
-	});
-	return value as DocxPatchSet;
 }
 
 function assertSupported(input: FillerInput): void {
@@ -196,7 +190,7 @@ export async function executeFiller(
 		if (input.action === "patch") {
 			const output = normalizePath(input.output ?? "", cwd);
 			const result = await withFileMutationQueue(output, () =>
-				patchDocx(path, output, validatePatches(input.patches), input.dry_run),
+				patchDocx(path, output, input.patches as DocxPatchSet, input.dry_run),
 			);
 			return {
 				text: JSON.stringify(result, null, 2),

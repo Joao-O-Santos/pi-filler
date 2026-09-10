@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, rename, rm, stat } from "node:fs/promises";
+import { mkdir, rename, rm } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { type TruncationResult, truncateHead } from "@earendil-works/pi-coding-agent";
+import { inspectDocx } from "./docx.js";
 import { commandError, type RunCommandOptions, runCommand } from "./process.js";
 
 export interface DocxTextResult {
@@ -34,12 +35,16 @@ async function runPandoc(
 	return result.stdout;
 }
 
+async function extractDocxMarkdown(path: string, options?: RunCommandOptions): Promise<string> {
+	const output = await runPandoc(["--from=docx", "--to=gfm", "--wrap=none", path], options, path);
+	return output.toString("utf8");
+}
+
 export async function readDocxText(
 	path: string,
 	options?: RunCommandOptions,
 ): Promise<DocxTextResult> {
-	const output = await runPandoc(["--from=docx", "--to=gfm", "--wrap=none", path], options, path);
-	const truncation = truncateHead(output.toString("utf8"));
+	const truncation = truncateHead(await extractDocxMarkdown(path, options));
 	return { text: truncation.content, truncation };
 }
 
@@ -48,9 +53,9 @@ export async function searchDocx(
 	query: string,
 	options: RunCommandOptions & { ignoreCase?: boolean } = {},
 ): Promise<DocxSearchResult> {
-	const extracted = await readDocxText(path, options);
+	const extracted = await extractDocxMarkdown(path, options);
 	const needle = options.ignoreCase ? query.toLocaleLowerCase() : query;
-	const matches = extracted.text
+	const matches = extracted
 		.split(/\r?\n/)
 		.map((text, index) => ({ line: index + 1, text }))
 		.filter(({ text }) => {
@@ -71,7 +76,6 @@ export async function writeDocx(
 	outputPath: string,
 	options: WriteDocxOptions = {},
 ): Promise<void> {
-	const markdown = await readFile(sourcePath, "utf8");
 	const source = resolve(sourcePath);
 	const output = resolve(outputPath);
 	if (source === output) throw new Error("DOCX write output must differ from input");
@@ -82,15 +86,14 @@ export async function writeDocx(
 	await mkdir(dirname(output), { recursive: true });
 	const args = ["--from=gfm", "--to=docx", "--output", temporary];
 	if (options.referenceDocx) args.push("--reference-doc", options.referenceDocx);
-	args.push("-");
+	args.push(source);
 	try {
 		const result = await runCommand("pandoc", args, {
 			...options,
-			cwd: options.cwd ?? dirname(sourcePath),
-			input: markdown,
+			cwd: options.cwd ?? dirname(source),
 		});
 		if (result.code !== 0) throw commandError(result, "pandoc");
-		await stat(temporary);
+		await inspectDocx(temporary);
 		await rename(temporary, output);
 	} finally {
 		await rm(temporary, { force: true });

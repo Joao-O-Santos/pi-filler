@@ -10,6 +10,31 @@ import { readDocxText, searchDocx, writeDocx } from "../src/pandoc.js";
 import { readPdfText, renderPdfPages, searchPdf } from "../src/pdf.js";
 import { MissingExecutableError, runCommand } from "../src/process.js";
 
+async function writeFixture(path: string, wordPrefix = "w"): Promise<void> {
+	const xml = (value: string) => new TextEncoder().encode(`<?xml version="1.0"?>${value}`);
+	const w = wordPrefix;
+	const files = {
+		"[Content_Types].xml": xml(
+			'<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"/>',
+		),
+		"word/document.xml": xml(
+			`<${w}:document xmlns:${w}="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><${w}:body><${w}:p/><${w}:sectPr><${w}:pgSz ${w}:w="12240" ${w}:h="15840"/><${w}:pgMar ${w}:top="1440" ${w}:bottom="1440" ${w}:left="1440" ${w}:right="1440"/><${w}:lnNumType ${w}:restart="continuous"/><${w}:pgNumType ${w}:start="1" ${w}:fmt="decimal"/></${w}:sectPr></${w}:body></${w}:document>`,
+		),
+		"word/_rels/document.xml.rels": xml(
+			'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Target="media/image.png" Type="image"/></Relationships>',
+		),
+		"word/media/image.png": new Uint8Array([1, 2, 3]),
+		"word/comments.xml": xml(
+			`<${w}:comments xmlns:${w}="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><${w}:comment ${w}:id="0" ${w}:author="Alice"/></${w}:comments>`,
+		),
+		"docProps/core.xml": xml(
+			'<props:coreProperties xmlns:props="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:d="http://purl.org/dc/elements/1.1/"><d:title>Original</d:title><d:creator>Alice</d:creator><props:lastModifiedBy>Bob</props:lastModifiedBy></props:coreProperties>',
+		),
+		"custom/unknown.bin": new Uint8Array([9, 8, 7]),
+	};
+	await writeFile(path, zipSync(files));
+}
+
 async function fakeCommands(): Promise<{ directory: string; env: NodeJS.ProcessEnv }> {
 	const directory = await mkdtemp(join(tmpdir(), "pi-filler-test-"));
 	const script = async (name: string, body: string) => {
@@ -17,11 +42,11 @@ async function fakeCommands(): Promise<{ directory: string; env: NodeJS.ProcessE
 		await writeFile(path, `#!/bin/sh\n${body}\n`);
 		await chmod(path, 0o755);
 	};
-	await script("pdftotext", 'printf "first page\\nsecond page\\n"');
-	await script("pdfgrep", 'printf "fixture.pdf:2:Needle found\\n"');
+	await script("pdftotext", 'printf "%s\\n" "$@" > "$PDFTOTEXT_LOG"\nprintf "first page\\nsecond page\\n"');
+	await script("pdfgrep", 'printf "%s\\n" "$@" > "$PDFGREP_LOG"\nprintf "fixture.pdf:2:Needle found\\n"');
 	await script(
 		"pdftocairo",
-		'for arg do prefix="$arg"; done\ntouch "$prefix-1.png" "$prefix-2.png"',
+		'printf "%s\\n" "$@" > "$PDFTOCAIRO_LOG"\nfor arg do prefix="$arg"; done\ntouch "$prefix-10.png" "$prefix-2.png"',
 	);
 	await script(
 		"pandoc",
@@ -30,18 +55,28 @@ async function fakeCommands(): Promise<{ directory: string; env: NodeJS.ProcessE
 			'if [ "$1" = "--from=gfm" ]; then\n' +
 			'  previous=""\n' +
 			'  for arg do if [ "$previous" = "--output" ]; then output="$arg"; fi; previous="$arg"; done\n' +
-			'  cat > "$output"\n' +
+			'  if [ "$PANDOC_INVALID" = "1" ]; then printf "not docx" > "$output"; else cp "$PANDOC_DOCX_FIXTURE" "$output"; fi\n' +
+			'elif [ "$PANDOC_LONG" = "1" ]; then\n' +
+			'  head -c 60000 /dev/zero | tr "\\000" x\n' +
+			'  printf "\\nLate needle\\n"\n' +
 			"else\n" +
 			'  printf "# Heading\\nBody text\\nBody match\\n"\n' +
 			"fi",
 	);
-	const log = join(directory, "pandoc-args");
+	await script("slow-command", "sleep 1");
+	await script("large-command", "head -c 200000 /dev/zero");
+	const fixture = join(directory, "pandoc-output.docx");
+	await writeFixture(fixture);
 	return {
 		directory,
 		env: {
 			...process.env,
 			PATH: `${directory}:${process.env.PATH ?? ""}`,
-			PANDOC_LOG: log,
+			PANDOC_LOG: join(directory, "pandoc-args"),
+			PANDOC_DOCX_FIXTURE: fixture,
+			PDFTOTEXT_LOG: join(directory, "pdftotext-args"),
+			PDFGREP_LOG: join(directory, "pdfgrep-args"),
+			PDFTOCAIRO_LOG: join(directory, "pdftocairo-args"),
 		},
 	};
 }
@@ -64,6 +99,15 @@ test("reports missing executables clearly", async () => {
 	);
 });
 
+test("bounds and times out external commands", async () => {
+	const { env } = await fakeCommands();
+	await assert.rejects(() => runCommand("large-command", [], { env, maxBufferBytes: 1024 }), /exceeded/);
+	await assert.rejects(() => runCommand("slow-command", [], { env, timeoutMs: 10 }), /timed out/);
+	const controller = new AbortController();
+	controller.abort();
+	await assert.rejects(() => runCommand("slow-command", [], { env, signal: controller.signal }), /aborted/);
+});
+
 test("normalizes relative and @ paths", () => {
 	assert.equal(normalizePath("@docs/input.pdf", "/work/project"), "/work/project/docs/input.pdf");
 	assert.equal(normalizePath("/tmp/input.pdf", "/work/project"), "/tmp/input.pdf");
@@ -76,17 +120,24 @@ test("runs deterministic PDF commands", async () => {
 
 	const text = await readPdfText(input, { firstPage: 2, lastPage: 2 }, { env });
 	assert.equal(text.text, "first page\nsecond page\n");
+	assert.match(await readFile(env.PDFTOTEXT_LOG ?? "", "utf8"), /-f\n2\n-l\n2/);
 
-	const search = await searchPdf(input, "Needle", { env });
+	const search = await searchPdf(input, "Needle", { env, literal: true, ignoreCase: true });
 	assert.deepEqual(search.matches, [{ page: 2, text: "Needle found" }]);
 	assert.equal(search.text, "page 2: Needle found");
+	const searchArgs = await readFile(env.PDFGREP_LOG ?? "", "utf8");
+	assert.match(searchArgs, /--page-number/);
+	assert.match(searchArgs, /--ignore-case/);
 
+	const stale = join(directory, "render-99.png");
+	await writeFile(stale, "stale");
 	const images = await renderPdfPages(input, join(directory, "render"), {}, { env });
-	assert.deepEqual(images, [join(directory, "render-1.png"), join(directory, "render-2.png")]);
-	assert.equal(await readFile(images[0], "utf8"), "");
+	assert.deepEqual(images, [join(directory, "render-2.png"), join(directory, "render-10.png")]);
+	assert.equal(await statSafe(stale), false);
+	assert.match(await readFile(env.PDFTOCAIRO_LOG ?? "", "utf8"), /-png/);
 });
 
-test("reads and searches DOCX through Pandoc Markdown", async () => {
+test("reads and searches DOCX through full Pandoc output", async () => {
 	const { directory, env } = await fakeCommands();
 	const input = join(directory, "fixture.docx");
 	await writeFile(input, "fake docx");
@@ -95,11 +146,12 @@ test("reads and searches DOCX through Pandoc Markdown", async () => {
 	assert.equal(text.text, "# Heading\nBody text\nBody match\n");
 	const search = await searchDocx(input, "match", { env });
 	assert.deepEqual(search.matches, [{ line: 3, text: "Body match" }]);
-	assert.equal(search.text, "line 3: Body match");
-	assert.match(await readFile(env.PANDOC_LOG ?? "", "utf8"), /--to=gfm/);
+	const late = await searchDocx(input, "needle", { env: { ...env, PANDOC_LONG: "1" }, ignoreCase: true });
+	assert.equal(late.matches.length, 1);
+	assert.equal(late.matches[0]?.text, "Late needle");
 });
 
-test("writes Markdown to a transactional DOCX output", async () => {
+test("writes and validates transactional DOCX output", async () => {
 	const { directory, env } = await fakeCommands();
 	const source = join(directory, "source.md");
 	const output = join(directory, "nested", "result.docx");
@@ -110,11 +162,18 @@ test("writes Markdown to a transactional DOCX output", async () => {
 
 	await writeDocx(source, output, { env, referenceDocx: reference });
 	assert.equal(await readFile(source, "utf8"), markdown);
-	assert.equal(await readFile(output, "utf8"), markdown);
+	assert.equal((await inspectDocx(output)).metadata.title, "Original");
 	const args = await readFile(env.PANDOC_LOG ?? "", "utf8");
 	assert.match(args, /--from=gfm/);
-	assert.match(args, /--to=docx/);
 	assert.match(args, /--reference-doc/);
+	assert.match(args, /source\.md/);
+
+	const invalid = join(directory, "invalid.docx");
+	await assert.rejects(
+		() => writeDocx(source, invalid, { env: { ...env, PANDOC_INVALID: "1" } }),
+		/Invalid DOCX ZIP/,
+	);
+	assert.equal(await statSafe(invalid), false);
 });
 
 test("reports Pandoc failures and rejects DOCX input/output identity", async () => {
@@ -132,35 +191,11 @@ test("reports Pandoc failures and rejects DOCX input/output identity", async () 
 	);
 });
 
-async function writeFixture(path: string): Promise<void> {
-	const xml = (value: string) => new TextEncoder().encode(`<?xml version="1.0"?>${value}`);
-	const files = {
-		"[Content_Types].xml": xml(
-			'<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"/>',
-		),
-		"word/document.xml": xml(
-			'<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p/><w:sectPr><w:pgSz w:w="12240" w:h="15840"/><w:pgMar w:top="1440" w:bottom="1440" w:left="1440" w:right="1440"/><w:lnNumType w:restart="continuous"/><w:pgNumType w:start="1" w:fmt="decimal"/></w:sectPr></w:body></w:document>',
-		),
-		"word/_rels/document.xml.rels": xml(
-			'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Target="media/image.png" Type="image"/></Relationships>',
-		),
-		"word/media/image.png": new Uint8Array([1, 2, 3]),
-		"word/comments.xml": xml(
-			'<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:comment w:id="0"/></w:comments>',
-		),
-		"docProps/core.xml": xml(
-			'<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>Original</dc:title><dc:creator>Alice</dc:creator></cp:coreProperties>',
-		),
-		"custom/unknown.bin": new Uint8Array([9, 8, 7]),
-	};
-	await writeFile(path, zipSync(files));
-}
-
 test("inspects and patches DOCX OOXML while preserving unknown parts", async () => {
 	const directory = await mkdtemp(join(tmpdir(), "pi-filler-ooxml-"));
 	const input = join(directory, "input.docx");
 	const output = join(directory, "output.docx");
-	await writeFixture(input);
+	await writeFixture(input, "x");
 	const before = await inspectDocx(input);
 	assert.equal(before.sectionCount, 1);
 	assert.equal(before.page.width, 12240);
@@ -173,8 +208,9 @@ test("inspects and patches DOCX OOXML while preserving unknown parts", async () 
 		{
 			page: { orientation: "landscape", width: 15840, height: 12240 },
 			margins: { top: 720, bottom: 720 },
-			lineNumbering: { mode: "restart", start: 1, count_by: 5 },
+			lineNumbering: { mode: "newSection", start: 1, count_by: 5 },
 			pageNumbering: { start: 3, format: "upperRoman" },
+			clearCoreMetadata: true,
 			metadata: { title: "Changed" },
 		},
 		true,
@@ -186,8 +222,9 @@ test("inspects and patches DOCX OOXML while preserving unknown parts", async () 
 	const result = await patchDocx(input, output, {
 		page: { orientation: "landscape", width: 15840, height: 12240 },
 		margins: { top: 720, bottom: 720 },
-		lineNumbering: { mode: "restart", start: 1, count_by: 5 },
+		lineNumbering: { mode: "newSection", start: 1, count_by: 5 },
 		pageNumbering: { start: 3, format: "upperRoman" },
+		clearCoreMetadata: true,
 		metadata: { title: "Changed" },
 	});
 	assert.equal(result.written, true);
@@ -195,31 +232,41 @@ test("inspects and patches DOCX OOXML while preserving unknown parts", async () 
 	const after = await inspectDocx(output);
 	assert.equal(after.page.orientation, "landscape");
 	assert.equal(after.margins.top, 720);
+	assert.equal(after.lineNumbering.mode, "newSection");
 	assert.equal(after.lineNumbering.count_by, 5);
 	assert.equal(after.pageNumbering.format, "upperRoman");
 	assert.equal(after.metadata.title, "Changed");
+	assert.equal(after.metadata.creator, "");
+	assert.equal(after.metadata.lastModifiedBy, "");
 });
 
-test("rejects unknown OOXML patches and invalid packages", async () => {
-	const directory = await mkdtemp(join(tmpdir(), "pi-filler-ooxml-invalid-"));
-	const input = join(directory, "input.docx");
+test("validates every internal relationship target", async () => {
+	const directory = await mkdtemp(join(tmpdir(), "pi-filler-rels-"));
+	const input = join(directory, "broken.docx");
 	await writeFixture(input);
-	await assert.rejects(
-		() =>
-			executeFiller(
-				{
-					format: "docx",
-					action: "patch",
-					path: input,
-					output: join(directory, "out.docx"),
-					patches: { unknown: true },
-				},
-				directory,
-			),
-		/Unknown DOCX patch/,
+	const files = unzipSync(new Uint8Array(await readFile(input)));
+	files["word/_rels/header1.xml.rels"] = new TextEncoder().encode(
+		'<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Target="media/missing.png" Type="image"/></Relationships>',
 	);
+	await writeFile(input, zipSync(files));
+	await assert.rejects(() => inspectDocx(input), /relationship target is missing/);
+});
+
+test("rejects invalid packages and unsupported combinations", async () => {
+	const directory = await mkdtemp(join(tmpdir(), "pi-filler-invalid-"));
 	await writeFile(join(directory, "bad.docx"), "not zip");
 	await assert.rejects(() => inspectDocx(join(directory, "bad.docx")), /Invalid DOCX ZIP/);
+
+	const pdf = join(directory, "fixture.pdf");
+	await writeFile(pdf, "not a real PDF");
+	await assert.rejects(
+		() => executeFiller({ format: "pdf", action: "write", path: pdf }, directory),
+		/PDF write and patch operations are not supported/,
+	);
+	await assert.rejects(
+		() => executeFiller({ format: "pdf", action: "read", path: pdf }, directory),
+		/PDF read requires view=text or view=image/,
+	);
 });
 
 async function statSafe(path: string): Promise<boolean> {
@@ -234,17 +281,3 @@ async function statSafe(path: string): Promise<boolean> {
 async function unzipUnknown(path: string): Promise<number[]> {
 	return Array.from(unzipSync(new Uint8Array(await readFile(path)))["custom/unknown.bin"]);
 }
-
-test("dispatches PDF operations and rejects unsupported combinations", async () => {
-	const { directory } = await fakeCommands();
-	const input = join(directory, "fixture.pdf");
-	await writeFile(input, "not a real PDF");
-	await assert.rejects(
-		() => executeFiller({ format: "pdf", action: "write", path: input }, directory),
-		/PDF write and patch operations are not supported/,
-	);
-	await assert.rejects(
-		() => executeFiller({ format: "pdf", action: "read", path: input }, directory),
-		/PDF read requires view=text or view=image/,
-	);
-});

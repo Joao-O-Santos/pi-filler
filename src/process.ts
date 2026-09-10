@@ -1,6 +1,7 @@
-import { spawn } from "node:child_process";
+import { execFile } from "node:child_process";
 
 export const DEFAULT_COMMAND_TIMEOUT_MS = 30_000;
+export const DEFAULT_COMMAND_MAX_BUFFER_BYTES = 10 * 1024 * 1024;
 
 export interface CommandResult {
 	stdout: Buffer;
@@ -21,10 +22,15 @@ export class MissingExecutableError extends Error {
 export interface RunCommandOptions {
 	cwd?: string;
 	env?: NodeJS.ProcessEnv;
-	input?: string | Buffer;
 	signal?: AbortSignal;
 	timeoutMs?: number;
+	maxBufferBytes?: number;
 }
+
+type ExecFailure = Error & {
+	code?: string | number | null;
+	killed?: boolean;
+};
 
 export function runCommand(
 	executable: string,
@@ -32,48 +38,42 @@ export function runCommand(
 	options: RunCommandOptions = {},
 ): Promise<CommandResult> {
 	return new Promise((resolve, reject) => {
-		if (options.signal?.aborted) {
-			reject(new Error("Operation aborted"));
-			return;
-		}
+		execFile(
+			executable,
+			[...args],
+			{
+				cwd: options.cwd,
+				env: options.env,
+				signal: options.signal,
+				timeout: options.timeoutMs ?? DEFAULT_COMMAND_TIMEOUT_MS,
+				maxBuffer: options.maxBufferBytes ?? DEFAULT_COMMAND_MAX_BUFFER_BYTES,
+				killSignal: "SIGTERM",
+				encoding: null,
+			},
+			(error, stdout, stderr) => {
+				if (!error) {
+					resolve({ stdout, stderr, code: 0 });
+					return;
+				}
 
-		const child = spawn(executable, args, {
-			cwd: options.cwd,
-			env: options.env,
-			stdio: ["pipe", "pipe", "pipe"],
-		});
-		const stdout: Buffer[] = [];
-		const stderr: Buffer[] = [];
-		let settled = false;
-		let timedOut = false;
-
-		const finish = (callback: () => void) => {
-			if (settled) return;
-			settled = true;
-			if (timer) clearTimeout(timer);
-			options.signal?.removeEventListener("abort", onAbort);
-			callback();
-		};
-		const onAbort = () => {
-			child.kill();
-			finish(() => reject(new Error("Operation aborted")));
-		};
-		const timer = setTimeout(() => {
-			timedOut = true;
-			child.kill();
-		}, options.timeoutMs ?? DEFAULT_COMMAND_TIMEOUT_MS);
-
-		child.stdout.on("data", (chunk: Buffer) => stdout.push(chunk));
-		child.stderr.on("data", (chunk: Buffer) => stderr.push(chunk));
-		child.on("error", (error: NodeJS.ErrnoException) => {
-			finish(() => {
-				if (error.code === "ENOENT") reject(new MissingExecutableError(executable));
-				else reject(new Error(`Failed to run ${executable}: ${error.message}`));
-			});
-		});
-		child.on("close", (code) => {
-			finish(() => {
-				if (timedOut) {
+				const failure = error as ExecFailure;
+				if (failure.code === "ENOENT") {
+					reject(new MissingExecutableError(executable));
+					return;
+				}
+				if (failure.code === "ABORT_ERR") {
+					reject(new Error("Operation aborted"));
+					return;
+				}
+				if (failure.code === "ERR_CHILD_PROCESS_STDIO_MAXBUFFER") {
+					reject(
+						new Error(
+							`${executable} output exceeded ${options.maxBufferBytes ?? DEFAULT_COMMAND_MAX_BUFFER_BYTES} bytes`,
+						),
+					);
+					return;
+				}
+				if (failure.killed) {
 					reject(
 						new Error(
 							`${executable} timed out after ${options.timeoutMs ?? DEFAULT_COMMAND_TIMEOUT_MS}ms`,
@@ -81,13 +81,13 @@ export function runCommand(
 					);
 					return;
 				}
-				resolve({ stdout: Buffer.concat(stdout), stderr: Buffer.concat(stderr), code: code ?? -1 });
-			});
-		});
-
-		options.signal?.addEventListener("abort", onAbort, { once: true });
-		if (options.input !== undefined) child.stdin.end(options.input);
-		else child.stdin.end();
+				if (typeof failure.code === "number") {
+					resolve({ stdout, stderr, code: failure.code });
+					return;
+				}
+				reject(new Error(`Failed to run ${executable}: ${failure.message}`));
+			},
+		);
 	});
 }
 

@@ -1,4 +1,4 @@
-import { mkdir, readdir, stat } from "node:fs/promises";
+import { mkdir, readdir, rm, stat } from "node:fs/promises";
 import { basename, dirname, extname, join, resolve } from "node:path";
 import { type TruncationResult, truncateHead } from "@earendil-works/pi-coding-agent";
 import { commandError, type RunCommandOptions, runCommand } from "./process.js";
@@ -98,6 +98,20 @@ async function outputPrefix(output: string, sourcePath: string): Promise<string>
 	return absolute.replace(/\.png$/i, "");
 }
 
+function generatedPage(name: string, prefixName: string): number | undefined {
+	if (name === `${prefixName}.png`) return 1;
+	const match = name.match(new RegExp(`^${escapeRegex(prefixName)}-(\\d+)\\.png$`));
+	return match ? Number(match[1]) : undefined;
+}
+
+async function clearGenerated(directory: string, prefixName: string): Promise<void> {
+	for (const name of await readdir(directory)) {
+		if (generatedPage(name, prefixName) !== undefined) {
+			await rm(join(directory, name), { force: true });
+		}
+	}
+}
+
 export async function renderPdfPages(
 	path: string,
 	output: string,
@@ -105,17 +119,22 @@ export async function renderPdfPages(
 	options?: RunCommandOptions,
 ): Promise<string[]> {
 	const prefix = await outputPrefix(output, path);
-	const args = ["-png", ...pageArgs(range), path, prefix];
-	const result = await runCommand("pdftocairo", args, commandOptions(options, dirname(path)));
-	if (result.code !== 0) throw commandError(result, "pdftocairo");
-
 	const directory = dirname(prefix);
 	const prefixName = basename(prefix);
-	const generated = (await readdir(directory))
-		.filter((name) => name.startsWith(`${prefixName}-`) && name.endsWith(".png"))
-		.map((name) => join(directory, name));
-	if (generated.length > 0) return generated.sort();
+	await clearGenerated(directory, prefixName);
 
-	const single = `${prefix}.png`;
-	return [single];
+	const result = await runCommand(
+		"pdftocairo",
+		["-png", ...pageArgs(range), path, prefix],
+		commandOptions(options, dirname(path)),
+	);
+	if (result.code !== 0) throw commandError(result, "pdftocairo");
+
+	const generated = (await readdir(directory))
+		.map((name) => ({ name, page: generatedPage(name, prefixName) }))
+		.filter((entry): entry is { name: string; page: number } => entry.page !== undefined)
+		.sort((a, b) => a.page - b.page)
+		.map(({ name }) => join(directory, name));
+	if (generated.length === 0) throw new Error("pdftocairo produced no PNG files");
+	return generated;
 }
