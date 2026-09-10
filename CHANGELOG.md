@@ -20,6 +20,12 @@
 - Search DOCX against the full extraction before truncating results.
 - Use Node.js `execFile` for bounded command execution, cancellation,
   and finite timeouts.
+- Terminate timed-out external commands even when they ignore
+  `SIGTERM`.
+- Honor PDF page ranges during search and use pdfgrep's native
+  fixed-string mode for literal queries.
+- Reject unsupported PDF search views instead of silently accepting
+  them.
 - Standardize line-number restart modes on OOXML values.
 - Rename the misleading anonymization option to `clearCoreMetadata`.
 - Make Word-attribute handling tolerant of alternate namespace prefixes.

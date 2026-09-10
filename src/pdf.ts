@@ -23,11 +23,20 @@ export interface PdfSearchResult {
 	text: string;
 }
 
+const PDFGREP_MAX_PAGE = 2_147_483_647;
+
 function pageArgs(range: PageRange): string[] {
 	const args: string[] = [];
 	if (range.firstPage !== undefined) args.push("-f", String(range.firstPage));
 	if (range.lastPage !== undefined) args.push("-l", String(range.lastPage));
 	return args;
+}
+
+function searchPageArgs(range: PageRange): string[] {
+	if (range.firstPage === undefined && range.lastPage === undefined) return [];
+	const first = range.firstPage ?? 1;
+	const last = range.lastPage ?? PDFGREP_MAX_PAGE;
+	return ["--page-range", first === last ? String(first) : `${first}-${last}`];
 }
 
 function commandOptions(options: RunCommandOptions | undefined, cwd: string): RunCommandOptions {
@@ -58,8 +67,8 @@ function parseSearchOutput(output: string): PdfSearchMatch[] {
 		.split(/\r?\n/)
 		.filter(Boolean)
 		.map((line) => {
-			const match = line.match(/:(\d+):(.*)$/);
-			if (!match) return { page: 0, text: line };
+			const match = line.match(/^(\d+):(.*)$/);
+			if (!match) throw new Error(`Unexpected pdfgrep output: ${line}`);
 			return { page: Number(match[1]), text: match[2] ?? "" };
 		});
 }
@@ -67,12 +76,18 @@ function parseSearchOutput(output: string): PdfSearchMatch[] {
 export async function searchPdf(
 	path: string,
 	query: string,
-	options: RunCommandOptions & { ignoreCase?: boolean; literal?: boolean } = {},
+	options: RunCommandOptions & PageRange & { ignoreCase?: boolean; literal?: boolean } = {},
 ): Promise<PdfSearchResult> {
-	const pattern = options.literal ? escapeRegex(query) : query;
-	const args = ["--color", "never", "--with-filename", "--page-number"];
+	const args = [
+		"--color",
+		"never",
+		"--no-filename",
+		"--page-number",
+		...searchPageArgs(options),
+	];
 	if (options.ignoreCase) args.push("--ignore-case");
-	args.push("--", pattern, path);
+	if (options.literal) args.push("--fixed-strings");
+	args.push("--", query, path);
 	const result = await runCommand("pdfgrep", args, commandOptions(options, dirname(path)));
 	if (result.code !== 0 && result.code !== 1) throw commandError(result, "pdfgrep");
 	const matches = parseSearchOutput(result.stdout.toString("utf8"));

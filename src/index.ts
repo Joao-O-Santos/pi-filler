@@ -143,8 +143,8 @@ function assertSupported(input: FillerInput): void {
 	if (input.action === "read" && input.view !== "text" && input.view !== "image") {
 		throw new Error("PDF read requires view=text or view=image");
 	}
-	if (input.action === "search" && input.view === "image") {
-		throw new Error("PDF search does not support view=image");
+	if (input.action === "search" && input.view !== undefined && input.view !== "text") {
+		throw new Error("PDF search requires view=text or no view");
 	}
 	if (input.action === "write" || input.action === "patch") {
 		throw new Error("PDF write and patch operations are not supported");
@@ -215,6 +215,7 @@ export async function executeFiller(
 	const range = { firstPage: input.first_page, lastPage: input.last_page };
 	if (input.action === "search") {
 		const result = await searchPdf(path, input.query ?? "", {
+			...range,
 			ignoreCase: input.ignore_case,
 			literal: input.literal,
 			signal,

@@ -47,7 +47,7 @@ export function runCommand(
 				signal: options.signal,
 				timeout: options.timeoutMs ?? DEFAULT_COMMAND_TIMEOUT_MS,
 				maxBuffer: options.maxBufferBytes ?? DEFAULT_COMMAND_MAX_BUFFER_BYTES,
-				killSignal: "SIGTERM",
+				killSignal: "SIGKILL",
 				encoding: null,
 			},
 			(error, stdout, stderr) => {
