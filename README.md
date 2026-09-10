@@ -25,7 +25,8 @@ view: text | formatting | image
 ```
 
 Unsupported combinations and operation-irrelevant parameters fail
-explicitly.
+explicitly. DOCX patching also accepts `dry_run: true` to validate and
+report the requested result without writing the output file.
 
 ## PDF
 
@@ -50,10 +51,11 @@ explicitly.
   This does **not** remove comment authors, revision authors, or every
   possible identity-bearing property in a DOCX.
 
-DOCX patches affect the first section only. Untouched ZIP package parts
-remain content-identical. XML parts that are edited are parsed and
-serialized again, so lexical formatting, prefix choices, or element
-ordering inside those edited parts may change.
+Page setup, margins, line numbering, and page numbering patches affect
+the first section only. Core-metadata patches are document-level.
+Untouched ZIP package parts remain content-identical. XML parts that are
+edited are parsed and serialized again, so lexical formatting, prefix
+choices, or element ordering inside those edited parts may change.
 
 ## External tools
 
