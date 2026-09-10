@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">pi-filler logo</title>
+  <desc id="desc">A round emblem showing a piping bag filling a pie with document pages.</desc>
+  <circle cx="256" cy="256" r="238" fill="#f7efe0" stroke="#25242a" stroke-width="20"/>
+
+  <g transform="translate(0 8)">
+    <path d="M315 89c29 7 60 24 80 45l-61 88-57-40z" fill="#6f8fb3" stroke="#25242a" stroke-width="12" stroke-linejoin="round"/>
+    <path d="M334 222l-20 30-27-19 20-30z" fill="#f4d5a7" stroke="#25242a" stroke-width="10" stroke-linejoin="round"/>
+    <path d="M314 252c-13 14-22 28-28 43" fill="none" stroke="#25242a" stroke-width="10" stroke-linecap="round"/>
+
+    <g transform="rotate(-10 268 266)">
+      <rect x="225" y="211" width="72" height="92" rx="8" fill="#ffffff" stroke="#25242a" stroke-width="9"/>
+      <path d="M243 235h36M243 254h30M243 273h36" stroke="#6f8fb3" stroke-width="8" stroke-linecap="round"/>
+      <path d="M275 211v24h22" fill="#dce8f4" stroke="#25242a" stroke-width="7" stroke-linejoin="round"/>
+    </g>
+
+    <g transform="rotate(9 202 278)">
+      <rect x="167" y="226" width="70" height="88" rx="8" fill="#ffffff" stroke="#25242a" stroke-width="9"/>
+      <path d="M185 251h34M185 270h28M185 289h34" stroke="#c86455" stroke-width="8" stroke-linecap="round"/>
+      <path d="M215 226v23h22" fill="#f4ded9" stroke="#25242a" stroke-width="7" stroke-linejoin="round"/>
+    </g>
+
+    <path d="M129 323c18-39 66-65 127-65s109 26 127 65l-21 89H150z" fill="#d9a45f" stroke="#25242a" stroke-width="12" stroke-linejoin="round"/>
+    <path d="M130 323c33 14 70 21 126 21s94-7 127-21" fill="none" stroke="#25242a" stroke-width="12" stroke-linecap="round"/>
+    <path d="M158 371h196" stroke="#b6783d" stroke-width="12" stroke-linecap="round"/>
+    <path d="M178 408h156" stroke="#b6783d" stroke-width="10" stroke-linecap="round"/>
+
+    <text x="256" y="405" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="112" font-weight="700" fill="#25242a">π</text>
+  </g>
+</svg>
