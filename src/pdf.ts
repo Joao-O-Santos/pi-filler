@@ -13,13 +13,8 @@ export interface PdfTextResult {
 	truncation: TruncationResult;
 }
 
-export interface PdfSearchMatch {
-	page: number;
-	text: string;
-}
-
 export interface PdfSearchResult {
-	matches: PdfSearchMatch[];
+	matchCount: number;
 	text: string;
 }
 
@@ -63,14 +58,14 @@ function escapeRegex(value: string): string {
 	return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function parseSearchOutput(output: string): PdfSearchMatch[] {
+function parseSearchOutput(output: string): string[] {
 	return output
 		.split(/\r?\n/)
 		.filter(Boolean)
 		.map((line) => {
 			const match = line.match(/:(\d+):(.*)$/);
-			if (!match) return { page: 0, text: line };
-			return { page: Number(match[1]), text: match[2] ?? "" };
+			if (!match) throw new Error(`Unexpected pdfgrep output: ${line}`);
+			return `page ${match[1]}: ${match[2] ?? ""}`;
 		});
 }
 
@@ -87,10 +82,7 @@ export async function searchPdf(
 	const result = await runCommand("pdfgrep", args, commandOptions(options, dirname(source)));
 	if (result.code !== 0 && result.code !== 1) throw commandError(result, "pdfgrep");
 	const matches = parseSearchOutput(result.stdout.toString("utf8"));
-	return {
-		matches,
-		text: matches.map((match) => `page ${match.page}: ${match.text}`).join("\n"),
-	};
+	return { matchCount: matches.length, text: matches.join("\n") };
 }
 
 async function outputPrefix(output: string, sourcePath: string): Promise<string> {

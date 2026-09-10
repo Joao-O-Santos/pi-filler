@@ -68,7 +68,8 @@ test("PDF search honors page ranges and fixed-string mode", async () => {
 		firstPage: 2,
 		lastPage: 4,
 	});
-	assert.deepEqual(result.matches, [{ page: 2, text: "Needle found" }]);
+	assert.equal(result.matchCount, 1);
+	assert.equal(result.text, "page 2: Needle found");
 	const args = await readFile(log, "utf8");
 	assert.match(args, /--with-filename/);
 	assert.match(args, /--fixed-strings/);
@@ -92,6 +93,16 @@ test("PDF search honors one-sided page ranges", async () => {
 
 	await searchPdf(input, "Needle", { env, firstPage: 3 });
 	assert.match(await readFile(log, "utf8"), /--page-range\n3-2147483647/);
+});
+
+test("PDF search rejects malformed command output", async () => {
+	const directory = await mkdtemp(join(tmpdir(), "pi-filler-audit-output-"));
+	await executable(join(directory, "pdfgrep"), "#!/bin/sh\nprintf 'unexpected\\n'\n");
+	const input = join(directory, "fixture.pdf");
+	await writeFile(input, "fixture");
+	const env = { ...process.env, PATH: `${directory}:${process.env.PATH ?? ""}` };
+
+	await assert.rejects(() => searchPdf(input, "Needle", { env }), /Unexpected pdfgrep output/);
 });
 
 test("failed PDF rendering preserves previous output", async () => {

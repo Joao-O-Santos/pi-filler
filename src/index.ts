@@ -105,10 +105,7 @@ export const fillerSchema = Type.Object(
 
 export type FillerInput = Static<typeof fillerSchema>;
 
-type ControlField = Exclude<
-	keyof FillerInput,
-	"format" | "action" | "view" | "path"
->;
+type ControlField = Exclude<keyof FillerInput, "format" | "action" | "view" | "path">;
 
 const controlFields: ControlField[] = [
 	"output",
@@ -237,7 +234,7 @@ export async function executeFiller(
 			});
 			return {
 				text: result.text || "No matches found",
-				details: { matches: result.matches, truncation: result.truncation },
+				details: { matchCount: result.matchCount, truncation: result.truncation },
 			};
 		}
 		if (input.action === "patch") {
@@ -275,7 +272,7 @@ export async function executeFiller(
 			text: truncation.truncated
 				? `${truncation.content}\n\n[Search output truncated at ${DEFAULT_MAX_BYTES} bytes]`
 				: truncation.content || "No matches found",
-			details: { matches: result.matches, truncation },
+			details: { matchCount: result.matchCount, truncation },
 		};
 	}
 	if (input.view === "text") {

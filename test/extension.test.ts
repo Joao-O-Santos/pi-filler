@@ -163,7 +163,8 @@ test("runs deterministic PDF commands", async () => {
 		literal: true,
 		ignoreCase: true,
 	});
-	assert.deepEqual(search.matches, [{ page: 2, text: "Needle found" }]);
+	assert.equal(search.matchCount, 1);
+	assert.equal(search.text, "page 2: Needle found");
 	const searchArgs = await readFile(env.PDFGREP_LOG ?? "", "utf8");
 	assert.match(searchArgs, /--page-number/);
 	assert.match(searchArgs, /--ignore-case/);
@@ -184,13 +185,14 @@ test("reads and searches DOCX through full Pandoc output", async () => {
 	const text = await readDocxText(input, { env });
 	assert.equal(text.text, "# Heading\nBody text\nBody match\n");
 	const search = await searchDocx(input, "match", { env });
-	assert.deepEqual(search.matches, [{ line: 3, text: "Body match" }]);
+	assert.equal(search.matchCount, 1);
+	assert.equal(search.text, "line 3: Body match");
 	const late = await searchDocx(input, "needle", {
 		env: { ...env, PANDOC_LONG: "1" },
 		ignoreCase: true,
 	});
-	assert.equal(late.matches.length, 1);
-	assert.equal(late.matches[0]?.text, "Late needle");
+	assert.equal(late.matchCount, 1);
+	assert.equal(late.text, "line 2: Late needle");
 });
 
 test("writes and validates transactional DOCX output", async () => {

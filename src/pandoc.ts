@@ -10,13 +10,8 @@ export interface DocxTextResult {
 	truncation: TruncationResult;
 }
 
-export interface DocxSearchMatch {
-	line: number;
-	text: string;
-}
-
 export interface DocxSearchResult {
-	matches: DocxSearchMatch[];
+	matchCount: number;
 	text: string;
 	truncation: TruncationResult;
 }
@@ -60,16 +55,13 @@ export async function searchDocx(
 ): Promise<DocxSearchResult> {
 	const extracted = await extractDocxMarkdown(path, options);
 	const needle = options.ignoreCase ? query.toLocaleLowerCase() : query;
-	const matches = extracted
-		.split(/\r?\n/)
-		.map((text, index) => ({ line: index + 1, text }))
-		.filter(({ text }) => {
-			const haystack = options.ignoreCase ? text.toLocaleLowerCase() : text;
-			return haystack.includes(needle);
-		});
-	const result = matches.map((match) => `line ${match.line}: ${match.text}`).join("\n");
-	const truncation = truncateHead(result);
-	return { matches, text: truncation.content, truncation };
+	const matches: string[] = [];
+	for (const [index, text] of extracted.split(/\r?\n/).entries()) {
+		const haystack = options.ignoreCase ? text.toLocaleLowerCase() : text;
+		if (haystack.includes(needle)) matches.push(`line ${index + 1}: ${text}`);
+	}
+	const truncation = truncateHead(matches.join("\n"));
+	return { matchCount: matches.length, text: truncation.content, truncation };
 }
 
 export interface WriteDocxOptions extends RunCommandOptions {
