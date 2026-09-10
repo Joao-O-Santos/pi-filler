@@ -367,8 +367,15 @@ function validateRequested(formatting: DocxFormatting, patch: DocxPatchSet): voi
 			}
 		}
 	}
-	if (patch.clearCoreMetadata && Object.values(formatting.metadata).some(Boolean)) {
-		throw new Error("DOCX core metadata clearing validation failed");
+	if (patch.clearCoreMetadata) {
+		for (const name of Object.keys(metadataNamespaces)) {
+			if (patch.metadata?.[name as keyof NonNullable<DocxPatchSet["metadata"]>] !== undefined) {
+				continue;
+			}
+			if (formatting.metadata[name]) {
+				throw new Error(`DOCX core metadata clearing validation failed for ${name}`);
+			}
+		}
 	}
 }
 

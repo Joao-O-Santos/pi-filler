@@ -10,8 +10,8 @@ import { readDocxText, searchDocx, writeDocx } from "../src/pandoc.js";
 import { readPdfText, renderPdfPages, searchPdf } from "../src/pdf.js";
 import { MissingExecutableError, runCommand } from "../src/process.js";
 
-function xml(value: string): Uint8Array {
-	return new TextEncoder().encode(`<?xml version="1.0"?>${value}`);
+function xml(value: string): Uint8Array<ArrayBuffer> {
+	return Uint8Array.from(new TextEncoder().encode(`<?xml version="1.0"?>${value}`));
 }
 
 async function writeFixture(path: string, wordPrefix = "w"): Promise<void> {
@@ -26,14 +26,14 @@ async function writeFixture(path: string, wordPrefix = "w"): Promise<void> {
 		"word/_rels/document.xml.rels": xml(
 			'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Target="media/image.png" Type="image"/></Relationships>',
 		),
-		"word/media/image.png": new Uint8Array([1, 2, 3]),
+		"word/media/image.png": Uint8Array.from([1, 2, 3]),
 		"word/comments.xml": xml(
 			`<${w}:comments xmlns:${w}="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><${w}:comment ${w}:id="0" ${w}:author="Alice"/></${w}:comments>`,
 		),
 		"docProps/core.xml": xml(
 			'<props:coreProperties xmlns:props="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:d="http://purl.org/dc/elements/1.1/"><d:title>Original</d:title><d:creator>Alice</d:creator><props:lastModifiedBy>Bob</props:lastModifiedBy></props:coreProperties>',
 		),
-		"custom/unknown.bin": new Uint8Array([9, 8, 7]),
+		"custom/unknown.bin": Uint8Array.from([9, 8, 7]),
 	};
 	await writeFile(path, zipSync(files));
 }
