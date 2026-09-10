@@ -7,12 +7,13 @@ inspectable.
 
 ## Model-facing API
 
-The extension exposes one `filler` tool. Its main dimensions are document
-format, action, and view rather than a collection of unrelated tools.
+The extension exposes one `filler` tool. Its main dimensions are
+document format, action, and view rather than a collection of unrelated
+tools.
 
 The intended surface is:
 
-```text
+``` text
 filler
 format: docx | pdf
 action: read | search | write | patch

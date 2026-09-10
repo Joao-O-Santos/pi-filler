@@ -25,37 +25,29 @@ release notes.
 
 ## Supported operations
 
-**PDF:**
-- Read and extract text with optional page ranges
-- Search with literal or regular-expression queries and page-aware results
-- Render selected pages to PNG images
+**PDF:** - Read and extract text with optional page ranges - Search with
+literal or regular-expression queries and page-aware results - Render
+selected pages to PNG images
 
-**DOCX:**
-- Read and extract text through Pandoc
-- Search extracted text (case-insensitive, line-based)
-- Generate from Markdown with optional reference.docx
-- Inspect formatting state (page size/orientation, margins, sections, line
-  numbering, page numbering, comments, tracked changes, core metadata)
-- Apply typed formatting patches: page setup, margins, line numbering mode,
-  page numbering start/format, core metadata, anonymization
-- Preserve all untouched package parts
+**DOCX:** - Read and extract text through Pandoc - Search extracted text
+(case-insensitive, line-based) - Generate from Markdown with optional
+reference.docx - Inspect formatting state (page size/orientation,
+margins, sections, line numbering, page numbering, comments, tracked
+changes, core metadata) - Apply typed formatting patches: page setup,
+margins, line numbering mode, page numbering start/format, core
+metadata, anonymization - Preserve all untouched package parts
 
-**Constraints:**
-- Output is bounded to 50KB and 2000 lines
-- Writes and patches require distinct output paths
-- Patches include dry-run support
-- Mutations are transactional via temporary files
+**Constraints:** - Output is bounded to 50KB and 2000 lines - Writes and
+patches require distinct output paths - Patches include dry-run
+support - Mutations are transactional via temporary files
 
 ## External tool requirements
 
-Required:
-- `pandoc` — DOCX read/write conversions
-- `pdftotext` — PDF text extraction
-- `pdftocairo` — PDF page rendering
-- `pdfgrep` — PDF page-aware search
+Required: - `pandoc` --- DOCX read/write conversions - `pdftotext` ---
+PDF text extraction - `pdftocairo` --- PDF page rendering - `pdfgrep`
+--- PDF page-aware search
 
-Optional:
-- `libreoffice` — future DOCX-to-PDF rendering
+Optional: - `libreoffice` --- future DOCX-to-PDF rendering
 
 ## Known limitations
 

@@ -11,8 +11,8 @@ the code clearer.
 
 Prefer direct control flow and ordinary data structures. Keep functions
 small enough to understand locally, but do not split code merely to make
-functions shorter. A descriptive local variable is usually preferable
-to a helper used once.
+functions shorter. A descriptive local variable is usually preferable to
+a helper used once.
 
 Use Node.js and platform APIs directly when they already provide the
 needed behavior. Add dependencies when they remove meaningful work or
@@ -38,7 +38,7 @@ small and unsurprising.
 
 Write commit subjects as imperative instructions describing the change:
 
-```text
+``` text
 Add PDF search
 Simplify process handling
 Remove obsolete compatibility path

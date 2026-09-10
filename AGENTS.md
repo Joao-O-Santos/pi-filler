@@ -5,10 +5,10 @@ scale.
 
 ## Before changing code
 
-Read `PROJECT.md`, `ARCHITECTURE.md`, `STYLE.md`, and `PLAN.md` while the
-plan exists. Inspect the relevant code and tests before proposing new
-structure. Treat the current repository state as more authoritative than
-an old plan or comment.
+Read `PROJECT.md`, `ARCHITECTURE.md`, `STYLE.md`, and `PLAN.md` while
+the plan exists. Inspect the relevant code and tests before proposing
+new structure. Treat the current repository state as more authoritative
+than an old plan or comment.
 
 ## Design boundary
 
