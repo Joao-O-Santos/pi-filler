@@ -1,4 +1,4 @@
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import { StringEnum } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import {
@@ -7,6 +7,7 @@ import {
 	withFileMutationQueue,
 } from "@earendil-works/pi-coding-agent";
 import { type Static, Type } from "typebox";
+import { readDocxText, searchDocx, writeDocx } from "./pandoc.js";
 import { readPdfText, renderPdfPages, searchPdf } from "./pdf.js";
 
 export const fillerSchema = Type.Object({
@@ -16,6 +17,7 @@ export const fillerSchema = Type.Object({
 	path: Type.String({ description: "Input document path" }),
 	output: Type.Optional(Type.String({ description: "Output file or image prefix" })),
 	query: Type.Optional(Type.String({ description: "Search query" })),
+	reference_docx: Type.Optional(Type.String({ description: "Reference DOCX for writes" })),
 	literal: Type.Optional(Type.Boolean({ description: "Treat a search query as literal text" })),
 	ignore_case: Type.Optional(Type.Boolean({ description: "Ignore case while searching" })),
 	first_page: Type.Optional(Type.Integer({ minimum: 1 })),
@@ -47,9 +49,25 @@ function validatePageRange(input: FillerInput): void {
 
 function assertSupported(input: FillerInput): void {
 	if (input.format === "docx") {
-		throw new Error(
-			"DOCX operations are not available yet; supported operations are PDF read, search, and image rendering.",
-		);
+		if (input.action === "read" && input.view !== "text") {
+			throw new Error("DOCX read requires view=text");
+		}
+		if (input.action === "search" && input.view !== undefined && input.view !== "text") {
+			throw new Error("DOCX search requires view=text or no view");
+		}
+		if (input.action === "write" && input.view !== undefined) {
+			throw new Error("DOCX write does not accept view");
+		}
+		if (input.action === "search" && !input.query) {
+			throw new Error("DOCX search requires query");
+		}
+		if (input.action === "write" && !input.output) {
+			throw new Error("DOCX write requires output");
+		}
+		if (input.action === "patch") {
+			throw new Error("DOCX patch operations are not supported");
+		}
+		return;
 	}
 	if (input.action === "read" && input.view !== "text" && input.view !== "image") {
 		throw new Error("PDF read requires view=text or view=image");
@@ -81,6 +99,34 @@ export async function executeFiller(
 	assertSupported(input);
 	validatePageRange(input);
 	const path = normalizePath(input.path, cwd);
+
+	if (input.format === "docx") {
+		if (input.action === "read") {
+			const result = await readDocxText(path, { signal });
+			return { text: result.text, details: { truncation: result.truncation } };
+		}
+		if (input.action === "search") {
+			const result = await searchDocx(path, input.query ?? "", {
+				ignoreCase: input.ignore_case,
+				signal,
+			});
+			return {
+				text: result.text || "No matches found",
+				details: { matches: result.matches, truncation: result.truncation },
+			};
+		}
+
+		const output = normalizePath(input.output ?? "", cwd);
+		if (output === path) throw new Error("DOCX write output must differ from input");
+		const referenceDocx = input.reference_docx
+			? normalizePath(input.reference_docx, cwd)
+			: undefined;
+		await withFileMutationQueue(output, () =>
+			writeDocx(path, output, { referenceDocx, signal, cwd: dirname(path) }),
+		);
+		return { text: `Wrote ${output}`, details: { output } };
+	}
+
 	const range = { firstPage: input.first_page, lastPage: input.last_page };
 
 	if (input.action === "search") {

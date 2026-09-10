@@ -23,9 +23,9 @@ slice. The supervisor reviews and commits each coherent increment.
 
 ## DOCX text paths
 
-- [ ] Implement Pandoc-based DOCX text reads and in-process search.
-- [ ] Implement Markdown-to-DOCX writes with optional `reference.docx`.
-- [ ] Add deterministic tests using a fake Pandoc executable.
+- [x] Implement Pandoc-based DOCX text reads and in-process search.
+- [x] Implement Markdown-to-DOCX writes with optional `reference.docx`.
+- [x] Add deterministic tests using a fake Pandoc executable.
 
 ## OOXML
 
@@ -54,5 +54,8 @@ slice. The supervisor reviews and commits each coherent increment.
 - `npm run format:fix`
 - `npm run typecheck`
 - `npm run lint`
-- `npm test` (5 passing tests)
-- `make verify`
+- `npm test` (8 passing tests)
+- `make verify` (not rerun after the DOCX increment)
+- `npm run typecheck`
+- `npm run lint`
+- `npm run format:fix`
