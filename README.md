@@ -2,70 +2,72 @@
 
 Deterministic DOCX and PDF tooling for Pi.
 
-`pi-filler` fills the document-handling gaps between ordinary Markdown
-workflows and final office-format submission requirements. It delegates
-what mature tools already do well and keeps Word-specific mutations
-small, typed, and inspectable.
-
-The core uses Pandoc for DOCX conversion, Poppler tools for PDF text and
-rendering, and `pdfgrep` for page-aware PDF search. DOCX formatting
-changes operate directly on OOXML rather than relying on a full office
-suite.
+`pi-filler` fills document-handling gaps between ordinary Markdown
+workflows and final office-format requirements. It delegates common
+conversion and PDF extraction to mature command-line tools while keeping
+Word-specific mutations narrow and inspectable.
 
 ## Status
 
-v0.0.0 is complete and ready for release. The extension reads and
-searches PDFs and DOCX files, renders PDF pages, generates DOCX from
-Markdown with reference documents, inspects DOCX formatting, and applies
-typed formatting patches. All operations use external command-line tools
-or Pandoc with bounded output and transactional writes.
+The v0.0.0 implementation is a release candidate. It has not been
+tagged or released.
 
-See `ARCHITECTURE.md` for the tool surface and `CHANGELOG.md` for
-release notes.
+## Tool
 
-## Supported operations
+The extension exposes one `filler` tool:
 
-**PDF:** - Read and extract text with optional page ranges - Search with
-literal or regular-expression queries and page-aware results - Render
-selected pages to PNG images
+```text
+format: docx | pdf
+action: read | search | write | patch
+view: text | formatting | image
+```
 
-**DOCX:** - Read and extract text through Pandoc - Search extracted text
-(case-insensitive, line-based) - Generate from Markdown with optional
-reference.docx - Inspect formatting state (page size/orientation,
-margins, sections, line numbering, page numbering, comments, tracked
-changes, core metadata) - Apply typed formatting patches: page setup,
-margins, line numbering mode, page numbering start/format, core
-metadata, anonymization - Preserve all untouched package parts
+Unsupported combinations fail explicitly.
 
-**Constraints:** - Output is bounded to 50KB and 2000 lines - Writes and
-patches require distinct output paths - Patches include dry-run
-support - Mutations are transactional via temporary files
+## PDF
 
-## External tool requirements
+- Read text with layout preservation and optional page ranges.
+- Search with literal or regular-expression queries and page numbers.
+- Render selected pages to PNG files.
+- PDF writing and patching are not supported.
 
-Required: - `pandoc` --- DOCX read/write conversions - `pdftotext` ---
-PDF text extraction - `pdftocairo` --- PDF page rendering - `pdfgrep`
---- PDF page-aware search
+## DOCX
 
-Optional: - `libreoffice` --- future DOCX-to-PDF rendering
+- Read and search text through Pandoc.
+- Generate DOCX from Markdown with an optional reference document.
+- Validate generated DOCX before replacing the requested output.
+- Inspect page setup, margins, sections, line numbering, page
+  numbering, comments, tracked changes, and common core metadata.
+- Patch page setup, margins, line numbering, page numbering, and common
+  core metadata.
+- Use `clearCoreMetadata` to clear common `docProps/core.xml` fields.
+  This does **not** remove comment authors, revision authors, or every
+  possible identity-bearing property in a DOCX.
 
-## Known limitations
+DOCX patches affect the first section only. Untouched ZIP package parts
+remain content-identical. XML parts that are edited are parsed and
+serialized again, so lexical formatting, prefix choices, or element
+ordering inside those edited parts may change.
 
-- DOCX patches affect the first section only
-- Line numbering modes are limited to `off`, `continuous`, `newPage`,
-  `newSection`
-- OOXML namespace handling preserves only existing prefixes in
-  serialized output; complex documents with alternate namespaces may
-  require manual review
-- PDF write and patch operations are deferred
+## External tools
+
+Required:
+
+- `pandoc` for DOCX text conversion and generation.
+- `pdftotext` for PDF text extraction.
+- `pdftocairo` for PDF page rendering.
+- `pdfgrep` for page-aware PDF search.
+
+LibreOffice is optional future work for visual DOCX rendering.
 
 ## Development
 
-``` sh
+```sh
 npm install
 make verify
 make site
 ```
 
-GitLab is canonical and is the only release authority. GitHub may mirror
-the repository, verify it, and publish GitHub Pages.
+Dependencies and CI actions follow current upstream releases rather than
+being pinned. GitLab is canonical and the only release authority.
+GitHub may mirror the repository, verify it, and publish GitHub Pages.

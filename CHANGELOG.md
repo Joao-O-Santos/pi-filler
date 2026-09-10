@@ -1,37 +1,39 @@
 # Changelog
 
-## v0.0.0 (released)
+## Unreleased
 
-**Features:** - PDF text extraction with layout preservation and
-optional page ranges - PDF page-aware search (literal and regex) with
-page numbers in results - PDF page rendering to PNG files - DOCX text
-extraction and search through Pandoc - DOCX generation from Markdown
-with optional reference document - DOCX formatting inspection: page
-setup, margins, sections, numbering, comments, tracked changes, core
-metadata - DOCX formatting patches: page size/orientation, margins,
-line/page numbering, core metadata, anonymization - Dry-run support for
-patches - Transactional writes with temporary sibling files and atomic
-renames - Bounded output (50KB, 2000 lines) - File mutation queue
-integration with Pi - Abort signal propagation and finite timeouts -
-Deterministic test suite with fake command executables
+### Added
 
-**Implementation notes:** - Uses `fflate` for ZIP preservation and
-`fast-xml-parser` for OOXML - Pandoc handles DOCX conversions; Poppler
-tools handle PDF operations - OOXML namespace handling preserves
-existing prefixes during round-trips - All unrelated package parts
-remain content-identical in patches - Line numbering modes (`off`,
-`continuous`, `newPage`, `newSection`) map to OOXML semantics - Core
-metadata respects namespace distinctions (dc:, cp:) - Anonymization
-clears configurable metadata fields
+- PDF text extraction with layout preservation and page ranges.
+- Page-aware PDF search with literal and regular-expression modes.
+- Selected-page PDF rendering to PNG.
+- DOCX text extraction and search through Pandoc.
+- Transactional DOCX generation with optional reference documents.
+- DOCX formatting inspection for submission-relevant properties.
+- Conservative first-section OOXML patching with dry-run support.
+- Relationship and generated-DOCX validation.
+- Deterministic regression tests for command limits and document
+  operations.
 
-**Known limitations:** - Patches affect the first section only
-(multi-section documents are read-only for formatting changes) - OOXML
-namespace handling may reorder elements and lose non-essential lexical
-constructs - Content-Types and all relationship targets are validated;
-malformed OPC packages are rejected - PDF write and patch operations are
-not yet supported - LibreOffice rendering is deferred
+### Changed
 
-**Testing:** - 10 deterministic tests with fake executables - Coverage:
-schema validation, path normalization, PDF/DOCX operations, OOXML
-fixtures, preservation guarantees, error handling - All checks pass:
-typecheck, lint, format, markdown, npm pack
+- Search DOCX against the full extraction before truncating results.
+- Use Node.js `execFile` for bounded command execution, cancellation,
+  and finite timeouts.
+- Standardize line-number restart modes on OOXML values.
+- Rename the misleading anonymization option to `clearCoreMetadata`.
+- Make Word-attribute handling tolerant of alternate namespace prefixes.
+- Remove stale PDF render outputs and sort generated pages numerically.
+- Follow current releases for runtime dependencies.
+- Check Markdown prose width directly instead of requiring a Pandoc
+  round-trip to be byte-identical.
+
+### Limitations
+
+- DOCX patches affect the first section only.
+- `clearCoreMetadata` does not remove comment authors, revision authors,
+  or every possible identity-bearing property.
+- Edited XML parts are reserialized and may differ lexically from their
+  original representation.
+- PDF writing and patching are not supported.
+- LibreOffice-based DOCX rendering remains future work.

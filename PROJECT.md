@@ -7,53 +7,51 @@ fills DOCX and PDF workflow gaps without requiring a full office suite.
 
 ## Intended use
 
-The extension supports manuscript and journal-submission work, including
-text extraction, page-aware PDF search, selective page rendering, DOCX
-generation, formatting inspection, and narrow submission-oriented Word
-formatting patches.
+The extension supports manuscript and journal-submission work: text
+extraction, page-aware PDF search, selective PDF rendering, DOCX
+generation, formatting inspection, and narrow Word-format patches.
 
 ## Scope
 
-The core supports PDF and DOCX. Pandoc handles conversions it already
-does well. Poppler command-line tools handle PDF text and rendering.
-`pdfgrep` provides page-aware PDF search. Word-specific formatting is
-handled through constrained OOXML inspection and patching.
+Pandoc handles DOCX conversion. Poppler command-line tools handle PDF
+text and rendering. `pdfgrep` handles page-aware PDF search. Targeted
+Word formatting changes operate on OOXML inside the DOCX package.
 
-LibreOffice may later provide optional DOCX-to-PDF rendering. It is not
-required for the core and should not normalize ordinary DOCX output.
+LibreOffice may later provide optional DOCX-to-PDF rendering. PDF
+writing and patching are outside the current scope.
 
 ## Constraints
 
 Keep the project small, deterministic, inspectable, and suitable for
-short-lived agents. Prefer mature command-line tools and Node.js
-primitives over broad wrapper libraries. Track current upstream releases
-instead of pinning versions.
+short-lived agents. Prefer Node.js and mature command-line primitives
+over broad wrappers. Track current upstream releases instead of pinning
+versions.
 
 GitLab is canonical and is the only release authority. GitHub is a
 mirror for verification and Pages.
 
-## Status
+## Current state
 
-The extension is complete and tested for v0.0.0. All planned Foundation,
-PDF, DOCX, and OOXML slices are implemented and verified. The tool
-integrates with Pi's file mutation queue, respects abort signals and
-timeouts, bounds output, and handles errors clearly.
+The planned v0.0.0 core is implemented as a release candidate:
 
-## Definition of done
+- one `filler` tool with explicit DOCX/PDF operation combinations;
+- bounded, cancellable, finite-time external command execution;
+- PDF text, search, and selected-page rendering;
+- DOCX text, search, and validated transactional generation;
+- prefix-flexible OOXML inspection and conservative first-section
+  patches;
+- transactional patching with dry runs and relationship validation;
+- deterministic regression tests for the supported surface.
 
-- [x] Extension builds, typechecks, lints, and tests cleanly
-- [x] All tests pass deterministically
-- [x] File mutation queue integration works for DOCX writes/patches
-- [x] Output is bounded and truncation is reported
-- [x] Abort signals flow through operations
-- [x] Errors include actionable messages
-- [x] Path normalization handles `@` and relative paths
-- [x] DOCX inspection and patching preserve untouched parts
-- [x] Dry-run support works correctly
-- [x] README documents the tool and constraints
-- [x] CHANGELOG describes the v0.0.0 release
-- [x] All durable documentation reflects the implementation
+No v0.0.0 tag or release exists yet. Tagging and publication require
+explicit instruction.
 
-## Immediate next step
+## Boundaries
 
-Push to main, observe CI/CD, and prepare for npm publication.
+`clearCoreMetadata` is deliberately narrower than anonymization. It
+clears common core metadata fields but does not promise removal of every
+possible author or identity trace.
+
+Untouched DOCX package parts are preserved byte-for-byte at the part
+content level. Edited XML parts are reserialized and are not promised to
+be lexically identical to their originals.

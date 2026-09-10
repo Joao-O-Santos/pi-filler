@@ -1,5 +1,47 @@
 {
 	"version": 2,
-	"confirmedAt": "2026-09-10T11:13:54.828Z",
-	"artifacts": []
+	"artifacts": [
+		{
+			"path": "PROJECT.md",
+			"fingerprint": "sha256:e01746262eed1784d80bd5f9a61dac3bbbdd13eb99d32ea6ed1e341f2b4bb464",
+			"status": "current",
+			"role": "project",
+			"dependsOn": []
+		},
+		{
+			"path": "ARCHITECTURE.md",
+			"fingerprint": "sha256:67c7bb8c21c5bddeafbaa9aef95576bf63dde0aaacf76d9b2ed6f174b71e74c1",
+			"status": "current",
+			"role": "architecture",
+			"dependsOn": ["PROJECT.md"]
+		},
+		{
+			"path": "README.md",
+			"fingerprint": "sha256:0eaade4c8b0e4f14ab799ea7bd97577fed7d59f692d7bef3963f086573e61bd1",
+			"status": "current",
+			"role": "documentation",
+			"dependsOn": ["PROJECT.md", "ARCHITECTURE.md"]
+		},
+		{
+			"path": "STYLE.md",
+			"fingerprint": "sha256:a0ad9ca13c45dc0c0e0d323198a47497d186dc92ff8016b8fef317dbd66849af",
+			"status": "current",
+			"role": "style",
+			"dependsOn": []
+		},
+		{
+			"path": "AGENTS.md",
+			"fingerprint": "sha256:e92c3fcfe8b482300c3596a98757100d4f0c7de3c08018086ff3762d66801c72",
+			"status": "current",
+			"role": "agent-instructions",
+			"dependsOn": ["PROJECT.md", "ARCHITECTURE.md", "STYLE.md"]
+		},
+		{
+			"path": "CHANGELOG.md",
+			"fingerprint": "sha256:b98668b18976eb85e134d8309a417ae4932c6bbaf61633de5cc385add471f206",
+			"status": "current",
+			"role": "changelog",
+			"dependsOn": ["PROJECT.md", "ARCHITECTURE.md"]
+		}
+	]
 }
