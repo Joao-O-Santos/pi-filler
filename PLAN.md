@@ -7,56 +7,66 @@ searching, generating, inspecting, and narrowly patching DOCX and PDF
 files. It should cover the boring office-document gaps left by Pandoc
 without becoming a general office suite.
 
-Target roughly 450--600 production TypeScript lines for the first useful
-release, excluding tests and optional Lua filters.
+The first release is `v0.0.0`: useful enough to exercise the complete
+core, but intentionally conservative about the OOXML mutation surface.
+Keep production code compact, but do not use a line-count target as a
+substitute for clear validation and error handling.
 
 ## Constraints
 
--   Start from the `pi-tin` conventions and keep them intact.
--   Track current upstream releases rather than pinning versions.
--   Use Node.js process primitives directly where practical.
--   Do not create a shared Bakery runtime-utils dependency.
--   Require `pandoc`, `pdftotext`, `pdftocairo`, and `pdfgrep`.
--   Keep LibreOffice optional and use it only for rendering/conversion.
--   Keep the model-facing API to one `filler` tool.
--   Preserve source files by default and make mutations transactional.
--   Expand OOXML support only when fixtures demonstrate a need.
+- Start from the `pi-tin` conventions and keep them intact.
+- Track current upstream releases rather than pinning versions.
+- Use Node.js process primitives directly where practical.
+- Do not create a shared Bakery runtime-utils dependency.
+- Require `pandoc`, `pdftotext`, `pdftocairo`, and `pdfgrep`.
+- Keep LibreOffice optional and use it only for rendering/conversion.
+- Keep the model-facing API to one `filler` tool.
+- Preserve source files by default and make mutations transactional.
+- Expand OOXML support only when fixtures demonstrate a need.
 
 ## 1. Define the tool surface
 
 Implement one model-facing tool with the conceptual shape:
 
-```text
+``` text
 filler
 format: docx | pdf
 action: read | search | write | patch
 view: text | formatting | image
 ```
 
-Use TypeBox for a narrow discriminated schema. Reject unsupported
-combinations rather than accepting arbitrary option bags.
+Use TypeBox and `StringEnum` for a narrow, Google-compatible schema.
+Keep format, action, and view explicit, then validate supported
+combinations at runtime rather than relying on literal unions that some
+providers cannot consume.
+
+Resolve relative paths against Pi's current working directory and strip
+a leading `@`, matching built-in file tools. Queue each file mutation
+with Pi's file-mutation queue so parallel tool calls cannot overwrite
+one another.
 
 Initial combinations:
 
--   DOCX `read/text`
--   DOCX `read/formatting`
--   DOCX `search`
--   DOCX `write`
--   DOCX `patch`
--   PDF `read/text`
--   PDF `read/image`
--   PDF `search`
+- DOCX `read/text`
+- DOCX `read/formatting`
+- DOCX `search`
+- DOCX `write`
+- DOCX `patch`
+- PDF `read/text`
+- PDF `read/image`
+- PDF `search`
 
 Defer PDF writing and patching.
 
 ## 2. Add capability detection
 
-Check required external executables and return concise actionable errors
-when they are absent.
+Check external executables when the requested operation needs them and
+return concise actionable errors when they are absent. Do not prevent a
+DOCX operation merely because a PDF-only executable is unavailable.
 
 Required:
 
-```text
+``` text
 pandoc
 pdftotext
 pdftocairo
@@ -65,7 +75,7 @@ pdfgrep
 
 Optional later:
 
-```text
+``` text
 libreoffice
 ```
 
@@ -73,13 +83,18 @@ Do not build a dependency-management subsystem.
 
 ## 3. Add minimal process handling
 
-Use `node:child_process` directly. Prefer `execFile` for bounded buffered
-commands and `spawn` only when streaming materially helps.
+Use `node:child_process` directly. Prefer `execFile` for bounded
+buffered commands and `spawn` only when streaming materially helps.
 
-If repeated call sites need the same stdin, timeout, Buffer output, or
-error normalization, add one small local adapter. Do not copy the old
-large `pi-pew-pew` process wrapper unless real requirements prove the
-Node primitives insufficient.
+If repeated call sites need the same stdin, timeout, Buffer output,
+cancellation, or error normalization, add one small local adapter. Pass
+the tool abort signal through and use finite timeouts. Do not copy the
+old large `pi-pew-pew` process wrapper unless real requirements prove
+the Node primitives insufficient.
+
+Bound and truncate model-facing text output using Pi's exported
+truncation helpers. Rendering and document writes should report output
+paths rather than embedding unbounded binary data.
 
 ## 4. Implement PDF first
 
@@ -88,13 +103,13 @@ and result parsing.
 
 Text:
 
-```text
+``` text
 pdftotext -layout input.pdf -
 ```
 
 Search:
 
-```text
+``` text
 pdfgrep <whitelisted options> query input.pdf
 ```
 
@@ -103,7 +118,7 @@ search to text reading to rendering.
 
 Image:
 
-```text
+``` text
 pdftocairo -png <selected page range> input.pdf output-prefix
 ```
 
@@ -115,24 +130,26 @@ Add `src/pandoc.ts` for narrow Pandoc invocation helpers.
 
 Read:
 
-```text
+``` text
 DOCX -> Pandoc -> Markdown
 ```
 
 Search:
 
-```text
+``` text
 DOCX -> Pandoc -> Markdown -> small in-process JS search
 ```
 
 Write:
 
-```text
+``` text
 Markdown -> Pandoc + reference.docx + optional CSL/bibliography/Lua
          -> DOCX
 ```
 
-Only expose Pandoc options needed by real manuscript workflows.
+For the first release, expose only an optional reference document for
+DOCX generation. Defer bibliography, CSL, and arbitrary Lua-filter
+arguments until a fixture and security review justify them.
 
 ## 6. Choose ZIP and XML dependencies
 
@@ -140,8 +157,8 @@ Run a small fixture bakeoff before committing to libraries.
 
 Prefer exactly:
 
--   one small mature ZIP package;
--   one small namespace-capable XML package.
+- one small mature ZIP package;
+- one small namespace-capable XML package.
 
 Candidates include `fflate` or `JSZip` for ZIP handling and a small XML
 library capable of namespace-aware mutation.
@@ -157,30 +174,32 @@ XML.
 
 Initial report should cover, where present:
 
--   page size and orientation;
--   margins;
--   section count;
--   line numbering;
--   page numbering;
--   selected named styles;
--   comments;
--   tracked changes;
--   document metadata.
+- page size and orientation;
+- margins;
+- section count;
+- line numbering;
+- page numbering;
+- comments and tracked-change counts;
+- core document metadata.
+
+Named-style inspection can follow once a real reference document defines
+which style properties matter.
 
 Raw XML may exist only as an internal/debug escape hatch.
 
 ## 8. Add narrow OOXML patching
 
-Implement preservation-first typed mutations for the first real journal
-submission needs:
+Implement preservation-first typed mutations for a conservative first
+surface:
 
--   page size and orientation;
--   margins;
--   continuous/restart/off line numbering;
--   page numbering start and format;
--   named paragraph/run style properties;
--   document metadata and anonymization;
--   selected `settings.xml` properties.
+- page size and orientation;
+- margins;
+- continuous/restart/off line numbering;
+- page numbering start and format;
+- core document metadata and anonymization.
+
+Defer named-style and arbitrary `settings.xml` mutations until fixtures
+demonstrate exact required semantics.
 
 Only add headers, footers, section-break peculiarities, fields, or
 numbering-specific behavior when fixtures require them.
@@ -200,41 +219,34 @@ Support `dry_run: true` early.
 
 Automatically verify:
 
--   valid ZIP package;
--   `[Content_Types].xml` exists;
--   required Word parts exist;
--   edited XML parses;
--   relationships resolve;
--   referenced media exists;
--   requested formatting state is present.
+- valid ZIP package;
+- `[Content_Types].xml` exists;
+- required Word parts exist;
+- edited XML parses;
+- relationships resolve;
+- referenced media exists;
+- requested formatting state is present.
 
 Tests should distinguish content preservation from binary ZIP identity:
 a no-op rewrite may change ZIP serialization while unrelated package
-parts should remain content-identical.
+parts should remain content-identical. Refuse an output path equal to
+the input path, write through a temporary sibling, and rename only after
+all validation succeeds.
 
 ## 10. Build regression fixtures
 
-Before expanding the patch surface, add representative fixtures for:
-
--   ordinary Pandoc manuscript;
--   real journal `reference.docx`;
--   custom styles;
--   multiple sections;
--   headers and footers;
--   continuous line numbering;
--   comments and tracked changes;
--   fields and cross-references;
--   figures, tables, and captions;
--   footnotes;
--   unknown/custom OOXML parts.
-
-For every new mutation, test that only expected XML parts change.
+Build the smallest deterministic DOCX and PDF fixtures needed for each
+implemented operation. Include unknown package parts and representative
+relationships in patch tests, and assert that only expected XML parts
+change. Add real journal reference documents, multi-section edge cases,
+headers, fields, footnotes, and other complex constructs only as their
+features enter the supported surface.
 
 ## 11. Add optional visual DOCX inspection last
 
 If LibreOffice is available:
 
-```text
+``` text
 DOCX -> LibreOffice headless -> PDF -> pdftocairo -> selected PNG pages
 ```
 
@@ -247,14 +259,14 @@ Keep `pi-filler` standalone. Pi Sych should call it from writing,
 reviewing, or future automation-style workflows rather than absorbing
 its document mechanics into Pi Sych.
 
-Do not add a public Pi Sych office skill merely to expose this package if
-existing skills can invoke it naturally.
+Do not add a public Pi Sych office skill merely to expose this package
+if existing skills can invoke it naturally.
 
 ## Suggested source layout
 
 Start flat:
 
-```text
+``` text
 src/
 ├── index.ts
 ├── process.ts   # only if repeated Node calls justify it
@@ -268,7 +280,7 @@ Split only when the file becomes materially harder to navigate.
 
 ## Implementation order
 
-```text
+``` text
 Pi schema and capability checks
 -> PDF
 -> Pandoc DOCX read/search/write
@@ -279,19 +291,25 @@ Pi schema and capability checks
 -> Pi Sych integration
 ```
 
-## Completion criteria for v0.1
+## Completion criteria for v0.0.0
 
-A useful first release should:
+The first release should:
 
--   read and search PDFs with page-aware results;
--   render selected PDF pages;
--   read and search DOCX through Pandoc;
--   generate ordinary DOCX with reference-document support;
--   inspect the main submission-relevant Word formatting state;
--   apply the initial typed patches transactionally;
--   preserve unrelated OOXML parts in fixtures;
--   pass `make verify` and build both Pages sites;
--   remain small enough to understand in one sitting.
+- read and search PDFs with page-aware results;
+- render selected PDF pages;
+- read and search DOCX through Pandoc;
+- generate ordinary DOCX with reference-document support;
+- inspect the main submission-relevant Word formatting state;
+- apply the conservative typed patches transactionally, including dry
+  runs;
+- preserve unrelated OOXML parts in deterministic fixtures;
+- produce bounded tool output and actionable failures;
+- pass `make verify` and `make site`;
+- document system prerequisites and the complete supported schema;
+- remain small enough to understand in one sitting.
+
+Optional LibreOffice rendering and Pi Sych integration are post-release
+work and do not block `v0.0.0`.
 
 After these decisions are implemented and documented in durable project
-files, remove `PLAN.md`.
+files, remove `PLAN.md` and `TODO.md`.
