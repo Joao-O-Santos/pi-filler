@@ -51,7 +51,7 @@ const docxPatchesSchema = Type.Object(
 			Type.Object(
 				{
 					start: Type.Optional(Type.Integer({ minimum: 0 })),
-					format: Type.Optional(Type.String()),
+					format: Type.Optional(Type.String({ minLength: 1 })),
 				},
 				{ additionalProperties: false, minProperties: 1 },
 			),
@@ -78,27 +78,54 @@ const docxPatchesSchema = Type.Object(
 	{ additionalProperties: false, minProperties: 1 },
 );
 
-export const fillerSchema = Type.Object({
-	format: StringEnum(["docx", "pdf"] as const),
-	action: StringEnum(["read", "search", "write", "patch"] as const),
-	view: Type.Optional(StringEnum(["text", "formatting", "image"] as const)),
-	path: Type.String({ description: "Input document path" }),
-	output: Type.Optional(Type.String({ description: "Output file or image prefix" })),
-	query: Type.Optional(Type.String({ description: "Search query" })),
-	reference_docx: Type.Optional(Type.String({ description: "Reference DOCX for writes" })),
-	patches: Type.Optional(docxPatchesSchema),
-	dry_run: Type.Optional(Type.Boolean({ description: "Validate and report without writing" })),
-	literal: Type.Optional(Type.Boolean({ description: "Treat a PDF search query as literal text" })),
-	ignore_case: Type.Optional(Type.Boolean({ description: "Ignore case while searching" })),
-	first_page: Type.Optional(Type.Integer({ minimum: 1 })),
-	last_page: Type.Optional(Type.Integer({ minimum: 1 })),
-});
+export const fillerSchema = Type.Object(
+	{
+		format: StringEnum(["docx", "pdf"] as const),
+		action: StringEnum(["read", "search", "write", "patch"] as const),
+		view: Type.Optional(StringEnum(["text", "formatting", "image"] as const)),
+		path: Type.String({ description: "Input document path", minLength: 1 }),
+		output: Type.Optional(
+			Type.String({ description: "Output file or image prefix", minLength: 1 }),
+		),
+		query: Type.Optional(Type.String({ description: "Search query", minLength: 1 })),
+		reference_docx: Type.Optional(
+			Type.String({ description: "Reference DOCX for writes", minLength: 1 }),
+		),
+		patches: Type.Optional(docxPatchesSchema),
+		dry_run: Type.Optional(Type.Boolean({ description: "Validate and report without writing" })),
+		literal: Type.Optional(
+			Type.Boolean({ description: "Treat a PDF search query as literal text" }),
+		),
+		ignore_case: Type.Optional(Type.Boolean({ description: "Ignore case while searching" })),
+		first_page: Type.Optional(Type.Integer({ minimum: 1 })),
+		last_page: Type.Optional(Type.Integer({ minimum: 1 })),
+	},
+	{ additionalProperties: false },
+);
 
 export type FillerInput = Static<typeof fillerSchema>;
 
+type ControlField = Exclude<
+	keyof FillerInput,
+	"format" | "action" | "view" | "path"
+>;
+
+const controlFields: ControlField[] = [
+	"output",
+	"query",
+	"reference_docx",
+	"patches",
+	"dry_run",
+	"literal",
+	"ignore_case",
+	"first_page",
+	"last_page",
+];
+
 export function normalizePath(path: string, cwd: string): string {
 	const withoutAt = path.startsWith("@") ? path.slice(1) : path;
-	return resolve(cwd, withoutAt || ".");
+	if (!withoutAt) throw new Error("Path must not be empty");
+	return resolve(cwd, withoutAt);
 }
 
 function validatePageRange(input: FillerInput): void {
@@ -117,44 +144,67 @@ function validatePageRange(input: FillerInput): void {
 	}
 }
 
+function assertParameters(input: FillerInput, allowed: readonly ControlField[]): void {
+	for (const field of controlFields) {
+		if (input[field] !== undefined && !allowed.includes(field)) {
+			throw new Error(`${input.format.toUpperCase()} ${input.action} does not accept ${field}`);
+		}
+	}
+}
+
 function assertSupported(input: FillerInput): void {
+	if (!input.path) throw new Error("path must not be empty");
 	if (input.format === "docx") {
-		if (input.action === "read" && input.view !== "text" && input.view !== "formatting") {
-			throw new Error("DOCX read requires view=text or view=formatting");
+		if (input.action === "read") {
+			if (input.view !== "text" && input.view !== "formatting") {
+				throw new Error("DOCX read requires view=text or view=formatting");
+			}
+			assertParameters(input, []);
+			return;
 		}
-		if (input.action === "search" && input.view !== undefined && input.view !== "text") {
-			throw new Error("DOCX search requires view=text or no view");
+		if (input.action === "search") {
+			if (input.view !== undefined && input.view !== "text") {
+				throw new Error("DOCX search requires view=text or no view");
+			}
+			if (!input.query) throw new Error("DOCX search requires query");
+			assertParameters(input, ["query", "ignore_case"]);
+			return;
 		}
-		if (input.action === "write" && (input.view !== undefined || !input.output)) {
-			throw new Error("DOCX write requires output and does not accept view");
+		if (input.action === "write") {
+			if (input.view !== undefined || !input.output) {
+				throw new Error("DOCX write requires output and does not accept view");
+			}
+			assertParameters(input, ["output", "reference_docx"]);
+			return;
 		}
-		if (input.action === "search" && !input.query) {
-			throw new Error("DOCX search requires query");
-		}
-		if (input.action === "patch" && (input.view !== undefined || !input.output)) {
+		if (input.view !== undefined || !input.output) {
 			throw new Error("DOCX patch requires output and does not accept view");
 		}
-		if (input.action === "patch" && input.patches === undefined) {
-			throw new Error("DOCX patch requires patches");
-		}
+		if (input.patches === undefined) throw new Error("DOCX patch requires patches");
+		assertParameters(input, ["output", "patches", "dry_run"]);
 		return;
 	}
 
-	if (input.action === "read" && input.view !== "text" && input.view !== "image") {
-		throw new Error("PDF read requires view=text or view=image");
-	}
-	if (input.action === "search" && input.view !== undefined && input.view !== "text") {
-		throw new Error("PDF search requires view=text or no view");
-	}
 	if (input.action === "write" || input.action === "patch") {
 		throw new Error("PDF write and patch operations are not supported");
 	}
-	if (input.action === "search" && !input.query) {
-		throw new Error("PDF search requires query");
+	if (input.action === "search") {
+		if (input.view !== undefined && input.view !== "text") {
+			throw new Error("PDF search requires view=text or no view");
+		}
+		if (!input.query) throw new Error("PDF search requires query");
+		assertParameters(input, ["query", "literal", "ignore_case", "first_page", "last_page"]);
+		return;
 	}
-	if (input.action === "read" && input.view === "image" && !input.output) {
-		throw new Error("PDF image reads require output");
+	if (input.view !== "text" && input.view !== "image") {
+		throw new Error("PDF read requires view=text or view=image");
 	}
+	if (input.view === "image") {
+		if (!input.output) throw new Error("PDF image reads require output");
+		assertParameters(input, ["output", "first_page", "last_page"]);
+		return;
+	}
+	assertParameters(input, ["first_page", "last_page"]);
 }
 
 export interface FillerResult {

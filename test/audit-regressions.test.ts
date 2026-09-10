@@ -5,8 +5,8 @@ import { join } from "node:path";
 import test from "node:test";
 import { zipSync } from "fflate";
 import { inspectDocx, patchDocx } from "../src/docx.js";
-import { executeFiller } from "../src/index.js";
-import { searchPdf, renderPdfPages } from "../src/pdf.js";
+import { executeFiller, normalizePath } from "../src/index.js";
+import { renderPdfPages, searchPdf } from "../src/pdf.js";
 import { runCommand } from "../src/process.js";
 
 function xml(value: string): Uint8Array {
@@ -105,6 +105,38 @@ test("failed PDF rendering preserves previous output", async () => {
 	assert.equal(await readFile(stale, "utf8"), "previous");
 });
 
+test("rejects ignored parameters and empty paths", async () => {
+	assert.throws(() => normalizePath("@", process.cwd()), /Path must not be empty/);
+	await assert.rejects(
+		() =>
+			executeFiller(
+				{
+					format: "pdf",
+					action: "search",
+					path: "fixture.pdf",
+					query: "Needle",
+					output: "ignored",
+				},
+				process.cwd(),
+			),
+		/PDF search does not accept output/,
+	);
+	await assert.rejects(
+		() =>
+			executeFiller(
+				{
+					format: "docx",
+					action: "read",
+					view: "text",
+					path: "fixture.docx",
+					first_page: 1,
+				},
+				process.cwd(),
+			),
+		/DOCX read does not accept first_page/,
+	);
+});
+
 test("PDF search rejects formatting view", async () => {
 	await assert.rejects(
 		() =>
@@ -143,7 +175,7 @@ test("DOCX inspection rejects malformed XML", async () => {
 			"[Content_Types].xml": xml(
 				'<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"/>',
 			),
-			"word/document.xml": xml("<w:document xmlns:w=\"x\"><w:body></w:document>"),
+			"word/document.xml": xml('<w:document xmlns:w="x"><w:body></w:document>'),
 		}),
 	);
 	await assert.rejects(() => inspectDocx(input), /Invalid XML in word\/document\.xml/);
