@@ -18,21 +18,28 @@
 ### Changed
 
 - Search DOCX against the full extraction before truncating results.
+- Bound search tool details to match counts and truncation metadata
+  instead of duplicating full match arrays.
 - Use Node.js `execFile` for bounded command execution, cancellation,
   and finite timeouts.
-- Terminate timed-out external commands even when they ignore
-  `SIGTERM`.
+- Force-terminate timed-out commands so a child ignoring `SIGTERM`
+  cannot outlive the configured timeout.
 - Honor PDF page ranges during search and use pdfgrep's native
   fixed-string mode for literal queries.
+- Reject malformed pdfgrep output instead of assigning synthetic page
+  numbers.
 - Preserve prior PDF render outputs when a replacement render fails.
-- Reject unsupported PDF search views instead of silently accepting
-  them.
+- Reject unsupported views, operation-irrelevant parameters, unknown
+  parameters, and empty paths instead of silently accepting them.
 - Resolve helper input paths consistently before invoking external
   commands.
 - Validate XML syntax instead of relying on tolerant parsing.
 - Reject empty DOCX patch requests and incompatible line-number
   settings.
 - Keep page dimensions consistent when orientation alone is changed.
+- Treat omitted page orientation as OOXML's portrait default.
+- Count inserted and deleted revision markers in common WordprocessingML
+  content parts, including headers, footers, footnotes, and endnotes.
 - Preserve attributes on core-metadata elements when their text changes.
 - Standardize line-number restart modes on OOXML values.
 - Rename the misleading anonymization option to `clearCoreMetadata`.
@@ -47,6 +54,9 @@
 - DOCX patches affect the first section only.
 - `clearCoreMetadata` does not remove comment authors, revision authors,
   or every possible identity-bearing property.
+- The `trackedChanges` inspection count covers inserted/deleted revision
+  markers in common content parts; it is not a count of every possible
+  WordprocessingML revision type.
 - Edited XML parts are reserialized and may differ lexically from their
   original representation.
 - PDF writing and patching are not supported.

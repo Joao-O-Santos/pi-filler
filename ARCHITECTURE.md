@@ -15,13 +15,16 @@ action: read | search | write | patch
 view: text | formatting | image
 ```
 
-Unsupported combinations are rejected explicitly.
+Unsupported combinations and operation-irrelevant parameters are
+rejected explicitly. Paths and required query/output values cannot be
+empty.
 
 ## Processes
 
 External commands run through a small local `execFile` adapter. Node.js
 provides cancellation, finite timeouts, and maximum buffered output.
-The adapter only normalizes errors and missing-executable messages.
+Timed-out commands are force-terminated. The adapter otherwise only
+normalizes errors and missing-executable messages.
 
 Required executables are `pandoc`, `pdftotext`, `pdftocairo`, and
 `pdfgrep`. LibreOffice is optional future work for DOCX rendering.
@@ -29,18 +32,24 @@ Required executables are `pandoc`, `pdftotext`, `pdftocairo`, and
 ## PDF
 
 PDF text reading uses `pdftotext -layout`. Search uses `pdfgrep` so
-matches remain page-aware and may be restricted to a page range. Image
-reads render selected pages through `pdftocairo -png`.
+matches remain page-aware and may be restricted to a page range. Literal
+search uses pdfgrep's fixed-string mode. Malformed search output is
+rejected rather than converted into synthetic page numbers.
 
-Rendering happens under a temporary sibling directory. Existing outputs
-for the requested prefix are replaced only after `pdftocairo` succeeds,
-so a failed render does not destroy a previous successful result.
-Generated page files are sorted by numeric page number.
+Search text is bounded before it reaches the model, and tool details
+retain only the match count and truncation metadata.
+
+Image reads render selected pages through `pdftocairo -png`. Rendering
+happens under a temporary sibling directory. Existing outputs for the
+requested prefix are replaced only after `pdftocairo` succeeds, so a
+failed render does not destroy a previous successful result. Generated
+page files are sorted by numeric page number.
 
 ## DOCX text and generation
 
 Pandoc converts DOCX to Markdown for reads and searches. Search examines
-the full Pandoc extraction and truncates only returned match output.
+the full bounded Pandoc extraction, then returns bounded match text plus
+a match count instead of duplicating the full match set in tool details.
 
 DOCX generation writes to a temporary sibling, validates the generated
 ZIP/OOXML package, and renames it to the requested output only after
@@ -67,8 +76,9 @@ The current patch surface covers:
 - common core metadata;
 - `clearCoreMetadata`, which clears common core metadata only.
 
-Untouched ZIP package parts remain content-identical. Edited XML parts
-are reserialized, so lexical XML details inside those parts may change.
+Orientation-only changes keep page dimensions consistent. Untouched ZIP
+package parts remain content-identical. Edited XML parts are
+reserialized, so lexical XML details inside those parts may change.
 
 ## Validation
 

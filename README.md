@@ -24,13 +24,16 @@ action: read | search | write | patch
 view: text | formatting | image
 ```
 
-Unsupported combinations fail explicitly.
+Unsupported combinations and operation-irrelevant parameters fail
+explicitly.
 
 ## PDF
 
 - Read text with layout preservation and optional page ranges.
 - Search with literal or regular-expression queries and page numbers.
-- Render selected pages to PNG files.
+- Restrict searches to optional page ranges.
+- Render selected pages to PNG files without destroying prior output
+  when rendering fails.
 - PDF writing and patching are not supported.
 
 ## DOCX
@@ -39,7 +42,8 @@ Unsupported combinations fail explicitly.
 - Generate DOCX from Markdown with an optional reference document.
 - Validate generated DOCX before replacing the requested output.
 - Inspect page setup, margins, sections, line numbering, page
-  numbering, comments, tracked changes, and common core metadata.
+  numbering, comments, inserted/deleted tracked-change markers, and
+  common core metadata.
 - Patch page setup, margins, line numbering, page numbering, and common
   core metadata.
 - Use `clearCoreMetadata` to clear common `docProps/core.xml` fields.
