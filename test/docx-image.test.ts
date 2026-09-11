@@ -4,7 +4,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { executeFiller } from "../src/index.js";
-import { renderDocxPages } from "../src/render-docx.js";
 
 async function script(directory: string, name: string, body: string): Promise<void> {
 	const path = join(directory, name);
@@ -26,17 +25,31 @@ test("renders selected DOCX pages through LibreOffice and pdftocairo", async () 
 		"pdftocairo",
 		'printf "%s\\n" "$@" > "$PDFTOCAIRO_LOG"\nfor arg do prefix="$arg"; done\ntouch "$prefix-2.png"',
 	);
-	const env = {
-		...process.env,
-		PATH: `${directory}:${process.env.PATH ?? ""}`,
-		LIBREOFFICE_LOG: join(directory, "libreoffice-args"),
-		PDFTOCAIRO_LOG: join(directory, "pdftocairo-args"),
-	};
-
-	const images = await renderDocxPages(input, join(directory, "render"), { firstPage: 2, lastPage: 2 }, { env });
-	assert.deepEqual(images, [join(directory, "render-2.png")]);
-	assert.match(await readFile(env.LIBREOFFICE_LOG, "utf8"), /--headless\n--convert-to\npdf\n--outdir/);
-	assert.match(await readFile(env.PDFTOCAIRO_LOG, "utf8"), /-f\n2\n-l\n2/);
+	const previous = process.env.PATH;
+	process.env.PATH = `${directory}:${previous ?? ""}`;
+	process.env.LIBREOFFICE_LOG = join(directory, "libreoffice-args");
+	process.env.PDFTOCAIRO_LOG = join(directory, "pdftocairo-args");
+	try {
+		const result = await executeFiller(
+			{
+				format: "docx",
+				action: "read",
+				view: "image",
+				path: input,
+				output: join(directory, "render"),
+				first_page: 2,
+				last_page: 2,
+			},
+			directory,
+		);
+		assert.deepEqual(result.details.files, [join(directory, "render-2.png")]);
+		assert.match(await readFile(process.env.LIBREOFFICE_LOG, "utf8"), /--headless\n--convert-to\npdf\n--outdir/);
+		assert.match(await readFile(process.env.PDFTOCAIRO_LOG, "utf8"), /-f\n2\n-l\n2/);
+	} finally {
+		process.env.PATH = previous;
+		delete process.env.LIBREOFFICE_LOG;
+		delete process.env.PDFTOCAIRO_LOG;
+	}
 });
 
 test("DOCX image reads require an output path", async () => {
