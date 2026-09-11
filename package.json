@@ -46,6 +46,11 @@
 			"./src/index.ts"
 		]
 	},
+	"allowScripts": {
+		"@google/genai": false,
+		"esbuild": true,
+		"protobufjs": false
+	},
 	"peerDependencies": {
 		"@earendil-works/pi-ai": "*",
 		"@earendil-works/pi-coding-agent": "*",
