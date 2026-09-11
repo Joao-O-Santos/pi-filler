@@ -11,8 +11,8 @@ Word-specific mutations narrow and inspectable.
 
 ## Status
 
-The v0.0.0 implementation is a release candidate. It has not been
-tagged or released.
+Early experimental release. The tool schema and supported document
+operations may change before 1.0.0.
 
 ## Tool
 

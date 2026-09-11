@@ -2,6 +2,14 @@
 	"name": "pi-filler",
 	"version": "0.0.0",
 	"description": "Deterministic DOCX and PDF tooling for Pi",
+	"keywords": [
+		"pi-package",
+		"pi-extension",
+		"docx",
+		"pdf",
+		"pandoc",
+		"document-processing"
+	],
 	"type": "module",
 	"license": "MIT",
 	"repository": {
