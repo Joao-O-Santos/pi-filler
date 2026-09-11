@@ -24,7 +24,7 @@ jobs:
         run: npm install
 
       - name: Install current Pandoc
-        run: node scripts/install-latest-pandoc.mjs
+        run: sudo node scripts/install-latest-pandoc.mjs
 
       - name: Verify
         run: make verify
