@@ -1,4 +1,6 @@
-import { dirname, resolve } from "node:path";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { basename, dirname, extname, join, resolve } from "node:path";
 import { StringEnum } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import {
@@ -10,7 +12,7 @@ import { type Static, Type } from "typebox";
 import { type DocxPatchSet, inspectDocx, patchDocx } from "./docx.js";
 import { readDocxText, searchDocx, writeDocx } from "./pandoc.js";
 import { readPdfText, renderPdfPages, searchPdf } from "./pdf.js";
-import { renderDocxPages } from "./render-docx.js";
+import { commandError, runCommand } from "./process.js";
 
 const docxPatchesSchema = Type.Object(
 	{
@@ -232,13 +234,25 @@ export async function executeFiller(
 		}
 		if (input.action === "read" && input.view === "image") {
 			const output = normalizePath(input.output ?? "", cwd);
-			const result = await withFileMutationQueue(output, () =>
-				renderDocxPages(path, output, range, { signal }),
-			);
-			return {
-				text: `Rendered ${result.length} page image${result.length === 1 ? "" : "s"}:\n${result.join("\n")}`,
-				details: { files: result },
-			};
+			const temporary = await mkdtemp(join(tmpdir(), "pi-filler-docx-"));
+			try {
+				const converted = await runCommand(
+					"libreoffice",
+					["--headless", "--convert-to", "pdf", "--outdir", temporary, path],
+					{ signal, cwd: temporary },
+				);
+				if (converted.code !== 0) throw commandError(converted, "libreoffice");
+				const pdf = join(temporary, `${basename(path, extname(path))}.pdf`);
+				const result = await withFileMutationQueue(output, () =>
+					renderPdfPages(pdf, output, range, { signal }),
+				);
+				return {
+					text: `Rendered ${result.length} page image${result.length === 1 ? "" : "s"}:\n${result.join("\n")}`,
+					details: { files: result },
+				};
+			} finally {
+				await rm(temporary, { recursive: true, force: true });
+			}
 		}
 		if (input.action === "read") {
 			const result = await readDocxText(path, { signal });
