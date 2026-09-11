@@ -10,6 +10,7 @@ import { type Static, Type } from "typebox";
 import { type DocxPatchSet, inspectDocx, patchDocx } from "./docx.js";
 import { readDocxText, searchDocx, writeDocx } from "./pandoc.js";
 import { readPdfText, renderPdfPages, searchPdf } from "./pdf.js";
+import { renderDocxPages } from "./render-docx.js";
 
 const docxPatchesSchema = Type.Object(
 	{
@@ -153,8 +154,13 @@ function assertSupported(input: FillerInput): void {
 	if (!input.path) throw new Error("path must not be empty");
 	if (input.format === "docx") {
 		if (input.action === "read") {
+			if (input.view === "image") {
+				if (!input.output) throw new Error("DOCX image reads require output");
+				assertParameters(input, ["output", "first_page", "last_page"]);
+				return;
+			}
 			if (input.view !== "text" && input.view !== "formatting") {
-				throw new Error("DOCX read requires view=text or view=formatting");
+				throw new Error("DOCX read requires view=text, view=formatting, or view=image");
 			}
 			assertParameters(input, []);
 			return;
@@ -217,11 +223,22 @@ export async function executeFiller(
 	assertSupported(input);
 	validatePageRange(input);
 	const path = normalizePath(input.path, cwd);
+	const range = { firstPage: input.first_page, lastPage: input.last_page };
 
 	if (input.format === "docx") {
 		if (input.action === "read" && input.view === "formatting") {
 			const formatting = await inspectDocx(path);
 			return { text: JSON.stringify(formatting, null, 2), details: { formatting } };
+		}
+		if (input.action === "read" && input.view === "image") {
+			const output = normalizePath(input.output ?? "", cwd);
+			const result = await withFileMutationQueue(output, () =>
+				renderDocxPages(path, output, range, { signal }),
+			);
+			return {
+				text: `Rendered ${result.length} page image${result.length === 1 ? "" : "s"}:\n${result.join("\n")}`,
+				details: { files: result },
+			};
 		}
 		if (input.action === "read") {
 			const result = await readDocxText(path, { signal });
@@ -259,7 +276,6 @@ export async function executeFiller(
 		return { text: `Wrote ${output}`, details: { output } };
 	}
 
-	const range = { firstPage: input.first_page, lastPage: input.last_page };
 	if (input.action === "search") {
 		const result = await searchPdf(path, input.query ?? "", {
 			...range,
