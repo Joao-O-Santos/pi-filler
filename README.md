@@ -40,6 +40,8 @@ report the requested result without writing the output file.
 ## DOCX
 
 - Read and search text through Pandoc.
+- Render selected pages to PNG through LibreOffice and the existing PDF
+  rendering path.
 - Generate DOCX from Markdown with an optional reference document.
 - Validate generated DOCX before replacing the requested output.
 - Inspect page setup, margins, sections, line numbering, page
@@ -59,14 +61,13 @@ choices, or element ordering inside those edited parts may change.
 
 ## External tools
 
-Required:
+Required for the corresponding operations:
 
 - `pandoc` for DOCX text conversion and generation.
+- `libreoffice` for DOCX image rendering.
 - `pdftotext` for PDF text extraction.
-- `pdftocairo` for PDF page rendering.
+- `pdftocairo` for PDF and DOCX page rendering.
 - `pdfgrep` for page-aware PDF search.
-
-LibreOffice is optional future work for visual DOCX rendering.
 
 ## Development
 
