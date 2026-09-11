@@ -43,7 +43,10 @@ test("renders selected DOCX pages through LibreOffice and pdftocairo", async () 
 			directory,
 		);
 		assert.deepEqual(result.details.files, [join(directory, "render-2.png")]);
-		assert.match(await readFile(process.env.LIBREOFFICE_LOG, "utf8"), /--headless\n--convert-to\npdf\n--outdir/);
+		assert.match(
+			await readFile(process.env.LIBREOFFICE_LOG, "utf8"),
+			/--headless\n--convert-to\npdf\n--outdir/,
+		);
 		assert.match(await readFile(process.env.PDFTOCAIRO_LOG, "utf8"), /-f\n2\n-l\n2/);
 	} finally {
 		process.env.PATH = previous;
@@ -54,7 +57,8 @@ test("renders selected DOCX pages through LibreOffice and pdftocairo", async () 
 
 test("DOCX image reads require an output path", async () => {
 	await assert.rejects(
-		() => executeFiller({ format: "docx", action: "read", view: "image", path: "input.docx" }, "/tmp"),
+		() =>
+			executeFiller({ format: "docx", action: "read", view: "image", path: "input.docx" }, "/tmp"),
 		/DOCX image reads require output/,
 	);
 });
