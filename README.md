@@ -1,6 +1,16 @@
 # pi-filler
 
-<p align="center"><img src="logo.png" alt="pi-filler logo" width="220"></p>
+<p align="center">
+`<img src="logo.png" alt="pi-filler logo" width="220">`{=html}
+</p>
+
+[![pipeline
+status](https://gitlab.com/Joao-O-Santos/pi-filler/badges/main/pipeline.svg)](https://gitlab.com/Joao-O-Santos/pi-filler/-/commits/main)
+[![npm
+version](https://img.shields.io/npm/v/pi-filler.svg)](https://www.npmjs.com/package/pi-filler)
+[![npm
+downloads](https://img.shields.io/npm/dt/pi-filler.svg)](https://www.npmjs.com/package/pi-filler)
+[![license](https://img.shields.io/npm/l/pi-filler.svg)](https://gitlab.com/Joao-O-Santos/pi-filler/-/blob/main/LICENSE)
 
 Deterministic DOCX and PDF tooling for Pi.
 
@@ -18,7 +28,7 @@ operations may change before 1.0.0.
 
 The extension exposes one `filler` tool:
 
-```text
+``` text
 format: docx | pdf
 action: read | search | write | patch
 view: text | formatting | image
@@ -44,9 +54,9 @@ report the requested result without writing the output file.
   rendering path.
 - Generate DOCX from Markdown with an optional reference document.
 - Validate generated DOCX before replacing the requested output.
-- Inspect page setup, margins, sections, line numbering, page
-  numbering, comments, inserted/deleted tracked-change markers, and
-  common core metadata.
+- Inspect page setup, margins, sections, line numbering, page numbering,
+  comments, inserted/deleted tracked-change markers, and common core
+  metadata.
 - Patch page setup, margins, line numbering, page numbering, and common
   core metadata.
 - Use `clearCoreMetadata` to clear common `docProps/core.xml` fields.
@@ -71,12 +81,12 @@ Required for the corresponding operations:
 
 ## Development
 
-```sh
+``` sh
 npm install
 make verify
 make site
 ```
 
 Dependencies and CI actions follow current upstream releases rather than
-being pinned. GitLab is canonical and the only release authority.
-GitHub may mirror the repository, verify it, and publish GitHub Pages.
+being pinned. GitLab is canonical and the only release authority. GitHub
+may mirror the repository, verify it, and publish GitHub Pages.
