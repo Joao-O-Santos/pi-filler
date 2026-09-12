@@ -50,21 +50,24 @@ action: read | search | write | patch
 view: text | formatting | image | structure
 ```
 
-Choose a supported combination and supply only its relevant fields:
+`format` names the document or target format, not every input: DOCX
+writes take Markdown at `path`, and XLSX writes take a workbook template
+at `path` plus CSV at `source_csv`. Choose a supported combination and
+supply only its relevant fields:
 
 | Format | Action | View | Required additional fields |
-|--------------|--------------|--------------|------------------------------|
+|---------------|---------------|---------------|---------------------------|
 | DOCX | `read` | `text` or `formatting` | none |
-| DOCX | `read` | `image` | `output`; optional page range |
+| DOCX | `read` | `image` | `output`; optional `first_page`, `last_page` |
 | DOCX | `search` | `text` or omitted | `query`; optional `ignore_case` |
 | DOCX | `write` | omitted | Markdown `path`, `output`; optional `reference_docx` |
 | DOCX | `patch` | omitted | `output`, `patches`; optional `dry_run` |
-| PDF | `read` | `text` | optional page range |
-| PDF | `read` | `image` | `output`; optional page range |
-| PDF | `search` | `text` or omitted | `query`; optional page range and search flags |
+| PDF | `read` | `text` | optional `first_page`, `last_page` |
+| PDF | `read` | `image` | `output`; optional `first_page`, `last_page` |
+| PDF | `search` | `text` or omitted | `query`; optional `first_page`, `last_page`, `literal`, `ignore_case` |
 | XLSX | `read` | `structure` | none |
-| XLSX | `write` | omitted | template `path`, `source_csv`, `sheet`, `start_cell`, `output` |
-| XLSX | `patch` | omitted | `sheet`, `range`, `xlsx_patches`, `output` |
+| XLSX | `write` | omitted | template `path`, `source_csv`, `sheet`, A1 `start_cell`, `output` |
+| XLSX | `patch` | omitted | `sheet`, A1 `range`, `xlsx_patches`, `output` |
 
 PDF write and patch, and XLSX search, are unsupported. Parameters
 irrelevant to the chosen operation fail explicitly instead of being
@@ -72,8 +75,20 @@ ignored.
 
 Paths resolve relative to Pi's current working directory; absolute paths
 and Pi-style paths prefixed with `@` are also accepted. A write or patch
-output must differ from its input. Image `output` values are filename
-prefixes rather than single image paths.
+output must differ from its input. For image reads, `output` is an
+existing directory or PNG prefix; the operation creates page images
+rather than one final PNG file.
+
+`first_page` and `last_page` select 1-based inclusive pages. Both must
+be positive, and `first_page` cannot exceed `last_page`. Use
+`start_cell` like `A2` and `range` like `A2:D10`; a range may also be
+one cell.
+
+PDF search interprets `query` as a regular expression by default; set
+`literal: true` for literal text. It is case-sensitive unless
+`ignore_case: true` is set. XLSX writes skip the first CSV record by
+default and preserve fields as text by default. `dry_run: true` still
+requires `output`, but it does not create or replace it.
 
 Example calls:
 
@@ -98,15 +113,16 @@ filler({
 })
 ```
 
-Use `dry_run: true` to validate a DOCX patch or XLSX write/patch without
-writing its output. Dry runs still read and validate all local inputs.
+Results may be truncated. For a truncated PDF text read, use a page
+range; for PDF or DOCX search, narrow the query. PDF search can also use
+a page range. Dry runs still read and validate all local inputs.
 
 ## PDF operations
 
 - Text reads use layout-preserving extraction and optional page ranges.
-- Search returns page-aware matches and supports optional page ranges,
-  case-insensitive matching, and literal rather than regular-expression
-  queries.
+- Search returns page-aware matches and supports 1-based inclusive page
+  ranges, case-insensitive matching, and literal rather than
+  regular-expression queries.
 - Image reads render selected pages to numbered PNG files.
 - A failed render preserves previous files for the requested output
   prefix.
@@ -142,7 +158,7 @@ or element ordering may change.
 Spreadsheet cell values, CSV fields, formulas, comments, and other
 workbook text are processed locally and are not returned to the model.
 Structural results contain sheet names, ranges, dimensions, counts,
-changed package parts, and write status.
+changed package parts, and write status---not workbook or CSV contents.
 
 - `read` with `view: "structure"` reports workbook and worksheet shape.
 - `write` fills an existing workbook template from CSV.
@@ -171,8 +187,8 @@ the result, and rename it into place only after success. Source files
 are not modified. PDF image rendering similarly protects prior output
 until the new render succeeds.
 
-`dry_run` validates the requested operation and inputs without writing
-output.
+`dry_run` validates the requested operation and inputs without creating
+or replacing output; its required `output` path is still validated.
 
 ## External tools
 

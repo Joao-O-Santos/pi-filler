@@ -10,6 +10,20 @@ the plan exists. Inspect the relevant code and tests before proposing
 new structure. Treat the current repository state as more authoritative
 than an old plan or comment.
 
+## Model-facing tool context
+
+`src/index.ts` is the authoritative model-facing contract: its schema
+and prompt guidance must let a model select a supported call without
+exploratory invalid calls. Keep them concise and consistent with the
+validator and execution paths. Keep README's operation matrix and
+`ARCHITECTURE.md` synchronized with that contract.
+
+Describe implemented path roles, required fields, defaults, units,
+output behavior, result limits, and privacy boundaries precisely. Do not
+promise generic office-suite behavior, extraction of XLSX contents, or
+output filenames that the code does not guarantee. Add a targeted schema
+or prompt regression assertion when changing this contract.
+
 ## Design boundary
 
 Prefer the smallest implementation that is easy to inspect. Use Node.js

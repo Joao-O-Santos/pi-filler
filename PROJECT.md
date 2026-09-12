@@ -71,4 +71,34 @@ programming.
 
 Model-facing schema descriptions and prompt guidance should make a valid
 format/action/view combination possible in one call, distinguish source
-and output path roles, and state defaults and units.
+and output path roles, state defaults and units, and make result limits
+and the XLSX privacy boundary clear before a call.
+
+## Current direction
+
+Make the accepted document-tool surface self-contained for a model:
+operation selection, required fields, path roles, defaults, page and
+spreadsheet address conventions, mutation semantics, result limits, and
+privacy boundaries should be clear without exploratory invalid calls.
+
+## Definition of done
+
+- The schema, prompt guidance, README, and architecture description
+  agree with implemented behavior.
+- Model-facing descriptions make valid calls and safe follow-up calls
+  possible without inventing unsupported operations or output semantics.
+- Regression coverage protects the key schema and prompt commitments.
+- Durable state, generated site files, and synchronization fingerprints
+  reflect the accepted documentation; verification passes.
+
+## Previous action
+
+Aligned model-facing schema descriptions, prompt guidance,
+documentation, and regression coverage with verified DOCX, PDF, and XLSX
+behavior.
+
+## Immediate next step
+
+Continue only with an accepted request; preserve the documented
+model-facing contract unless implementation and its tests change with
+it.

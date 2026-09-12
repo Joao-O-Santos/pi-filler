@@ -21,19 +21,28 @@ Markdown-to-DOCX writes; and narrow OOXML patches. PDF supports text and
 image reads plus text search. XLSX supports structure-only reads,
 CSV-to-template writes, and formatting/layout patches.
 
-The schema describes operation-specific path roles and defaults. For
-DOCX write, `path` is Markdown source. For XLSX write, `path` is the
-workbook template and `source_csv` supplies values. Other operations use
+The schema describes operation-specific path roles and defaults.
+`format` selects the document or target format, rather than every input:
+DOCX write takes Markdown at `path`, and XLSX write takes the workbook
+template at `path` plus values from `source_csv`. Other operations use
 `path` as the input document. Relative paths resolve from Pi's working
-directory; a leading `@` is removed before resolution.
+directory; a leading `@` is removed before resolution. Image `output` is
+an existing directory or PNG prefix that creates page images, not one
+final PNG.
 
-Unsupported combinations and operation-irrelevant parameters are
-rejected explicitly. Paths and required query/output values cannot be
-empty. Writes and patches require an output distinct from the input.
-`dry_run` is supported for DOCX patches and XLSX writes and patches.
+The schema labels page fields as 1-based and inclusive, and XLSX cells
+and ranges as A1 notation. Unsupported combinations and
+operation-irrelevant parameters are rejected explicitly. Paths and
+required query/output values cannot be empty. Writes and patches require
+an output distinct from the input. `dry_run` is supported for DOCX
+patches and XLSX writes and patches; it still requires an output path
+but does not create or replace it.
 
 Prompt guidance supplies the compact operation matrix needed to choose a
-valid call without retrying through invalid combinations.
+valid call without retrying through invalid combinations. It names path
+roles, required XLSX write and patch fields, XLSX's structural-only
+privacy boundary, PDF search and XLSX write defaults, page-range rules,
+and operation-appropriate narrowing of truncated results.
 
 ## Processes
 

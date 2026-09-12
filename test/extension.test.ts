@@ -133,7 +133,19 @@ test("extension registers one self-describing filler tool", () => {
 		string,
 		Record<string, unknown>
 	>;
+	assert.match(String(properties.format?.description), /target format/);
 	assert.match(String(properties.path?.description), /Markdown source/);
+	assert.match(String(properties.output?.description), /output directory\/PNG prefix/);
+	assert.match(String(properties.start_cell?.description), /A1 notation/);
+	assert.match(String(properties.range?.description), /A1 notation/);
+	assert.match(String(properties.first_page?.description), /1-based inclusive/);
+	assert.match(String(properties.dry_run?.description), /output remains required/);
+	assert.ok(registered?.promptGuidelines?.some((guideline) => /stays local/.test(guideline)));
+	assert.ok(
+		registered?.promptGuidelines?.some((guideline) =>
+			/DOCX search may.*PDF text or search/.test(guideline),
+		),
+	);
 	assert.equal(properties.has_header?.default, true);
 	assert.equal(properties.value_mode?.default, "text");
 });

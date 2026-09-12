@@ -175,7 +175,7 @@ const xlsxPatchesSchema = Type.Object(
 export const fillerSchema = Type.Object(
 	{
 		format: StringEnum(["docx", "pdf", "xlsx"] as const, {
-			description: "Input or output document format",
+			description: "Document or target format; selects supported operations and path roles",
 		}),
 		action: StringEnum(["read", "search", "write", "patch"] as const, {
 			description: "Operation; supported combinations depend on format and view",
@@ -192,7 +192,8 @@ export const fillerSchema = Type.Object(
 		}),
 		output: Type.Optional(
 			Type.String({
-				description: "Output document path, or image prefix for view=image",
+				description:
+					"New document path, or existing output directory/PNG prefix for view=image; image reads create PNG files",
 				minLength: 1,
 			}),
 		),
@@ -208,9 +209,17 @@ export const fillerSchema = Type.Object(
 			Type.String({ description: "Worksheet name for XLSX write or patch", minLength: 1 }),
 		),
 		start_cell: Type.Optional(
-			Type.String({ description: "Upper-left XLSX destination cell", minLength: 1 }),
+			Type.String({
+				description: "Upper-left XLSX destination cell in A1 notation, such as A2",
+				minLength: 1,
+			}),
 		),
-		range: Type.Optional(Type.String({ description: "XLSX target cell range", minLength: 1 })),
+		range: Type.Optional(
+			Type.String({
+				description: "XLSX target cell or range in A1 notation, such as A2:D10",
+				minLength: 1,
+			}),
+		),
 		has_header: Type.Optional(
 			Type.Boolean({ default: true, description: "Skip the first CSV record as a header" }),
 		),
@@ -224,7 +233,8 @@ export const fillerSchema = Type.Object(
 		dry_run: Type.Optional(
 			Type.Boolean({
 				default: false,
-				description: "Validate and report without writing; DOCX patch or XLSX write/patch only",
+				description:
+					"Validate and report without creating or replacing output; output remains required for DOCX patch or XLSX write/patch",
 			}),
 		),
 		literal: Type.Optional(
@@ -238,13 +248,15 @@ export const fillerSchema = Type.Object(
 		),
 		first_page: Type.Optional(
 			Type.Integer({
-				description: "First page for PDF read/search or DOCX/PDF image read",
+				description:
+					"First 1-based inclusive page for PDF read/search or DOCX/PDF image read; must not exceed last_page",
 				minimum: 1,
 			}),
 		),
 		last_page: Type.Optional(
 			Type.Integer({
-				description: "Last page for PDF read/search or DOCX/PDF image read",
+				description:
+					"Last 1-based inclusive page for PDF read/search or DOCX/PDF image read; must not precede first_page",
 				minimum: 1,
 			}),
 		),
@@ -559,9 +571,10 @@ export default function extension(pi: ExtensionAPI): void {
 			"Work directly with local DOCX, PDF, and XLSX files using supported format/action/view combinations.",
 		promptGuidelines: [
 			"Use filler directly for local DOCX, PDF, or XLSX work; choose a supported format/action/view combination and provide only that operation's fields.",
-			"For filler read, use DOCX text, formatting, or image; PDF text or image; or XLSX structure. For filler search, use DOCX or PDF text (or omit view); XLSX search is unsupported. Image output is a filename prefix.",
-			"For filler DOCX write, path is Markdown and output is the new DOCX; reference_docx is optional. For filler XLSX write, path is the template and source_csv, sheet, start_cell, and output are required.",
-			"For filler patch, provide a new output path plus DOCX patches, or XLSX sheet, range, and xlsx_patches. Use filler dry_run: true only to validate without writing output.",
+			"For filler read, use DOCX text, formatting, or image; PDF text or image; or XLSX structure. For filler search, use DOCX or PDF text (or omit view); XLSX search is unsupported. Image output is an existing directory or PNG prefix that creates page images, not one final PNG.",
+			"For filler DOCX write, path is Markdown and output is the new DOCX; reference_docx is optional. For filler XLSX write, path is the template and source_csv, sheet, A1-style start_cell, and output are required. XLSX processing stays local and results do not return cell or CSV contents.",
+			"For filler patch, provide a new output path plus DOCX patches, or XLSX sheet, A1-style range, and xlsx_patches. dry_run: true still requires output but does not create or replace it. PDF queries are regular expressions by default; use literal: true for literal text. XLSX writes skip a header and preserve text by default.",
+			"For filler results, DOCX search may be truncated; narrow its query. PDF text or search may be truncated; narrow its page range or query.",
 		],
 		parameters: fillerSchema,
 		async execute(_toolCallId, input, signal, _onUpdate, ctx: ExtensionContext) {

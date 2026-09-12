@@ -30,6 +30,9 @@
   architecture documentation.
 - Expand the model-facing schema and prompt guidance so valid
   format/action/view combinations can be selected without trial calls.
+- Clarify model-facing page ranges, A1 spreadsheet addresses, image
+  output roles, dry-run semantics, defaults, result truncation, and the
+  XLSX privacy boundary.
 - Search DOCX against the full extraction before truncating results.
 - Bound search tool details to match counts and truncation metadata
   instead of duplicating full match arrays.
