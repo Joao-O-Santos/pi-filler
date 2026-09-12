@@ -48,7 +48,9 @@ The current pre-1.0 source implements:
 - transactional patching with dry runs and relationship validation;
 - deterministic regression tests for the supported surface;
 - structural-only XLSX inspection, CSV-to-template filling, primitive
-  automatic typing, formula protection, and narrow style/layout patches.
+  automatic typing, formula protection, and narrow style/layout patches;
+- package-owned prompt guidance that keeps deterministic XLSX processing
+  local when the model does not need spreadsheet contents.
 
 The repository version may be ahead of the npm release shown in the
 README badge. Tagging and publication require explicit instruction.
@@ -76,10 +78,15 @@ and the XLSX privacy boundary clear before a call.
 
 ## Current direction
 
-Make the accepted document-tool surface self-contained for a model:
-operation selection, required fields, path roles, defaults, page and
-spreadsheet address conventions, mutation semantics, result limits, and
-privacy boundaries should be clear without exploratory invalid calls.
+Keep package-specific usage guidance with `pi-filler` itself. The
+registered tool schema, `promptSnippet`, and `promptGuidelines` are the
+integration surface; do not add a separate Pi Sych skill or a registry
+that duplicates this package-owned knowledge.
+
+Prefer deterministic local XLSX operations when filling or formatting
+can be completed without exposing workbook or CSV contents to the model.
+Use model interpretation only when the task actually requires semantic
+inspection.
 
 ## Definition of done
 
@@ -93,12 +100,11 @@ privacy boundaries should be clear without exploratory invalid calls.
 
 ## Previous action
 
-Aligned model-facing schema descriptions, prompt guidance,
-documentation, and regression coverage with verified DOCX, PDF, and XLSX
-behavior.
+Established package-owned prompt guidance as the durable integration
+boundary for deterministic, privacy-preserving document automation and
+documented that no separate Pi Sych skill is required.
 
 ## Immediate next step
 
-Continue only with an accepted request; preserve the documented
-model-facing contract unless implementation and its tests change with
-it.
+Verify the synchronized documentation and package state, then publish
+the accepted package version when the release pipeline can be triggered.

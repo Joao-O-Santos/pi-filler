@@ -1,29 +1,29 @@
 {
   "version": 2,
-  "confirmedAt": "2026-09-12T09:57:27.203Z",
+  "confirmedAt": "2026-09-12T12:26:53.493Z",
   "artifacts": [
     {
       "path": "PROJECT.md",
-      "fingerprint": "sha256:adaf08fab1ee8e97d63ee3f29f378c1929462183850186300ac73547c48e0bdf",
+      "fingerprint": "sha256:594a2d468de7578b58497f80c421ce24b50f08f3522df8aebea230bd20233b13",
       "status": "current",
       "role": "project",
       "dependsOn": [],
       "acknowledgement": {
-        "at": "2026-09-12T09:57:27.203Z",
-        "reason": "Reviewed the accepted project context and dependents after aligning model-facing schema guidance, prompt guidance, documentation, and regression assertions with implementation; refreshed their fingerprints in SYNC.json."
+        "at": "2026-09-12T12:26:53.493Z",
+        "reason": "Reviewed the accepted package-owned model guidance after confirming that pi-filler's existing promptSnippet and promptGuidelines already carry the deterministic local XLSX privacy boundary; documented the no-separate-skill integration decision and refreshed dependent project state."
       }
     },
     {
       "path": "ARCHITECTURE.md",
-      "fingerprint": "sha256:f341532230d2f1d768d6fcc4dfb00e970848a6067052bd35befb4e5b57428871",
+      "fingerprint": "sha256:41b5d8e3daeafaea3af0d048b263a9a8f3d39ae19a9981a998e8a70bc5234a7d",
       "status": "current",
       "role": "architecture",
       "dependsOn": [
         "PROJECT.md"
       ],
       "acknowledgement": {
-        "at": "2026-09-12T09:57:27.203Z",
-        "reason": "Reviewed the accepted project context and dependents after aligning model-facing schema guidance, prompt guidance, documentation, and regression assertions with implementation; refreshed their fingerprints in SYNC.json."
+        "at": "2026-09-12T12:26:53.493Z",
+        "reason": "Reviewed the accepted package-owned model guidance after confirming that pi-filler's existing promptSnippet and promptGuidelines already carry the deterministic local XLSX privacy boundary; documented the no-separate-skill integration decision and refreshed dependent project state."
       }
     },
     {
@@ -36,8 +36,8 @@
         "ARCHITECTURE.md"
       ],
       "acknowledgement": {
-        "at": "2026-09-12T09:57:27.203Z",
-        "reason": "Reviewed the accepted project context and dependents after aligning model-facing schema guidance, prompt guidance, documentation, and regression assertions with implementation; refreshed their fingerprints in SYNC.json."
+        "at": "2026-09-12T12:26:53.493Z",
+        "reason": "Reviewed the accepted package-owned model guidance after confirming that pi-filler's existing promptSnippet and promptGuidelines already carry the deterministic local XLSX privacy boundary; documented the no-separate-skill integration decision and refreshed dependent project state."
       }
     },
     {
@@ -47,8 +47,8 @@
       "role": "style",
       "dependsOn": [],
       "acknowledgement": {
-        "at": "2026-09-12T09:57:27.203Z",
-        "reason": "Reviewed the accepted project context and dependents after aligning model-facing schema guidance, prompt guidance, documentation, and regression assertions with implementation; refreshed their fingerprints in SYNC.json."
+        "at": "2026-09-12T12:26:53.493Z",
+        "reason": "Reviewed the accepted package-owned model guidance after confirming that pi-filler's existing promptSnippet and promptGuidelines already carry the deterministic local XLSX privacy boundary; documented the no-separate-skill integration decision and refreshed dependent project state."
       }
     },
     {
@@ -62,13 +62,13 @@
         "STYLE.md"
       ],
       "acknowledgement": {
-        "at": "2026-09-12T09:57:27.203Z",
-        "reason": "Reviewed the accepted project context and dependents after aligning model-facing schema guidance, prompt guidance, documentation, and regression assertions with implementation; refreshed their fingerprints in SYNC.json."
+        "at": "2026-09-12T12:26:53.493Z",
+        "reason": "Reviewed the accepted package-owned model guidance after confirming that pi-filler's existing promptSnippet and promptGuidelines already carry the deterministic local XLSX privacy boundary; documented the no-separate-skill integration decision and refreshed dependent project state."
       }
     },
     {
       "path": "CHANGELOG.md",
-      "fingerprint": "sha256:fc82a138e59a6ee52000609b2b39001072ad03a931edfa82705d8972e2ab2286",
+      "fingerprint": "sha256:b518cb379e84f9fce37fb9889dbf48b071a2bac317b7240e9caa25b78d05de8e",
       "status": "current",
       "role": "changelog",
       "dependsOn": [
@@ -76,8 +76,8 @@
         "ARCHITECTURE.md"
       ],
       "acknowledgement": {
-        "at": "2026-09-12T09:57:27.203Z",
-        "reason": "Reviewed the accepted project context and dependents after aligning model-facing schema guidance, prompt guidance, documentation, and regression assertions with implementation; refreshed their fingerprints in SYNC.json."
+        "at": "2026-09-12T12:26:53.493Z",
+        "reason": "Reviewed the accepted package-owned model guidance after confirming that pi-filler's existing promptSnippet and promptGuidelines already carry the deterministic local XLSX privacy boundary; documented the no-separate-skill integration decision and refreshed dependent project state."
       }
     }
   ]

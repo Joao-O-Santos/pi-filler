@@ -44,6 +44,13 @@ roles, required XLSX write and patch fields, XLSX's structural-only
 privacy boundary, PDF search and XLSX write defaults, page-range rules,
 and operation-appropriate narrowing of truncated results.
 
+That guidance is package-owned. The registered `promptSnippet` and
+`promptGuidelines` travel with `pi-filler` and are the appropriate place
+for stable usage principles that are not mechanical schema details. In
+particular, they make local XLSX processing and non-return of workbook
+and CSV contents salient to the model. Pi Sych does not need a
+`pi-filler` skill, package registry entry, or duplicated description.
+
 ## Processes
 
 External commands run through a small local `execFile` adapter. Node.js

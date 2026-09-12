@@ -30,6 +30,11 @@
   architecture documentation.
 - Expand the model-facing schema and prompt guidance so valid
   format/action/view combinations can be selected without trial calls.
+- Treat package-owned tool prompt guidance as the integration boundary
+  for `pi-filler`; no separate Pi Sych skill or package registry entry
+  is required.
+- Clarify that deterministic XLSX filling and formatting should remain
+  local when model inspection of spreadsheet contents is unnecessary.
 - Clarify model-facing page ranges, A1 spreadsheet addresses, image
   output roles, dry-run semantics, defaults, result truncation, and the
   XLSX privacy boundary.
