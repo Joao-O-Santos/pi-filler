@@ -110,6 +110,7 @@ test("extension registers one self-describing filler tool", () => {
 		| {
 				name?: string;
 				description?: string;
+				promptSnippet?: string;
 				promptGuidelines?: string[];
 		  }
 		| undefined;
@@ -117,14 +118,17 @@ test("extension registers one self-describing filler tool", () => {
 		registerTool(definition: {
 			name?: string;
 			description?: string;
+			promptSnippet?: string;
 			promptGuidelines?: string[];
 		}) {
 			registered = definition;
 		},
 	} as never);
 	assert.equal(registered?.name, "filler");
-	assert.match(registered?.description ?? "", /XLSX supports structure-only reads/);
-	assert.ok(registered?.promptGuidelines?.some((guideline) => /untrusted data/.test(guideline)));
+	assert.match(registered?.description ?? "", /^Work directly with local DOCX, PDF, and XLSX files/);
+	assert.match(registered?.promptSnippet ?? "", /^Work directly with local DOCX, PDF, and XLSX files/);
+	assert.ok(registered?.promptGuidelines?.every((guideline) => guideline.startsWith("For filler") || guideline.startsWith("Use filler")));
+	assert.ok(registered?.promptGuidelines?.some((guideline) => /XLSX search is unsupported/.test(guideline)));
 	const properties = fillerSchema.properties as unknown as Record<
 		string,
 		Record<string, unknown>

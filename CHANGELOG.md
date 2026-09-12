@@ -30,8 +30,6 @@
   architecture documentation.
 - Expand the model-facing schema and prompt guidance so valid
   format/action/view combinations can be selected without trial calls.
-- Mark document, spreadsheet, CSV, metadata, and filename strings as
-  untrusted file data rather than instructions.
 - Search DOCX against the full extraction before truncating results.
 - Bound search tool details to match counts and truncation metadata
   instead of duplicating full match arrays.

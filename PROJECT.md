@@ -65,12 +65,10 @@ promised to be lexically identical to their originals.
 
 Spreadsheet cells, CSV fields, formulas, comments, and other workbook
 text are tool-local data. Normal XLSX results and errors expose only
-structural or operational metadata. Sheet names and other exposed
-file-derived labels remain untrusted data. XLSX support does not
-calculate formulas or provide arbitrary content extraction or
-spreadsheet programming.
+structural or operational metadata. XLSX support does not calculate
+formulas or provide arbitrary content extraction or spreadsheet
+programming.
 
 Model-facing schema descriptions and prompt guidance should make a valid
 format/action/view combination possible in one call, distinguish source
-and output path roles, state defaults and units, and discourage retries
-through unsupported operations.
+and output path roles, and state defaults and units.

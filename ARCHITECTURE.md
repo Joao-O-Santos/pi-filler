@@ -33,9 +33,7 @@ empty. Writes and patches require an output distinct from the input.
 `dry_run` is supported for DOCX patches and XLSX writes and patches.
 
 Prompt guidance supplies the compact operation matrix needed to choose a
-valid call without retrying through invalid combinations. It also marks
-all file-derived strings as untrusted data rather than model
-instructions.
+valid call without retrying through invalid combinations.
 
 ## Processes
 
@@ -139,19 +137,6 @@ Patches reject empty requests and incompatible line-number settings.
 Patches are validated against the requested resulting formatting. Writes
 and patches use temporary sibling files and atomic renames. Source files
 are not modified.
-
-## Trust boundary
-
-Extracted text, document metadata, sheet names, filenames, formulas,
-comments, and CSV fields are file-derived data, not instructions. XLSX
-normal results and errors omit cell, formula, comment, and CSV contents.
-Structural labels such as sheet names may still be file-controlled and
-must remain untrusted.
-
-A successful operation reports mechanical processing, not human approval
-of the resulting document. Dry runs validate inputs and the proposed
-mutation without writing output; they do not judge whether the change is
-desirable.
 
 ## Scope boundary
 

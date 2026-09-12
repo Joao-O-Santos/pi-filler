@@ -1,16 +1,17 @@
 {
 	"version": 2,
+	"confirmedAt": "2026-09-12T09:38:09Z",
 	"artifacts": [
 		{
 			"path": "PROJECT.md",
-			"fingerprint": "sha256:a8468924fb2198fda5db88a3031417567c21ff1f50b073c149217bf1a3a850ee",
+			"fingerprint": "sha256:d4e6a2c1f576d49519fe0f87c4d37e0e1b984acebf992d77904456c4e4274afd",
 			"status": "current",
 			"role": "project",
 			"dependsOn": []
 		},
 		{
 			"path": "ARCHITECTURE.md",
-			"fingerprint": "sha256:5cb17b4088ef060b6ca98c78cac293f7c3fb2cec94bebdcf94267aa66d23620c",
+			"fingerprint": "sha256:57ec498202a6884c3acaf68ef58210006fd9137fabee70d1b2f50ca1d8ee164f",
 			"status": "current",
 			"role": "architecture",
 			"dependsOn": [
@@ -19,7 +20,7 @@
 		},
 		{
 			"path": "README.md",
-			"fingerprint": "sha256:e7ce0fe31be655d6084894031847d68beefb2e9f67dcb0750c95c33dd61c89e9",
+			"fingerprint": "sha256:be23729186dae1a575451d96e0f1148e88e3e5daad31334187b7f556556206cb",
 			"status": "current",
 			"role": "documentation",
 			"dependsOn": [
@@ -36,7 +37,7 @@
 		},
 		{
 			"path": "AGENTS.md",
-			"fingerprint": "sha256:9f0fad61abe3fae6cb07070555b0d5ae870912cb3a1bc3129d0282e6fd77b894",
+			"fingerprint": "sha256:e92c3fcfe8b482300c3596a98757100d4f0c7de3c08018086ff3762d66801c72",
 			"status": "current",
 			"role": "agent-instructions",
 			"dependsOn": [
@@ -47,7 +48,7 @@
 		},
 		{
 			"path": "CHANGELOG.md",
-			"fingerprint": "sha256:77ea86a80edd0ba2a8c8e7a657559b1c90e9a4fce93432e9b2df9732a320aa20",
+			"fingerprint": "sha256:ab63c35356773dd73c4c55d839a7525c4b14eb3cc18cc51fe7fcb8132dd99cf2",
 			"status": "current",
 			"role": "changelog",
 			"dependsOn": [
