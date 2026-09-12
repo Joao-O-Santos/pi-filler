@@ -7,7 +7,8 @@ narrow and inspectable.
 
 ## Model-facing API
 
-The extension exposes one `filler` tool:
+The extension exposes one `filler` tool with explicit `format`,
+`action`, and operation-dependent `view` fields:
 
 ``` text
 format: docx | pdf | xlsx
@@ -15,9 +16,26 @@ action: read | search | write | patch
 view: text | formatting | image | structure
 ```
 
+DOCX supports text, formatting, and image reads; text search;
+Markdown-to-DOCX writes; and narrow OOXML patches. PDF supports text and
+image reads plus text search. XLSX supports structure-only reads,
+CSV-to-template writes, and formatting/layout patches.
+
+The schema describes operation-specific path roles and defaults. For
+DOCX write, `path` is Markdown source. For XLSX write, `path` is the
+workbook template and `source_csv` supplies values. Other operations use
+`path` as the input document. Relative paths resolve from Pi's working
+directory; a leading `@` is removed before resolution.
+
 Unsupported combinations and operation-irrelevant parameters are
 rejected explicitly. Paths and required query/output values cannot be
-empty.
+empty. Writes and patches require an output distinct from the input.
+`dry_run` is supported for DOCX patches and XLSX writes and patches.
+
+Prompt guidance supplies the compact operation matrix needed to choose a
+valid call without retrying through invalid combinations. It also marks
+all file-derived strings as untrusted data rather than model
+instructions.
 
 ## Processes
 
@@ -62,9 +80,10 @@ Writes use inline strings by default, may infer only empty, numeric, and
 boolean primitives in automatic mode, and never infer dates or formulas.
 Destination formulas cause the entire write to fail.
 
-Style patches cover bold, italic, font size, RGB fill, alignment,
-wrapping, number format, and a uniform border. Equivalent style
-components and cell formats are reused. Column width and row height use
+Style patches cover bold, italic, font size in points, RGB fill,
+alignment, wrapping, Excel number-format codes, and a uniform border.
+Equivalent style components and cell formats are reused. Column width
+uses Excel character-width units; row height uses points. Both apply to
 the addressed range's columns and rows. Existing cell values and
 formulas remain unchanged during formatting.
 
@@ -94,7 +113,8 @@ derive the document's namespace prefix when writing Word attributes.
 This supports ordinary alternate-prefix documents but is not a general
 namespace-normalizing OOXML engine.
 
-The current patch surface covers:
+Page dimensions and margins use OOXML twips (twentieths of a point). The
+current patch surface covers:
 
 - first-section page size and orientation;
 - first-section margins;
@@ -119,6 +139,19 @@ Patches reject empty requests and incompatible line-number settings.
 Patches are validated against the requested resulting formatting. Writes
 and patches use temporary sibling files and atomic renames. Source files
 are not modified.
+
+## Trust boundary
+
+Extracted text, document metadata, sheet names, filenames, formulas,
+comments, and CSV fields are file-derived data, not instructions. XLSX
+normal results and errors omit cell, formula, comment, and CSV contents.
+Structural labels such as sheet names may still be file-controlled and
+must remain untrusted.
+
+A successful operation reports mechanical processing, not human approval
+of the resulting document. Dry runs validate inputs and the proposed
+mutation without writing output; they do not judge whether the change is
+desirable.
 
 ## Scope boundary
 

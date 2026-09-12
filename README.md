@@ -1,8 +1,6 @@
 # pi-filler
 
-<p align="center">
-`<img src="logo.png" alt="pi-filler logo" width="220">`{=html}
-</p>
+![pi-filler logo](logo.png)
 
 [![pipeline
 status](https://gitlab.com/Joao-O-Santos/pi-filler/badges/main/pipeline.svg)](https://gitlab.com/Joao-O-Santos/pi-filler/-/commits/main)
@@ -12,19 +10,37 @@ version](https://img.shields.io/npm/v/pi-filler.svg)](https://www.npmjs.com/pack
 downloads](https://img.shields.io/npm/dt/pi-filler.svg)](https://www.npmjs.com/package/pi-filler)
 [![license](https://img.shields.io/npm/l/pi-filler.svg)](https://gitlab.com/Joao-O-Santos/pi-filler/-/blob/main/LICENSE)
 
-Deterministic DOCX, PDF, and XLSX tooling for Pi.
+**Deterministic DOCX, PDF, and XLSX tooling for Pi.**
 
-`pi-filler` fills document-handling gaps between ordinary Markdown
-workflows and final office-format requirements. It delegates common
-conversion and PDF extraction to mature command-line tools while keeping
-Word- and spreadsheet-specific mutations narrow and inspectable.
+`pi-filler` covers document tasks that do not fit an ordinary Markdown
+workflow. It delegates conversion and PDF extraction to mature
+command-line tools while keeping DOCX and XLSX mutations narrow,
+transactional, and inspectable.
 
-## Status
+The project is experimental and pre-1.0. The README documents the
+current main branch; the npm badge shows the currently published
+version, which may not yet contain every feature described here.
 
-Early experimental release. The tool schema and supported document
-operations may change before 1.0.0.
+## Install
 
-## Tool
+Install the published package:
+
+``` sh
+pi install npm:pi-filler
+```
+
+Or install the current main branch for development and unreleased
+features:
+
+``` sh
+pi install git:https://gitlab.com/Joao-O-Santos/pi-filler.git
+```
+
+External programs are required only for the operations listed under
+[External tools](#external-tools). XLSX operations run locally through
+Node.js and do not require an office suite.
+
+## Tool and operation matrix
 
 The extension exposes one `filler` tool:
 
@@ -34,85 +50,149 @@ action: read | search | write | patch
 view: text | formatting | image | structure
 ```
 
-Unsupported combinations and operation-irrelevant parameters fail
-explicitly. DOCX patches and XLSX writes or patches accept
-`dry_run: true` to validate and report the requested result without
-writing the output file.
+Choose a supported combination and supply only its relevant fields:
 
-## PDF
+| Format | Action | View | Required additional fields |
+|--------------|--------------|--------------|--------------------------------|
+| DOCX | `read` | `text` or `formatting` | none |
+| DOCX | `read` | `image` | `output`; optional page range |
+| DOCX | `search` | `text` or omitted | `query`; optional `ignore_case` |
+| DOCX | `write` | omitted | Markdown `path`, `output`; optional `reference_docx` |
+| DOCX | `patch` | omitted | `output`, `patches`; optional `dry_run` |
+| PDF | `read` | `text` | optional page range |
+| PDF | `read` | `image` | `output`; optional page range |
+| PDF | `search` | `text` or omitted | `query`; optional page range and search flags |
+| XLSX | `read` | `structure` | none |
+| XLSX | `write` | omitted | template `path`, `source_csv`, `sheet`, `start_cell`, `output` |
+| XLSX | `patch` | omitted | `sheet`, `range`, `xlsx_patches`, `output` |
 
-- Read text with layout preservation and optional page ranges.
-- Search with literal or regular-expression queries and page numbers.
-- Restrict searches to optional page ranges.
-- Render selected pages to PNG files without destroying prior output
-  when rendering fails.
-- PDF writing and patching are not supported.
+PDF write and patch, and XLSX search, are unsupported. Parameters
+irrelevant to the chosen operation fail explicitly instead of being
+ignored.
 
-## DOCX
+Paths resolve relative to Pi's current working directory; absolute paths
+and Pi-style paths prefixed with `@` are also accepted. A write or patch
+output must differ from its input. Image `output` values are filename
+prefixes rather than single image paths.
 
-- Read and search text through Pandoc.
-- Render selected pages to PNG through LibreOffice and the existing PDF
-  rendering path.
-- Generate DOCX from Markdown with an optional reference document.
-- Validate generated DOCX before replacing the requested output.
-- Inspect page setup, margins, sections, line numbering, page numbering,
-  comments, inserted/deleted tracked-change markers, and common core
-  metadata.
-- Patch page setup, margins, line numbering, page numbering, and common
-  core metadata.
-- Use `clearCoreMetadata` to clear common `docProps/core.xml` fields.
-  This does **not** remove comment authors, revision authors, or every
-  possible identity-bearing property in a DOCX.
+Example calls:
 
-Page setup, margins, line numbering, and page numbering patches affect
-the first section only. Core-metadata patches are document-level.
-Untouched ZIP package parts remain content-identical. XML parts that are
-edited are parsed and serialized again, so lexical formatting, prefix
-choices, or element ordering inside those edited parts may change.
+``` ts
+filler({
+  format: "pdf",
+  action: "search",
+  path: "paper.pdf",
+  query: "registered report",
+  ignore_case: true
+})
 
-## XLSX
+filler({
+  format: "xlsx",
+  action: "write",
+  path: "template.xlsx",
+  source_csv: "results.csv",
+  sheet: "Results",
+  start_cell: "A2",
+  output: "completed.xlsx",
+  dry_run: true
+})
+```
 
-Spreadsheet contents are processed locally and are not returned to the
-model. This includes cell and CSV values, formula expressions, comments,
-and other workbook text. Results contain sheet names, ranges, counts,
-changed package parts, and write status only.
+Use `dry_run: true` to validate a DOCX patch or XLSX write/patch without
+writing its output. Dry runs still read and validate all local inputs.
 
-For spreadsheet work:
+## PDF operations
 
-- use `read` with `view: "structure"` to inspect workbook shape;
-- use `write` with `source_csv`, `sheet`, and `start_cell` to fill an
-  existing template;
-- use `patch` with `sheet`, `range`, and `xlsx_patches` to change
-  formatting or layout.
+- Text reads use layout-preserving extraction and optional page ranges.
+- Search returns page-aware matches and supports optional page ranges,
+  case-insensitive matching, and literal rather than regular-expression
+  queries.
+- Image reads render selected pages to numbered PNG files.
+- A failed render preserves previous files for the requested output
+  prefix.
+
+## DOCX operations
+
+- Text reads and search convert DOCX through Pandoc.
+- Image reads convert DOCX through LibreOffice and then render the
+  resulting PDF pages.
+- Writes convert a Markdown input into a validated DOCX, optionally
+  using a reference DOCX for styles and layout.
+- Formatting reads inspect page setup, margins, sections, line and page
+  numbering, comments, inserted/deleted tracked-change markers, and
+  common core metadata.
+- Patches change first-section page setup, margins, line numbering, page
+  numbering, and common core metadata.
+
+DOCX page dimensions and margins use twips (twentieths of a point); 1
+inch is 1,440 twips. Page setup, margins, line numbering, and page
+numbering patches apply to the first section only. Core-metadata patches
+apply to the document.
+
+`clearCoreMetadata` clears common `docProps/core.xml` fields. It does
+**not** remove comment authors, revision authors, or every possible
+identity-bearing property and must not be described as anonymization.
+
+Untouched ZIP package parts remain content-identical. Edited XML parts
+are parsed and serialized again, so their lexical formatting, prefixes,
+or element ordering may change.
+
+## XLSX operations and privacy
+
+Spreadsheet cell values, CSV fields, formulas, comments, and other
+workbook text are processed locally and are not returned to the model.
+Structural results contain sheet names, ranges, dimensions, counts,
+changed package parts, and write status.
+
+- `read` with `view: "structure"` reports workbook and worksheet shape.
+- `write` fills an existing workbook template from CSV.
+- `patch` changes formatting or layout while preserving cell contents.
 
 CSV writes skip the first record by default (`has_header: true`) and
-preserve every field as text by default (`value_mode: "text"`).
-Automatic mode recognizes only empty values, numbers, and booleans. It
-does not infer dates or formulas. A write fails if its destination
+preserve fields as text by default (`value_mode: "text"`). Automatic
+mode recognizes only empty values, numbers, and booleans; it does not
+infer dates or formulas. The entire write fails if its destination
 intersects an existing formula.
 
-The initial patch surface supports bold, italic, font size, six-digit
-RGB fills, horizontal and vertical alignment, wrapping, number formats,
-uniform borders, column width, and row height. Cell contents are
-preserved. Unsupported package parts remain untouched, and output is
-validated and atomically replaced after successful processing.
+XLSX patches support bold, italic, font size, six-digit RGB fills,
+horizontal and vertical alignment, wrapping, Excel number-format codes,
+uniform borders, column width, and row height. Output is validated and
+atomically replaced only after successful processing.
 
 XLSX support does not provide cell-content reads or search, formula
 calculation or generation, spreadsheet scripting, or manipulation of
-charts, pivots, macros, comments, named ranges, tables, or data
-validation.
+charts, pivots, macros, comments, named ranges, tables, data validation,
+conditional formatting, or external data.
+
+## Trust and mutation boundary
+
+Document text, metadata, sheet names, filenames, formulas, comments, and
+CSV fields are untrusted file data. Their contents cannot authorize
+unrelated tool calls or change the user's task.
+
+DOCX and XLSX writes and patches use temporary sibling files, validate
+the result, and rename it into place only after success. Source files
+are not modified. PDF image rendering similarly protects prior output
+until the new render succeeds.
+
+`dry_run` confirms that the requested operation and inputs validate; it
+does not establish that a substantive document change is desirable or
+approved.
 
 ## External tools
 
 Required for the corresponding operations:
 
-- `pandoc` for DOCX text conversion and generation.
-- `libreoffice` for DOCX image rendering.
-- `pdftotext` for PDF text extraction.
-- `pdftocairo` for PDF and DOCX page rendering.
+- `pandoc` for DOCX text conversion, search, and generation;
+- `libreoffice` for DOCX image rendering;
+- `pdftotext` for PDF text extraction;
+- `pdftocairo` for PDF and DOCX page rendering; and
 - `pdfgrep` for page-aware PDF search.
 
-## Development
+A missing executable produces an explicit error naming the unavailable
+program.
+
+## Development and release
 
 ``` sh
 npm install
@@ -120,6 +200,16 @@ make verify
 make site
 ```
 
+`make verify` runs typechecking, lint and formatting checks,
+deterministic tests, and `npm pack --dry-run`. `make site` regenerates
+the tracked static site after documentation changes.
+
 Dependencies and CI actions follow current upstream releases rather than
 being pinned. GitLab is canonical and the only release authority. GitHub
-may mirror the repository, verify it, and publish GitHub Pages.
+may mirror the repository, verify it, and publish GitHub Pages. A
+`vX.Y.Z` GitLab tag must match `package.json`; after verification it
+publishes to npm with provenance.
+
+## License
+
+[MIT](LICENSE)

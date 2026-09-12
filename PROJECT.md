@@ -37,7 +37,7 @@ mirror for verification and Pages.
 
 ## Current state
 
-The planned v0.0.0 core is implemented as a release candidate:
+The current pre-1.0 source implements:
 
 - one `filler` tool with explicit DOCX/PDF/XLSX operation combinations;
 - bounded, cancellable, finite-time external command execution;
@@ -50,8 +50,8 @@ The planned v0.0.0 core is implemented as a release candidate:
 - structural-only XLSX inspection, CSV-to-template filling, primitive
   automatic typing, formula protection, and narrow style/layout patches.
 
-No v0.0.0 tag or release exists yet. Tagging and publication require
-explicit instruction.
+The repository version may be ahead of the npm release shown in the
+README badge. Tagging and publication require explicit instruction.
 
 ## Boundaries
 
@@ -65,6 +65,12 @@ promised to be lexically identical to their originals.
 
 Spreadsheet cells, CSV fields, formulas, comments, and other workbook
 text are tool-local data. Normal XLSX results and errors expose only
-structural or operational metadata. XLSX support does not calculate
-formulas or provide arbitrary content extraction or spreadsheet
-programming.
+structural or operational metadata. Sheet names and other exposed
+file-derived labels remain untrusted data. XLSX support does not
+calculate formulas or provide arbitrary content extraction or
+spreadsheet programming.
+
+Model-facing schema descriptions and prompt guidance should make a valid
+format/action/view combination possible in one call, distinguish source
+and output path roles, state defaults and units, and discourage retries
+through unsupported operations.

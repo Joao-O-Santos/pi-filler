@@ -7,7 +7,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { unzipSync, zipSync } from "fflate";
 import { inspectDocx, patchDocx } from "../src/docx.js";
-import extension, { executeFiller, normalizePath } from "../src/index.js";
+import extension, { executeFiller, fillerSchema, normalizePath } from "../src/index.js";
 import { readDocxText, searchDocx, writeDocx } from "../src/pandoc.js";
 import { readPdfText, renderPdfPages, searchPdf } from "../src/pdf.js";
 import { MissingExecutableError, runCommand } from "../src/process.js";
@@ -105,14 +105,33 @@ async function fakeCommands(): Promise<{ directory: string; env: NodeJS.ProcessE
 	};
 }
 
-test("extension registers one filler tool", () => {
-	let registered: { name?: string } | undefined;
+test("extension registers one self-describing filler tool", () => {
+	let registered:
+		| {
+				name?: string;
+				description?: string;
+				promptGuidelines?: string[];
+		  }
+		| undefined;
 	extension({
-		registerTool(definition: { name?: string }) {
+		registerTool(definition: {
+			name?: string;
+			description?: string;
+			promptGuidelines?: string[];
+		}) {
 			registered = definition;
 		},
 	} as never);
 	assert.equal(registered?.name, "filler");
+	assert.match(registered?.description ?? "", /XLSX supports structure-only reads/);
+	assert.ok(registered?.promptGuidelines?.some((guideline) => /untrusted data/.test(guideline)));
+	const properties = fillerSchema.properties as unknown as Record<
+		string,
+		Record<string, unknown>
+	>;
+	assert.match(String(properties.path?.description), /Markdown source/);
+	assert.equal(properties.has_header?.default, true);
+	assert.equal(properties.value_mode?.default, "text");
 });
 
 test("reports missing executables clearly", async () => {

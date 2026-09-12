@@ -3,24 +3,29 @@
 	"artifacts": [
 		{
 			"path": "PROJECT.md",
-			"fingerprint": "sha256:0b452f0ad54d568ba6b7f0d2217575ed9867fbd2feb6f6adb57ad28854eae692",
+			"fingerprint": "sha256:a8468924fb2198fda5db88a3031417567c21ff1f50b073c149217bf1a3a850ee",
 			"status": "current",
 			"role": "project",
 			"dependsOn": []
 		},
 		{
 			"path": "ARCHITECTURE.md",
-			"fingerprint": "sha256:7ba6a2311ac97f430ffc0335bcc8d4e60a3d7f79e952f7b9f16b176625d7ccaa",
+			"fingerprint": "sha256:5cb17b4088ef060b6ca98c78cac293f7c3fb2cec94bebdcf94267aa66d23620c",
 			"status": "current",
 			"role": "architecture",
-			"dependsOn": ["PROJECT.md"]
+			"dependsOn": [
+				"PROJECT.md"
+			]
 		},
 		{
 			"path": "README.md",
-			"fingerprint": "sha256:a51b8db695500dc3ea2b87ff79ebc06e98090a4bf8288ee937d311c451b7082a",
+			"fingerprint": "sha256:e7ce0fe31be655d6084894031847d68beefb2e9f67dcb0750c95c33dd61c89e9",
 			"status": "current",
 			"role": "documentation",
-			"dependsOn": ["PROJECT.md", "ARCHITECTURE.md"]
+			"dependsOn": [
+				"PROJECT.md",
+				"ARCHITECTURE.md"
+			]
 		},
 		{
 			"path": "STYLE.md",
@@ -31,17 +36,24 @@
 		},
 		{
 			"path": "AGENTS.md",
-			"fingerprint": "sha256:e92c3fcfe8b482300c3596a98757100d4f0c7de3c08018086ff3762d66801c72",
+			"fingerprint": "sha256:9f0fad61abe3fae6cb07070555b0d5ae870912cb3a1bc3129d0282e6fd77b894",
 			"status": "current",
 			"role": "agent-instructions",
-			"dependsOn": ["PROJECT.md", "ARCHITECTURE.md", "STYLE.md"]
+			"dependsOn": [
+				"PROJECT.md",
+				"ARCHITECTURE.md",
+				"STYLE.md"
+			]
 		},
 		{
 			"path": "CHANGELOG.md",
-			"fingerprint": "sha256:d9879b3746b891f121c213fcf4c7d3bc59c62d8b636a1e6a97574747b7073c25",
+			"fingerprint": "sha256:77ea86a80edd0ba2a8c8e7a657559b1c90e9a4fce93432e9b2df9732a320aa20",
 			"status": "current",
 			"role": "changelog",
-			"dependsOn": ["PROJECT.md", "ARCHITECTURE.md"]
+			"dependsOn": [
+				"PROJECT.md",
+				"ARCHITECTURE.md"
+			]
 		}
 	]
 }
