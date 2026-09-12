@@ -1,12 +1,13 @@
 {
 	"name": "pi-filler",
 	"version": "0.0.0",
-	"description": "Deterministic DOCX and PDF tooling for Pi",
+	"description": "Deterministic DOCX, PDF, and XLSX tooling for Pi",
 	"keywords": [
 		"pi-package",
 		"pi-extension",
 		"docx",
 		"pdf",
+		"xlsx",
 		"pandoc",
 		"document-processing"
 	],
@@ -68,6 +69,7 @@
 		"typescript": "latest"
 	},
 	"dependencies": {
+		"csv-parse": "latest",
 		"fast-xml-parser": "latest",
 		"fflate": "latest"
 	}

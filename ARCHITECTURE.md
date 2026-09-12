@@ -2,17 +2,17 @@
 
 `pi-filler` is a small Pi extension for deterministic document handling.
 It delegates common document conversion and PDF extraction to mature
-command-line tools and keeps Word-specific mutations narrow and
-inspectable.
+command-line tools and keeps Word- and spreadsheet-specific mutations
+narrow and inspectable.
 
 ## Model-facing API
 
 The extension exposes one `filler` tool:
 
-```text
-format: docx | pdf
+``` text
+format: docx | pdf | xlsx
 action: read | search | write | patch
-view: text | formatting | image
+view: text | formatting | image | structure
 ```
 
 Unsupported combinations and operation-irrelevant parameters are
@@ -27,7 +27,8 @@ Timed-out commands are force-terminated. The adapter otherwise only
 normalizes errors and missing-executable messages.
 
 Required executables are `pandoc`, `pdftotext`, `pdftocairo`, and
-`pdfgrep`. LibreOffice is optional future work for DOCX rendering.
+`pdfgrep`. LibreOffice is optional at runtime and used for DOCX image
+rendering.
 
 ## PDF
 
@@ -44,6 +45,33 @@ happens under a temporary sibling directory. Existing outputs for the
 requested prefix are replaced only after `pdftocairo` succeeds, so a
 failed render does not destroy a previous successful result. Generated
 page files are sorted by numeric page number.
+
+## XLSX
+
+XLSX data is tool-local. Workbook cells, CSV fields, formulas, comments,
+and other spreadsheet text are never included in normal model-facing
+results or errors. Structural reads report sheet names, active sheet,
+used ranges, dimensions, and counts for formulas, merges, and styled
+cells.
+
+`fflate` preserves package members and `fast-xml-parser` mutates only
+the selected worksheet and, for style patches, `xl/styles.xml`.
+Worksheet names are resolved through `xl/workbook.xml` relationships
+rather than filename assumptions. `csv-parse` handles source CSV syntax.
+Writes use inline strings by default, may infer only empty, numeric, and
+boolean primitives in automatic mode, and never infer dates or formulas.
+Destination formulas cause the entire write to fail.
+
+Style patches cover bold, italic, font size, RGB fill, alignment,
+wrapping, number format, and a uniform border. Equivalent style
+components and cell formats are reused. Column width and row height use
+the addressed range's columns and rows. Existing cell values and
+formulas remain unchanged during formatting.
+
+XLSX writes and patches require a distinct output path. They run through
+the file mutation queue, build and validate a temporary sibling package,
+and rename it only after successful validation. Dry runs parse all local
+inputs but return only structural operation metadata.
 
 ## DOCX text and generation
 
@@ -70,8 +98,7 @@ The current patch surface covers:
 
 - first-section page size and orientation;
 - first-section margins;
-- line numbering modes `off`, `continuous`, `newPage`, and
-  `newSection`;
+- line numbering modes `off`, `continuous`, `newPage`, and `newSection`;
 - page-number start and format;
 - common core metadata;
 - `clearCoreMetadata`, which clears common core metadata only.
@@ -82,9 +109,11 @@ reserialized, so lexical XML details inside those parts may change.
 
 ## Validation
 
-Inspection and mutations validate required package parts and parse every
-XML and relationship part. Internal targets from every `.rels` part
-must resolve to an existing package part.
+DOCX inspection and mutations validate required package parts and parse
+every XML and relationship part. XLSX operations validate workbook
+metadata, worksheets, styles when used, and all package relationships.
+Internal targets from every `.rels` part must resolve to an existing
+package part.
 
 Patches reject empty requests and incompatible line-number settings.
 Patches are validated against the requested resulting formatting. Writes
@@ -93,6 +122,11 @@ are not modified.
 
 ## Scope boundary
 
-The project is not a general office suite, broad PDF toolkit, or
-complete DOCX anonymizer. New OOXML features should be driven by real
-document fixtures rather than speculative coverage.
+The project is not a general office suite, broad PDF toolkit, complete
+DOCX anonymizer, or spreadsheet programming environment. XLSX support
+does not extract arbitrary content, evaluate or generate formulas, or
+manipulate charts, pivots, macros, comments, named ranges, data
+validation, tables, external data, or conditional formatting. Existing
+unsupported package parts are preserved where possible. New OOXML
+features should be driven by real document fixtures rather than
+speculative coverage.

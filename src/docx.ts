@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, join, posix, resolve } from "node:path";
 import { XMLBuilder, XMLParser } from "fast-xml-parser";
-import { unzipSync, zipSync } from "fflate";
+import { type OfficePackage, packOfficePackage, unpackOfficePackage } from "./ooxml.js";
 
 export interface DocxPatchSet {
 	page?: { width?: number; height?: number; orientation?: "portrait" | "landscape" };
@@ -50,7 +50,7 @@ export interface DocxPatchResult {
 	written: boolean;
 }
 
-type Package = Record<string, Uint8Array>;
+type Package = OfficePackage;
 type XmlObject = Record<string, unknown>;
 
 const WORD_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
@@ -86,11 +86,7 @@ function serializeXml(value: XmlObject): Uint8Array {
 }
 
 function unpack(bytes: Uint8Array): Package {
-	try {
-		return unzipSync(bytes);
-	} catch (error) {
-		throw new Error(`Invalid DOCX ZIP package: ${error instanceof Error ? error.message : error}`);
-	}
+	return unpackOfficePackage(bytes, "DOCX");
 }
 
 function findAll(value: unknown, suffix: string, found: XmlObject[] = []): XmlObject[] {
@@ -507,7 +503,7 @@ export async function patchDocx(
 	const temporary = join(dirname(output), `.${output.split(/[\\/]/).pop()}.${randomUUID()}.tmp`);
 	await mkdir(dirname(output), { recursive: true });
 	try {
-		await writeFile(temporary, zipSync(pkg));
+		await writeFile(temporary, packOfficePackage(pkg));
 		await inspectDocx(temporary);
 		await rename(temporary, output);
 		result.written = true;

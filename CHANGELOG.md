@@ -14,6 +14,14 @@
 - Relationship and generated-DOCX validation.
 - Deterministic regression tests for command limits and document
   operations.
+- Structural-only XLSX inspection without spreadsheet-content output.
+- Transactional CSV-to-XLSX template filling in text and automatic
+  primitive modes.
+- Formula-cell protection for XLSX destinations.
+- Narrow XLSX style, column-width, and row-height patches with dry-run
+  support.
+- Privacy regression fixtures covering workbook cells, formulas,
+  comments, and CSV fields.
 
 ### Changed
 
@@ -48,6 +56,10 @@
 - Follow current releases for runtime dependencies.
 - Check Markdown prose width directly instead of requiring a Pandoc
   round-trip to be byte-identical.
+- Resolve worksheets through workbook relationships and preserve
+  untouched XLSX package parts.
+- Keep spreadsheet contents tool-local and return only structural XLSX
+  metadata.
 
 ### Limitations
 
@@ -60,4 +72,6 @@
 - Edited XML parts are reserialized and may differ lexically from their
   original representation.
 - PDF writing and patching are not supported.
-- LibreOffice-based DOCX rendering remains future work.
+- XLSX support does not extract cell contents, calculate formulas, or
+  manipulate charts, pivots, macros, comments, named ranges, tables,
+  conditional formatting, or external data.

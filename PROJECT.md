@@ -3,21 +3,26 @@
 ## Objective
 
 Build `pi-filler`, a small deterministic document helper for Pi that
-fills DOCX and PDF workflow gaps without requiring a full office suite.
+fills DOCX, PDF, and XLSX workflow gaps without requiring a full office
+suite.
 
 ## Intended use
 
 The extension supports manuscript and journal-submission work: text
 extraction, page-aware PDF search, selective PDF rendering, DOCX
-generation, formatting inspection, and narrow Word-format patches.
+generation, formatting inspection, narrow Word-format patches, and
+privacy-preserving spreadsheet template filling and formatting.
 
 ## Scope
 
 Pandoc handles DOCX conversion. Poppler command-line tools handle PDF
 text and rendering. `pdfgrep` handles page-aware PDF search. Targeted
-Word formatting changes operate on OOXML inside the DOCX package.
+Word formatting changes operate on OOXML inside the DOCX package. XLSX
+operations parse workbook OOXML and CSV data locally, mutate only needed
+package parts, and return structural metadata rather than spreadsheet
+contents.
 
-LibreOffice may later provide optional DOCX-to-PDF rendering. PDF
+LibreOffice provides optional DOCX-to-PDF rendering for image reads. PDF
 writing and patching are outside the current scope.
 
 ## Constraints
@@ -34,14 +39,16 @@ mirror for verification and Pages.
 
 The planned v0.0.0 core is implemented as a release candidate:
 
-- one `filler` tool with explicit DOCX/PDF operation combinations;
+- one `filler` tool with explicit DOCX/PDF/XLSX operation combinations;
 - bounded, cancellable, finite-time external command execution;
 - PDF text, search, and selected-page rendering;
 - DOCX text, search, and validated transactional generation;
 - prefix-flexible OOXML inspection and conservative first-section
   patches;
 - transactional patching with dry runs and relationship validation;
-- deterministic regression tests for the supported surface.
+- deterministic regression tests for the supported surface;
+- structural-only XLSX inspection, CSV-to-template filling, primitive
+  automatic typing, formula protection, and narrow style/layout patches.
 
 No v0.0.0 tag or release exists yet. Tagging and publication require
 explicit instruction.
@@ -52,6 +59,12 @@ explicit instruction.
 clears common core metadata fields but does not promise removal of every
 possible author or identity trace.
 
-Untouched DOCX package parts are preserved byte-for-byte at the part
-content level. Edited XML parts are reserialized and are not promised to
-be lexically identical to their originals.
+Untouched DOCX and XLSX package parts are preserved byte-for-byte at the
+part content level. Edited XML parts are reserialized and are not
+promised to be lexically identical to their originals.
+
+Spreadsheet cells, CSV fields, formulas, comments, and other workbook
+text are tool-local data. Normal XLSX results and errors expose only
+structural or operational metadata. XLSX support does not calculate
+formulas or provide arbitrary content extraction or spreadsheet
+programming.

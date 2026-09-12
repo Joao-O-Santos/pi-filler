@@ -3,21 +3,21 @@
 	"artifacts": [
 		{
 			"path": "PROJECT.md",
-			"fingerprint": "sha256:e01746262eed1784d80bd5f9a61dac3bbbdd13eb99d32ea6ed1e341f2b4bb464",
+			"fingerprint": "sha256:0b452f0ad54d568ba6b7f0d2217575ed9867fbd2feb6f6adb57ad28854eae692",
 			"status": "current",
 			"role": "project",
 			"dependsOn": []
 		},
 		{
 			"path": "ARCHITECTURE.md",
-			"fingerprint": "sha256:37f099cbb44fb353a1d8a4e96cbc11464ef9202ae6c80cfb62884eab49b61974",
+			"fingerprint": "sha256:7ba6a2311ac97f430ffc0335bcc8d4e60a3d7f79e952f7b9f16b176625d7ccaa",
 			"status": "current",
 			"role": "architecture",
 			"dependsOn": ["PROJECT.md"]
 		},
 		{
 			"path": "README.md",
-			"fingerprint": "sha256:562134be455e445cb7416454802d2ddafffa9aa02e57be78f199256e3c58f845",
+			"fingerprint": "sha256:a51b8db695500dc3ea2b87ff79ebc06e98090a4bf8288ee937d311c451b7082a",
 			"status": "current",
 			"role": "documentation",
 			"dependsOn": ["PROJECT.md", "ARCHITECTURE.md"]
@@ -38,7 +38,7 @@
 		},
 		{
 			"path": "CHANGELOG.md",
-			"fingerprint": "sha256:9800c001faf0ff5b3517d4e630ddb45eebc9ad7cab64e383c0fca3abe4bd26dd",
+			"fingerprint": "sha256:d9879b3746b891f121c213fcf4c7d3bc59c62d8b636a1e6a97574747b7073c25",
 			"status": "current",
 			"role": "changelog",
 			"dependsOn": ["PROJECT.md", "ARCHITECTURE.md"]

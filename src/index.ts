@@ -13,6 +13,7 @@ import { type DocxPatchSet, inspectDocx, patchDocx } from "./docx.js";
 import { readDocxText, searchDocx, writeDocx } from "./pandoc.js";
 import { readPdfText, renderPdfPages, searchPdf } from "./pdf.js";
 import { commandError, runCommand } from "./process.js";
+import { fillXlsxFromCsv, inspectXlsxStructure, patchXlsx, type XlsxPatchSet } from "./xlsx.js";
 
 const docxPatchesSchema = Type.Object(
 	{
@@ -81,11 +82,52 @@ const docxPatchesSchema = Type.Object(
 	{ additionalProperties: false, minProperties: 1 },
 );
 
+const xlsxPatchesSchema = Type.Object(
+	{
+		font: Type.Optional(
+			Type.Object(
+				{
+					bold: Type.Optional(Type.Boolean()),
+					italic: Type.Optional(Type.Boolean()),
+					size: Type.Optional(Type.Number({ exclusiveMinimum: 0 })),
+				},
+				{ additionalProperties: false, minProperties: 1 },
+			),
+		),
+		fill: Type.Optional(
+			Type.String({
+				description: "Six hexadecimal RGB digits, without # or alpha",
+				pattern: "^[0-9A-Fa-f]{6}$",
+			}),
+		),
+		alignment: Type.Optional(
+			Type.Object(
+				{
+					horizontal: Type.Optional(StringEnum(["left", "center", "right"] as const)),
+					vertical: Type.Optional(StringEnum(["top", "center", "bottom"] as const)),
+					wrap_text: Type.Optional(Type.Boolean()),
+				},
+				{ additionalProperties: false, minProperties: 1 },
+			),
+		),
+		number_format: Type.Optional(Type.String({ minLength: 1 })),
+		border: Type.Optional(
+			Type.Object(
+				{ style: Type.Optional(StringEnum(["thin", "medium", "thick"] as const)) },
+				{ additionalProperties: false, minProperties: 1 },
+			),
+		),
+		column_width: Type.Optional(Type.Number({ exclusiveMinimum: 0, maximum: 255 })),
+		row_height: Type.Optional(Type.Number({ exclusiveMinimum: 0, maximum: 409 })),
+	},
+	{ additionalProperties: false, minProperties: 1 },
+);
+
 export const fillerSchema = Type.Object(
 	{
-		format: StringEnum(["docx", "pdf"] as const),
+		format: StringEnum(["docx", "pdf", "xlsx"] as const),
 		action: StringEnum(["read", "search", "write", "patch"] as const),
-		view: Type.Optional(StringEnum(["text", "formatting", "image"] as const)),
+		view: Type.Optional(StringEnum(["text", "formatting", "image", "structure"] as const)),
 		path: Type.String({ description: "Input document path", minLength: 1 }),
 		output: Type.Optional(
 			Type.String({ description: "Output file or image prefix", minLength: 1 }),
@@ -95,6 +137,15 @@ export const fillerSchema = Type.Object(
 			Type.String({ description: "Reference DOCX for writes", minLength: 1 }),
 		),
 		patches: Type.Optional(docxPatchesSchema),
+		source_csv: Type.Optional(Type.String({ description: "Local CSV source path", minLength: 1 })),
+		sheet: Type.Optional(Type.String({ description: "Worksheet name", minLength: 1 })),
+		start_cell: Type.Optional(
+			Type.String({ description: "Upper-left XLSX destination cell", minLength: 1 }),
+		),
+		range: Type.Optional(Type.String({ description: "XLSX target cell range", minLength: 1 })),
+		has_header: Type.Optional(Type.Boolean()),
+		value_mode: Type.Optional(StringEnum(["text", "auto"] as const)),
+		xlsx_patches: Type.Optional(xlsxPatchesSchema),
 		dry_run: Type.Optional(Type.Boolean({ description: "Validate and report without writing" })),
 		literal: Type.Optional(
 			Type.Boolean({ description: "Treat a PDF search query as literal text" }),
@@ -115,6 +166,13 @@ const controlFields: ControlField[] = [
 	"query",
 	"reference_docx",
 	"patches",
+	"source_csv",
+	"sheet",
+	"start_cell",
+	"range",
+	"has_header",
+	"value_mode",
+	"xlsx_patches",
 	"dry_run",
 	"literal",
 	"ignore_case",
@@ -187,6 +245,37 @@ function assertSupported(input: FillerInput): void {
 		}
 		if (input.patches === undefined) throw new Error("DOCX patch requires patches");
 		assertParameters(input, ["output", "patches", "dry_run"]);
+		return;
+	}
+
+	if (input.format === "xlsx") {
+		if (input.action === "read") {
+			if (input.view !== "structure") throw new Error("XLSX read requires view=structure");
+			assertParameters(input, []);
+			return;
+		}
+		if (input.action === "search") throw new Error("XLSX search is not supported");
+		if (input.action === "write") {
+			if (input.view !== undefined) throw new Error("XLSX write does not accept view");
+			if (!input.output || !input.source_csv || !input.sheet || !input.start_cell) {
+				throw new Error("XLSX write requires output, source_csv, sheet, and start_cell");
+			}
+			assertParameters(input, [
+				"output",
+				"source_csv",
+				"sheet",
+				"start_cell",
+				"has_header",
+				"value_mode",
+				"dry_run",
+			]);
+			return;
+		}
+		if (input.view !== undefined) throw new Error("XLSX patch does not accept view");
+		if (!input.output || !input.sheet || !input.range || !input.xlsx_patches) {
+			throw new Error("XLSX patch requires output, sheet, range, and xlsx_patches");
+		}
+		assertParameters(input, ["output", "sheet", "range", "xlsx_patches", "dry_run"]);
 		return;
 	}
 
@@ -290,6 +379,51 @@ export async function executeFiller(
 		return { text: `Wrote ${output}`, details: { output } };
 	}
 
+	if (input.format === "xlsx") {
+		if (input.action === "read") {
+			const result = await inspectXlsxStructure(path);
+			return {
+				text: JSON.stringify(result, null, 2),
+				details: result as unknown as Record<string, unknown>,
+			};
+		}
+		const output = normalizePath(input.output ?? "", cwd);
+		if (input.action === "write") {
+			const sourceCsv = normalizePath(input.source_csv ?? "", cwd);
+			const result = await withFileMutationQueue(output, () =>
+				fillXlsxFromCsv(path, sourceCsv, output, {
+					sheet: input.sheet ?? "",
+					startCell: input.start_cell ?? "",
+					hasHeader: input.has_header,
+					valueMode: input.value_mode,
+					dryRun: input.dry_run,
+					signal,
+				}),
+			);
+			return {
+				text: JSON.stringify(result, null, 2),
+				details: result as unknown as Record<string, unknown>,
+			};
+		}
+		const result = await withFileMutationQueue(output, () =>
+			patchXlsx(
+				path,
+				output,
+				{
+					sheet: input.sheet ?? "",
+					range: input.range ?? "",
+					patches: input.xlsx_patches as XlsxPatchSet,
+				},
+				input.dry_run,
+				signal,
+			),
+		);
+		return {
+			text: JSON.stringify(result, null, 2),
+			details: result as unknown as Record<string, unknown>,
+		};
+	}
+
 	if (input.action === "search") {
 		const result = await searchPdf(path, input.query ?? "", {
 			...range,
@@ -324,8 +458,10 @@ export default function extension(pi: ExtensionAPI): void {
 	pi.registerTool({
 		name: "filler",
 		label: "Filler",
-		description: "Read, search, inspect, write, or patch DOCX/PDF documents with bounded output.",
-		promptSnippet: "Read, search, inspect, write, or patch a document",
+		description:
+			"Read, inspect, write, or patch DOCX/PDF/XLSX files. For XLSX, use structural inspection, CSV-to-template filling, and formatting. Spreadsheet contents are processed locally and are not returned to you.",
+		promptSnippet:
+			"For spreadsheets: read/structure inspects shape, write fills a template from CSV, and patch changes formatting or layout without exposing contents",
 		parameters: fillerSchema,
 		async execute(_toolCallId, input, signal, _onUpdate, ctx: ExtensionContext) {
 			const result = await executeFiller(input, ctx.cwd, signal);
