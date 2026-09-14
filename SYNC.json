@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "confirmedAt": "2026-09-14T14:06:36.788Z",
+  "confirmedAt": "2026-09-14T14:07:15.178Z",
   "artifacts": [
     {
       "path": "PROJECT.md",
@@ -28,7 +28,7 @@
     },
     {
       "path": "README.md",
-      "fingerprint": "sha256:418300af6a908655d74eef259d0956b734db863dd7ebf2a86569a35a2cebc17f",
+      "fingerprint": "sha256:59e16055a487d880ee1f50af338a85cad8f89a9bdddcf5dae7ff57d0dab857b8",
       "status": "current",
       "role": "documentation",
       "dependsOn": [
@@ -36,8 +36,8 @@
         "ARCHITECTURE.md"
       ],
       "acknowledgement": {
-        "at": "2026-09-14T14:06:36.788Z",
-        "reason": "Implemented the accepted narrow XLSX attendance workflow: explicit CSV column maps, mapped merged-range protection, bounded content-free layout metadata, and optional LibreOffice image rendering; synchronized the schema, implementation, tests, and documentation."
+        "at": "2026-09-14T14:07:15.178Z",
+        "reason": "Corrected the documented pdftocairo dependency to include the implemented XLSX image-rendering path after final verification."
       }
     },
     {

@@ -206,7 +206,7 @@ Required for the corresponding operations:
 - `pandoc` for DOCX text conversion, search, and generation;
 - `libreoffice` for DOCX and XLSX image rendering;
 - `pdftotext` for PDF text extraction;
-- `pdftocairo` for PDF and DOCX page rendering; and
+- `pdftocairo` for PDF, DOCX, and XLSX page rendering; and
 - `pdfgrep` for page-aware PDF search.
 
 A missing executable produces an explicit error naming the unavailable
