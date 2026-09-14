@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "confirmedAt": "2026-09-14T14:07:15.178Z",
+  "confirmedAt": "2026-09-14T14:12:51.089Z",
   "artifacts": [
     {
       "path": "PROJECT.md",
@@ -68,7 +68,7 @@
     },
     {
       "path": "CHANGELOG.md",
-      "fingerprint": "sha256:9019137736e5170ad457616d81cef292f88aeed2b10354e6d686b618091672ff",
+      "fingerprint": "sha256:dd4e5215c96f526eb785e8e0d76acc352b87957476fafc54a7bbc8020732890b",
       "status": "current",
       "role": "changelog",
       "dependsOn": [
@@ -76,8 +76,8 @@
         "ARCHITECTURE.md"
       ],
       "acknowledgement": {
-        "at": "2026-09-14T14:06:36.788Z",
-        "reason": "Implemented the accepted narrow XLSX attendance workflow: explicit CSV column maps, mapped merged-range protection, bounded content-free layout metadata, and optional LibreOffice image rendering; synchronized the schema, implementation, tests, and documentation."
+        "at": "2026-09-14T14:12:51.089Z",
+        "reason": "Prepared the authorized 0.2.0 minor release after successful main-branch CI and local verification."
       }
     }
   ]

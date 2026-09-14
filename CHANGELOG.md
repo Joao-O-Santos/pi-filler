@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.2.0 --- 2026-09-14
+
 ### Added
 
 - PDF text extraction with layout preservation and page ranges.
