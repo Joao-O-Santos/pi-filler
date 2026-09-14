@@ -157,12 +157,14 @@ or element ordering may change.
 ## XLSX operations and privacy
 
 Spreadsheet cell values, CSV fields, formula contents, and comments are
-processed locally and are not returned to the model. Structural results
-may contain sheet names, ranges, dimensions, counts, merged-range
-addresses, hidden row and column ranges, changed package parts, and
-write status---not cell or CSV contents. Layout-range arrays are capped
-and report whether they were truncated; this metadata can reveal limited
-layout and occupancy information.
+processed locally and are not returned to the model. When a
+deterministic XLSX write or patch does not require inspection, do not
+read CSV or cell contents into model context merely to perform it.
+Structural results may contain sheet names, ranges, dimensions, counts,
+merged-range addresses, hidden row and column ranges, changed package
+parts, and write status---not cell or CSV contents. Layout-range arrays
+are capped and report whether they were truncated; this metadata can
+reveal limited layout and occupancy information.
 
 - `read` with `view: "structure"` reports workbook and worksheet shape.
 - `read` with `view: "image"` renders workbook print pages through

@@ -67,14 +67,14 @@ Untouched DOCX and XLSX package parts are preserved byte-for-byte at the
 part content level. Edited XML parts are reserialized and are not
 promised to be lexically identical to their originals.
 
-Spreadsheet cell values, CSV fields, formula contents, and comments
-are tool-local data. Normal XLSX results and errors expose only
-structural or operational metadata. That metadata may include
-worksheet names, ranges, dimensions, counts, merge addresses, hidden
-ranges, changed parts, and output paths. Bounded layout metadata can
-reveal limited layout and occupancy information, but not cell values
-or CSV contents. XLSX support does not calculate formulas or provide
-arbitrary content extraction or spreadsheet programming.
+Spreadsheet cell values, CSV fields, formula contents, and comments are
+tool-local data. Normal XLSX results and errors expose only structural
+or operational metadata. That metadata may include worksheet names,
+ranges, dimensions, counts, merge addresses, hidden ranges, changed
+parts, and output paths. Bounded layout metadata can reveal limited
+layout and occupancy information, but not cell values or CSV contents.
+XLSX support does not calculate formulas or provide arbitrary content
+extraction or spreadsheet programming.
 
 Model-facing schema descriptions and prompt guidance should make a valid
 format/action/view combination possible in one call, distinguish source
@@ -90,8 +90,9 @@ that duplicates this package-owned knowledge.
 
 Prefer deterministic local XLSX operations when filling or formatting
 can be completed without exposing workbook or CSV contents to the model.
-Use model interpretation only when the task actually requires semantic
-inspection.
+When that transformation does not require inspection, do not read CSV or
+cell contents into model context merely to carry it out. Use model
+interpretation only when the task actually requires semantic inspection.
 
 ## Definition of done
 

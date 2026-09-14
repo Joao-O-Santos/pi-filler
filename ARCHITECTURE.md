@@ -49,8 +49,11 @@ That guidance is package-owned. The registered `promptSnippet` and
 `promptGuidelines` travel with `pi-filler` and are the appropriate place
 for stable usage principles that are not mechanical schema details. In
 particular, they make local XLSX processing and non-return of workbook
-and CSV contents salient to the model. Pi Sych does not need a
-`pi-filler` skill, package registry entry, or duplicated description.
+and CSV contents salient to the model. When a deterministic XLSX write
+or patch does not require inspection, the guidance also tells the model
+not to read CSV or cell contents into context merely to perform it. Pi
+Sych does not need a `pi-filler` skill, package registry entry, or
+duplicated description.
 
 ## Processes
 

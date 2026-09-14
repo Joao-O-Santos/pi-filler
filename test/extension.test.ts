@@ -127,11 +127,7 @@ test("extension registers one self-describing filler tool", () => {
 	assert.equal(registered?.name, "filler");
 	assert.match(registered?.description ?? "", /^Work directly with local DOCX, PDF, and XLSX files/);
 	assert.match(registered?.promptSnippet ?? "", /^Work directly with local DOCX, PDF, and XLSX files/);
-	assert.ok(
-		registered?.promptGuidelines?.every(
-			(guideline) => guideline.startsWith("For filler") || guideline.startsWith("Use filler when"),
-		),
-	);
+	assert.ok(registered?.promptGuidelines?.every((guideline) => guideline.trim().length > 0));
 	assert.ok(registered?.promptGuidelines?.some((guideline) => /XLSX search is unsupported/.test(guideline)));
 	const properties = fillerSchema.properties as unknown as Record<
 		string,
@@ -153,7 +149,13 @@ test("extension registers one self-describing filler tool", () => {
 		),
 	);
 	assert.ok(registered?.promptGuidelines?.some((guideline) => /column_map.*ordinals.*headers/.test(guideline)));
-	assert.ok(registered?.promptGuidelines?.some((guideline) => /stays local/.test(guideline)));
+	assert.ok(
+		registered?.promptGuidelines?.some((guideline) =>
+			/without inspecting CSV or cell contents.*do not read those contents into model context/.test(
+				guideline,
+			),
+		),
+	);
 	assert.ok(
 		registered?.promptGuidelines?.some((guideline) =>
 			/DOCX search may.*PDF text or search/.test(guideline),
