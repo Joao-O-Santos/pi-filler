@@ -125,22 +125,27 @@ test("extension registers one self-describing filler tool", () => {
 		},
 	} as never);
 	assert.equal(registered?.name, "filler");
-	assert.match(registered?.description ?? "", /^Work directly with local DOCX, PDF, and XLSX files/);
-	assert.match(registered?.promptSnippet ?? "", /^Work directly with local DOCX, PDF, and XLSX files/);
+	assert.match(registered?.description ?? "", /^Work directly with local DOCX, PDF, PPTX, and XLSX files/);
+	assert.match(registered?.promptSnippet ?? "", /^Work directly with local DOCX, PDF, PPTX, and XLSX files/);
 	assert.ok(registered?.promptGuidelines?.every((guideline) => guideline.trim().length > 0));
 	assert.ok(registered?.promptGuidelines?.some((guideline) => /XLSX search is unsupported/.test(guideline)));
+	assert.ok(registered?.promptGuidelines?.some((guideline) => /DOCX, PPTX, or PDF/.test(guideline)));
+	assert.ok(registered?.promptGuidelines?.some((guideline) => /PPTX text replacements/.test(guideline)));
 	const properties = fillerSchema.properties as unknown as Record<
 		string,
 		Record<string, unknown>
 	>;
 	assert.match(String(properties.format?.description), /target format/);
-	assert.match(String(properties.path?.description), /Markdown source/);
+	assert.match(String(properties.path?.description), /Markdown source.*PPTX/);
 	assert.match(String(properties.output?.description), /output directory\/PNG prefix/);
+	assert.match(String(properties.query?.description), /PPTX/);
+	assert.match(String(properties.pptx_patches?.description), /targeted text/);
+	assert.match(String(properties.reference_pptx?.description), /Reference PPTX/);
 	assert.match(String(properties.start_cell?.description), /A1 notation/);
 	assert.match(String(properties.range?.description), /A1 notation/);
 	assert.match(String(properties.column_map?.description), /ordinals.*headers/);
 	assert.match(String(properties.first_page?.description), /1-based inclusive/);
-	assert.match(String(properties.first_page?.description), /DOCX\/PDF\/XLSX image read/);
+	assert.match(String(properties.first_page?.description), /DOCX\/PPTX\/XLSX image read/);
 	assert.match(String(properties.dry_run?.description), /output remains required/);
 	assert.ok(registered?.promptGuidelines?.some((guideline) => /XLSX structure or image/.test(guideline)));
 	assert.ok(
@@ -158,7 +163,7 @@ test("extension registers one self-describing filler tool", () => {
 	);
 	assert.ok(
 		registered?.promptGuidelines?.some((guideline) =>
-			/DOCX search may.*PDF text or search/.test(guideline),
+			/DOCX\/PPTX search may.*PDF text or search/.test(guideline),
 		),
 	);
 	assert.equal(properties.has_header?.default, true);

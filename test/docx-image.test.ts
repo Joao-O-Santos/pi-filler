@@ -93,6 +93,45 @@ test("renders XLSX print pages through LibreOffice and pdftocairo", async () => 
 	}
 });
 
+test("renders PPTX slides through LibreOffice and pdftocairo", async () => {
+	const directory = await mkdtemp(join(tmpdir(), "pi-filler-pptx-image-test-"));
+	const input = join(directory, "input.pptx");
+	await writeFile(input, "fixture");
+	await script(
+		directory,
+		"libreoffice",
+		'while [ "$1" ]; do if [ "$1" = "--outdir" ]; then shift; out="$1"; fi; shift; done\ntouch "$out/input.pdf"',
+	);
+	await script(directory, "pdftocairo", 'for arg do prefix="$arg"; done\ntouch "$prefix-2.png"');
+	const previous = process.env.PATH;
+	process.env.PATH = `${directory}:${previous ?? ""}`;
+	try {
+		const result = await executeFiller(
+			{
+				format: "pptx",
+				action: "read",
+				view: "image",
+				path: input,
+				output: join(directory, "render"),
+				first_page: 2,
+				last_page: 2,
+			},
+			directory,
+		);
+		assert.deepEqual(result.details.files, [join(directory, "render-2.png")]);
+	} finally {
+		process.env.PATH = previous;
+	}
+});
+
+test("PPTX image reads require an output path", async () => {
+	await assert.rejects(
+		() =>
+			executeFiller({ format: "pptx", action: "read", view: "image", path: "input.pptx" }, "/tmp"),
+		/PPTX image reads require output/,
+	);
+});
+
 test("DOCX image reads require an output path", async () => {
 	await assert.rejects(
 		() =>

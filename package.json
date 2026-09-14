@@ -6,6 +6,7 @@
 		"pi-package",
 		"pi-extension",
 		"docx",
+		"pptx",
 		"pdf",
 		"xlsx",
 		"pandoc",
@@ -32,6 +33,7 @@
 	],
 	"scripts": {
 		"test": "node --import tsx --test test/*.test.ts",
+		"test:coverage": "node --import tsx --test --experimental-test-coverage --test-coverage-include=src/**/*.ts --test-coverage-lines=90 --test-coverage-functions=90 test/*.test.ts",
 		"typecheck": "tsc --noEmit",
 		"lint": "biome lint src test scripts",
 		"format:check": "biome ci --linter-enabled=false --assist-enabled=false src test scripts biome.json package.json tsconfig.json",
@@ -39,7 +41,7 @@
 		"markdown:check": "node scripts/format-markdown.mjs",
 		"markdown:fix": "node scripts/format-markdown.mjs --write",
 		"style": "npm run lint && npm run format:check && npm run markdown:check",
-		"check": "npm run typecheck && npm run style && npm test",
+		"check": "npm run typecheck && npm run style && npm test && npm run test:coverage",
 		"site": "make site"
 	},
 	"pi": {

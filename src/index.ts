@@ -10,8 +10,16 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { type Static, Type } from "typebox";
 import { type DocxPatchSet, inspectDocx, patchDocx } from "./docx.js";
-import { readDocxText, searchDocx, writeDocx } from "./pandoc.js";
+import {
+	readDocxText,
+	readPptxText,
+	searchDocx,
+	searchPptx,
+	writeDocx,
+	writePptx,
+} from "./pandoc.js";
 import { readPdfText, renderPdfPages, searchPdf } from "./pdf.js";
+import { inspectPptx, type PptxPatchSet, patchPptx } from "./pptx.js";
 import { commandError, runCommand } from "./process.js";
 import { fillXlsxFromCsv, inspectXlsxStructure, patchXlsx, type XlsxPatchSet } from "./xlsx.js";
 
@@ -115,6 +123,70 @@ const docxPatchesSchema = Type.Object(
 	},
 );
 
+const pptxPatchesSchema = Type.Object(
+	{
+		slideSize: Type.Optional(
+			Type.Object(
+				{
+					width: Type.Optional(Type.Integer({ description: "Slide width in EMUs", minimum: 1 })),
+					height: Type.Optional(Type.Integer({ description: "Slide height in EMUs", minimum: 1 })),
+				},
+				{
+					additionalProperties: false,
+					description: "Presentation slide size in EMUs",
+					minProperties: 1,
+				},
+			),
+		),
+		metadata: Type.Optional(
+			Type.Object(
+				{
+					title: Type.Optional(Type.String()),
+					subject: Type.Optional(Type.String()),
+					creator: Type.Optional(Type.String()),
+					keywords: Type.Optional(Type.String()),
+					description: Type.Optional(Type.String()),
+					lastModifiedBy: Type.Optional(Type.String()),
+				},
+				{
+					additionalProperties: false,
+					description: "Common docProps/core.xml metadata fields",
+					minProperties: 1,
+				},
+			),
+		),
+		replaceText: Type.Optional(
+			Type.Array(
+				Type.Object(
+					{
+						find: Type.String({
+							description: "Text to find within a slide text paragraph",
+							minLength: 1,
+						}),
+						replace: Type.String({ description: "Replacement text; may be empty" }),
+						slide: Type.Optional(
+							Type.Integer({
+								description: "1-based slide number; omit for all slides",
+								minimum: 1,
+							}),
+						),
+					},
+					{ additionalProperties: false, minProperties: 2 },
+				),
+				{ minItems: 1, description: "Targeted text replacements in slide text" },
+			),
+		),
+		clearCoreMetadata: Type.Optional(
+			Type.Boolean({ description: "Clear common core metadata fields" }),
+		),
+	},
+	{
+		additionalProperties: false,
+		description: "PPTX slide, metadata, and targeted text changes for action=patch",
+		minProperties: 1,
+	},
+);
+
 const xlsxPatchesSchema = Type.Object(
 	{
 		font: Type.Optional(
@@ -174,7 +246,7 @@ const xlsxPatchesSchema = Type.Object(
 
 export const fillerSchema = Type.Object(
 	{
-		format: StringEnum(["docx", "pdf", "xlsx"] as const, {
+		format: StringEnum(["docx", "pdf", "pptx", "xlsx"] as const, {
 			description: "Document or target format; selects supported operations and path roles",
 		}),
 		action: StringEnum(["read", "search", "write", "patch"] as const, {
@@ -187,7 +259,7 @@ export const fillerSchema = Type.Object(
 		),
 		path: Type.String({
 			description:
-				"Input path: document for read/search/patch, Markdown source for DOCX write, or template for XLSX write",
+				"Input path: document for read/search/patch, Markdown source for DOCX/PPTX write, or template for XLSX write",
 			minLength: 1,
 		}),
 		output: Type.Optional(
@@ -197,11 +269,17 @@ export const fillerSchema = Type.Object(
 				minLength: 1,
 			}),
 		),
-		query: Type.Optional(Type.String({ description: "DOCX or PDF search query", minLength: 1 })),
+		query: Type.Optional(
+			Type.String({ description: "DOCX, PDF, or PPTX search query", minLength: 1 }),
+		),
 		reference_docx: Type.Optional(
 			Type.String({ description: "Reference DOCX for writes", minLength: 1 }),
 		),
 		patches: Type.Optional(docxPatchesSchema),
+		pptx_patches: Type.Optional(pptxPatchesSchema),
+		reference_pptx: Type.Optional(
+			Type.String({ description: "Reference PPTX for writes", minLength: 1 }),
+		),
 		source_csv: Type.Optional(
 			Type.String({ description: "CSV source path for XLSX write", minLength: 1 }),
 		),
@@ -242,7 +320,7 @@ export const fillerSchema = Type.Object(
 			Type.Boolean({
 				default: false,
 				description:
-					"Validate and report without creating or replacing output; output remains required for DOCX patch or XLSX write/patch",
+					"Validate and report without creating or replacing output; output remains required for DOCX/PPTX patch or XLSX write/patch",
 			}),
 		),
 		literal: Type.Optional(
@@ -257,7 +335,7 @@ export const fillerSchema = Type.Object(
 		first_page: Type.Optional(
 			Type.Integer({
 				description:
-					"First 1-based inclusive page for PDF read/search or DOCX/PDF/XLSX image read; must not exceed last_page",
+					"First 1-based inclusive page for PDF read/search or DOCX/PPTX/XLSX image read; must not exceed last_page",
 				minimum: 1,
 			}),
 		),
@@ -280,6 +358,8 @@ const controlFields: ControlField[] = [
 	"output",
 	"query",
 	"reference_docx",
+	"pptx_patches",
+	"reference_pptx",
 	"patches",
 	"source_csv",
 	"sheet",
@@ -361,6 +441,42 @@ function assertSupported(input: FillerInput): void {
 		}
 		if (input.patches === undefined) throw new Error("DOCX patch requires patches");
 		assertParameters(input, ["output", "patches", "dry_run"]);
+		return;
+	}
+
+	if (input.format === "pptx") {
+		if (input.action === "read") {
+			if (input.view === "image") {
+				if (!input.output) throw new Error("PPTX image reads require output");
+				assertParameters(input, ["output", "first_page", "last_page"]);
+				return;
+			}
+			if (input.view !== "text" && input.view !== "formatting") {
+				throw new Error("PPTX read requires view=text, view=formatting, or view=image");
+			}
+			assertParameters(input, []);
+			return;
+		}
+		if (input.action === "search") {
+			if (input.view !== undefined && input.view !== "text") {
+				throw new Error("PPTX search requires view=text or no view");
+			}
+			if (!input.query) throw new Error("PPTX search requires query");
+			assertParameters(input, ["query", "ignore_case"]);
+			return;
+		}
+		if (input.action === "write") {
+			if (input.view !== undefined || !input.output) {
+				throw new Error("PPTX write requires output and does not accept view");
+			}
+			assertParameters(input, ["output", "reference_pptx"]);
+			return;
+		}
+		if (input.view !== undefined || !input.output) {
+			throw new Error("PPTX patch requires output and does not accept view");
+		}
+		if (input.pptx_patches === undefined) throw new Error("PPTX patch requires pptx_patches");
+		assertParameters(input, ["output", "pptx_patches", "dry_run"]);
 		return;
 	}
 
@@ -502,6 +618,69 @@ export async function executeFiller(
 		return { text: `Wrote ${output}`, details: { output } };
 	}
 
+	if (input.format === "pptx") {
+		if (input.action === "read" && input.view === "formatting") {
+			const formatting = await inspectPptx(path);
+			return { text: JSON.stringify(formatting, null, 2), details: { formatting } };
+		}
+		if (input.action === "read" && input.view === "image") {
+			const output = normalizePath(input.output ?? "", cwd);
+			const temporary = await mkdtemp(join(tmpdir(), "pi-filler-pptx-"));
+			try {
+				const converted = await runCommand(
+					"libreoffice",
+					["--headless", "--convert-to", "pdf", "--outdir", temporary, path],
+					{ signal, cwd: temporary },
+				);
+				if (converted.code !== 0) throw commandError(converted, "libreoffice");
+				const pdf = join(temporary, `${basename(path, extname(path))}.pdf`);
+				const result = await withFileMutationQueue(output, () =>
+					renderPdfPages(pdf, output, range, { signal }),
+				);
+				return {
+					text: `Rendered ${result.length} slide image${result.length === 1 ? "" : "s"}:\n${result.join("\n")}`,
+					details: { files: result },
+				};
+			} finally {
+				await rm(temporary, { recursive: true, force: true });
+			}
+		}
+		if (input.action === "read") {
+			const result = await readPptxText(path, { signal });
+			return { text: result.text, details: { truncation: result.truncation } };
+		}
+		if (input.action === "search") {
+			const result = await searchPptx(path, input.query ?? "", {
+				ignoreCase: input.ignore_case,
+				signal,
+			});
+			return {
+				text: result.text || "No matches found",
+				details: { matchCount: result.matchCount, truncation: result.truncation },
+			};
+		}
+		if (input.action === "patch") {
+			const output = normalizePath(input.output ?? "", cwd);
+			const result = await withFileMutationQueue(output, () =>
+				patchPptx(path, output, input.pptx_patches as PptxPatchSet, input.dry_run),
+			);
+			return {
+				text: JSON.stringify(result, null, 2),
+				details: result as unknown as Record<string, unknown>,
+			};
+		}
+
+		const output = normalizePath(input.output ?? "", cwd);
+		if (output === path) throw new Error("PPTX write output must differ from input");
+		const referencePptx = input.reference_pptx
+			? normalizePath(input.reference_pptx, cwd)
+			: undefined;
+		await withFileMutationQueue(output, () =>
+			writePptx(path, output, { referencePptx, signal, cwd: dirname(path) }),
+		);
+		return { text: `Wrote ${output}`, details: { output } };
+	}
+
 	if (input.format === "xlsx") {
 		if (input.action === "read") {
 			if (input.view === "image") {
@@ -605,19 +784,19 @@ export default function extension(pi: ExtensionAPI): void {
 		name: "filler",
 		label: "Filler",
 		description:
-			"Work directly with local DOCX, PDF, and XLSX files. Read, search, or render DOCX and PDF; write DOCX from Markdown; inspect or render XLSX, fill XLSX templates from CSV, and patch supported formatting.",
+			"Work directly with local DOCX, PDF, PPTX, and XLSX files. Read, search, or render DOCX/PPTX and PDF; write DOCX/PPTX from Markdown; inspect or render XLSX, fill XLSX templates from CSV, and patch supported formatting.",
 		promptSnippet:
-			"Work directly with local DOCX, PDF, and XLSX files using supported format/action/view combinations.",
+			"Work directly with local DOCX, PDF, PPTX, and XLSX files using supported format/action/view combinations.",
 		promptGuidelines: [
-			"Use filler when a supported deterministic local DOCX, PDF, or XLSX operation satisfies the task; choose a supported format/action/view combination and provide only that operation's fields.",
-			"For filler reads, use DOCX text, formatting, or image; PDF text or image; or XLSX structure or image.",
-			"For filler searches, use DOCX or PDF text (or omit view); XLSX search is unsupported.",
-			"For filler image output, use an existing directory or PNG prefix; the operation creates page images, not one final PNG. XLSX images render workbook print pages through LibreOffice, do not accept sheet, and may use first_page and last_page to select resulting print pages.",
-			"For DOCX writes, path is Markdown and output is the new DOCX; reference_docx is optional. For XLSX writes, path is the template and source_csv, sheet, A1-style start_cell, and output are required; column_map optionally maps all CSV ordinals or all exact headers to XLSX columns.",
+			"Use filler when a supported deterministic local DOCX, PDF, PPTX, or XLSX operation satisfies the task; choose a supported format/action/view combination and provide only that operation's fields.",
+			"For filler reads, use DOCX or PPTX text, formatting, or image; PDF text or image; or XLSX structure or image.",
+			"For filler searches, use DOCX, PPTX, or PDF text (or omit view); XLSX search is unsupported.",
+			"For filler image output, use an existing directory or PNG prefix; the operation creates numbered page/slide images, not one final PNG. DOCX, PPTX, and XLSX images convert through LibreOffice; XLSX images render workbook print pages and do not accept sheet. first_page and last_page select resulting pages.",
+			"For DOCX/PPTX writes, path is Markdown and output is the new document; reference_docx/reference_pptx is optional. PPTX uses GFM Markdown. For XLSX writes, path is the template and source_csv, sheet, A1-style start_cell, and output are required; column_map optionally maps all CSV ordinals or all exact headers to XLSX columns.",
 			"When an XLSX write or patch can perform the requested deterministic transformation without inspecting CSV or cell contents, do not read those contents into model context merely to carry out the transformation. Processing stays local and results do not return cell or CSV contents.",
-			"For filler patches, provide a new output path plus DOCX patches, or XLSX sheet, A1-style range, and xlsx_patches. dry_run: true still requires output but does not create or replace it.",
+			"For filler patches, provide a new output path plus DOCX patches, PPTX pptx_patches, or XLSX sheet, A1-style range, and xlsx_patches. PPTX text replacements target slide text paragraphs and may name a 1-based slide. dry_run: true still requires output but does not create or replace it.",
 			"For filler defaults, PDF queries are regular expressions by default; use literal: true for literal text. XLSX writes skip a header and preserve text by default.",
-			"For filler results, DOCX search may be truncated; narrow its query. PDF text or search may be truncated; narrow its page range or query.",
+			"For filler results, DOCX/PPTX search may be truncated; narrow its query. PDF text or search may be truncated; narrow its page range or query.",
 		],
 		parameters: fillerSchema,
 		async execute(_toolCallId, input, signal, _onUpdate, ctx: ExtensionContext) {
