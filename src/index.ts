@@ -257,14 +257,14 @@ export const fillerSchema = Type.Object(
 		first_page: Type.Optional(
 			Type.Integer({
 				description:
-					"First 1-based inclusive page for PDF read/search or DOCX/PDF image read; must not exceed last_page",
+					"First 1-based inclusive page for PDF read/search or DOCX/PDF/XLSX image read; must not exceed last_page",
 				minimum: 1,
 			}),
 		),
 		last_page: Type.Optional(
 			Type.Integer({
 				description:
-					"Last 1-based inclusive page for PDF read/search or DOCX/PDF image read; must not precede first_page",
+					"Last 1-based inclusive page for PDF read/search or DOCX/PDF/XLSX image read; must not precede first_page",
 				minimum: 1,
 			}),
 		),
@@ -609,8 +609,8 @@ export default function extension(pi: ExtensionAPI): void {
 		promptSnippet:
 			"Work directly with local DOCX, PDF, and XLSX files using supported format/action/view combinations.",
 		promptGuidelines: [
-			"Use filler directly for local DOCX, PDF, or XLSX work; choose a supported format/action/view combination and provide only that operation's fields.",
-			"For filler read, use DOCX text, formatting, or image; PDF text or image; or XLSX structure or image. XLSX images render all workbook print pages through LibreOffice and do not accept sheet. For filler search, use DOCX or PDF text (or omit view); XLSX search is unsupported. Image output is an existing directory or PNG prefix that creates page images, not one final PNG.",
+			"Use filler when a supported deterministic local DOCX, PDF, or XLSX operation satisfies the task; choose a supported format/action/view combination and provide only that operation's fields.",
+			"For filler read, use DOCX text, formatting, or image; PDF text or image; or XLSX structure or image. XLSX images render workbook print pages through LibreOffice, do not accept sheet, and may use first_page and last_page to select resulting print pages. For filler search, use DOCX or PDF text (or omit view); XLSX search is unsupported. Image output is an existing directory or PNG prefix that creates page images, not one final PNG.",
 			"For filler DOCX write, path is Markdown and output is the new DOCX; reference_docx is optional. For filler XLSX write, path is the template and source_csv, sheet, A1-style start_cell, and output are required; column_map optionally maps all CSV ordinals or all exact headers to XLSX columns. XLSX processing stays local and results do not return cell or CSV contents.",
 			"For filler patch, provide a new output path plus DOCX patches, or XLSX sheet, A1-style range, and xlsx_patches. dry_run: true still requires output but does not create or replace it. PDF queries are regular expressions by default; use literal: true for literal text. XLSX writes skip a header and preserve text by default.",
 			"For filler results, DOCX search may be truncated; narrow its query. PDF text or search may be truncated; narrow its page range or query.",

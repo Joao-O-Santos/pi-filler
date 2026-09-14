@@ -127,7 +127,11 @@ test("extension registers one self-describing filler tool", () => {
 	assert.equal(registered?.name, "filler");
 	assert.match(registered?.description ?? "", /^Work directly with local DOCX, PDF, and XLSX files/);
 	assert.match(registered?.promptSnippet ?? "", /^Work directly with local DOCX, PDF, and XLSX files/);
-	assert.ok(registered?.promptGuidelines?.every((guideline) => guideline.startsWith("For filler") || guideline.startsWith("Use filler")));
+	assert.ok(
+		registered?.promptGuidelines?.every(
+			(guideline) => guideline.startsWith("For filler") || guideline.startsWith("Use filler when"),
+		),
+	);
 	assert.ok(registered?.promptGuidelines?.some((guideline) => /XLSX search is unsupported/.test(guideline)));
 	const properties = fillerSchema.properties as unknown as Record<
 		string,
@@ -140,8 +144,14 @@ test("extension registers one self-describing filler tool", () => {
 	assert.match(String(properties.range?.description), /A1 notation/);
 	assert.match(String(properties.column_map?.description), /ordinals.*headers/);
 	assert.match(String(properties.first_page?.description), /1-based inclusive/);
+	assert.match(String(properties.first_page?.description), /DOCX\/PDF\/XLSX image read/);
 	assert.match(String(properties.dry_run?.description), /output remains required/);
 	assert.ok(registered?.promptGuidelines?.some((guideline) => /XLSX structure or image/.test(guideline)));
+	assert.ok(
+		registered?.promptGuidelines?.some(
+			(guideline) => /XLSX images render workbook print pages.*first_page.*last_page/.test(guideline),
+		),
+	);
 	assert.ok(registered?.promptGuidelines?.some((guideline) => /column_map.*ordinals.*headers/.test(guideline)));
 	assert.ok(registered?.promptGuidelines?.some((guideline) => /stays local/.test(guideline)));
 	assert.ok(
