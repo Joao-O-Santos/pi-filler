@@ -66,7 +66,7 @@ supply only its relevant fields:
 | PDF | `read` | `image` | `output`; optional `first_page`, `last_page` |
 | PDF | `search` | `text` or omitted | `query`; optional `first_page`, `last_page`, `literal`, `ignore_case` |
 | XLSX | `read` | `structure` | none |
-| XLSX | `read` | `image` | `output`; optional `first_page`, `last_page`; all workbook print pages |
+| XLSX | `read` | `image` | `output`; optional `first_page`, `last_page` select resulting workbook print pages |
 | XLSX | `write` | omitted | template `path`, `source_csv`, `sheet`, A1 `start_cell`, `output`; optional `column_map` |
 | XLSX | `patch` | omitted | `sheet`, A1 `range`, `xlsx_patches`, `output` |
 
@@ -156,17 +156,18 @@ or element ordering may change.
 
 ## XLSX operations and privacy
 
-Spreadsheet cell values, CSV fields, formulas, comments, and other
-workbook text are processed locally and are not returned to the model.
-Structural results contain sheet names, ranges, dimensions, counts,
-merged-range addresses, hidden row and column ranges, changed package
-parts, and write status---not workbook or CSV contents. Layout-range
-arrays are capped and report whether they were truncated; this metadata
-can reveal limited layout and occupancy information.
+Spreadsheet cell values, CSV fields, formula contents, and comments are
+processed locally and are not returned to the model. Structural results
+may contain sheet names, ranges, dimensions, counts, merged-range
+addresses, hidden row and column ranges, changed package parts, and
+write status---not cell or CSV contents. Layout-range arrays are capped
+and report whether they were truncated; this metadata can reveal limited
+layout and occupancy information.
 
 - `read` with `view: "structure"` reports workbook and worksheet shape.
-- `read` with `view: "image"` renders all workbook print pages through
+- `read` with `view: "image"` renders workbook print pages through
   LibreOffice to numbered PNG files; it does not select a sheet.
+  `first_page` and `last_page` select resulting print pages.
 - `write` fills an existing workbook template from CSV.
 - `patch` changes formatting or layout while preserving cell contents.
 

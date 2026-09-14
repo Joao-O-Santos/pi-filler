@@ -81,13 +81,13 @@ page files are sorted by numeric page number.
 
 ## XLSX
 
-XLSX data is tool-local. Workbook cells, CSV fields, formulas, comments,
-and other spreadsheet text are never included in normal model-facing
-results or errors. Structural reads report sheet names, active sheet,
-used ranges, dimensions, counts for formulas, merges, and styled cells,
-and bounded merged-range addresses and hidden row and column ranges.
-This layout metadata can reveal limited layout and occupancy
-information, but not cell values or headers.
+XLSX cell values, CSV fields, formula contents, and comments are
+tool-local and are never included in normal model-facing results or
+errors. Structural reads may report sheet names, active sheet, used
+ranges, dimensions, counts for formulas, merges, and styled cells, plus
+bounded merged-range addresses and hidden row and column ranges. This
+layout metadata can reveal limited layout and occupancy information, but
+not cell values or CSV contents.
 
 `fflate` preserves package members and `fast-xml-parser` mutates only
 the selected worksheet and, for style patches, `xl/styles.xml`.
@@ -107,10 +107,11 @@ uses Excel character-width units; row height uses points. Both apply to
 the addressed range's columns and rows. Existing cell values and
 formulas remain unchanged during formatting.
 
-XLSX image reads convert all workbook print pages to a temporary PDF
-through LibreOffice, then use the common PDF renderer to create numbered
-PNG files. They do not select a sheet. The temporary PDF is removed and
-is not an exported artifact.
+XLSX image reads convert workbook print pages to a temporary PDF through
+LibreOffice, then use the common PDF renderer to create numbered PNG
+files. They do not select a sheet; `first_page` and `last_page` may
+select resulting print pages. The temporary PDF is removed and is not an
+exported artifact.
 
 XLSX writes and patches require a distinct output path. They run through
 the file mutation queue, build and validate a temporary sibling package,

@@ -67,12 +67,14 @@ Untouched DOCX and XLSX package parts are preserved byte-for-byte at the
 part content level. Edited XML parts are reserialized and are not
 promised to be lexically identical to their originals.
 
-Spreadsheet cells, CSV fields, formulas, comments, and other workbook
-text are tool-local data. Normal XLSX results and errors expose only
-structural or operational metadata. Bounded layout metadata can reveal
-limited layout and occupancy information, but not cell values or
-headers. XLSX support does not calculate formulas or provide arbitrary
-content extraction or spreadsheet programming.
+Spreadsheet cell values, CSV fields, formula contents, and comments
+are tool-local data. Normal XLSX results and errors expose only
+structural or operational metadata. That metadata may include
+worksheet names, ranges, dimensions, counts, merge addresses, hidden
+ranges, changed parts, and output paths. Bounded layout metadata can
+reveal limited layout and occupancy information, but not cell values
+or CSV contents. XLSX support does not calculate formulas or provide
+arbitrary content extraction or spreadsheet programming.
 
 Model-facing schema descriptions and prompt guidance should make a valid
 format/action/view combination possible in one call, distinguish source
