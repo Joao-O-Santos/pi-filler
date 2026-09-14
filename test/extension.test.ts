@@ -138,8 +138,11 @@ test("extension registers one self-describing filler tool", () => {
 	assert.match(String(properties.output?.description), /output directory\/PNG prefix/);
 	assert.match(String(properties.start_cell?.description), /A1 notation/);
 	assert.match(String(properties.range?.description), /A1 notation/);
+	assert.match(String(properties.column_map?.description), /ordinals.*headers/);
 	assert.match(String(properties.first_page?.description), /1-based inclusive/);
 	assert.match(String(properties.dry_run?.description), /output remains required/);
+	assert.ok(registered?.promptGuidelines?.some((guideline) => /XLSX structure or image/.test(guideline)));
+	assert.ok(registered?.promptGuidelines?.some((guideline) => /column_map.*ordinals.*headers/.test(guideline)));
 	assert.ok(registered?.promptGuidelines?.some((guideline) => /stays local/.test(guideline)));
 	assert.ok(
 		registered?.promptGuidelines?.some((guideline) =>

@@ -22,6 +22,11 @@
   support.
 - Privacy regression fixtures covering workbook cells, formulas,
   comments, and CSV fields.
+- CSV-to-XLSX ordinal and exact-header column maps with duplicate and
+  invalid-map validation.
+- Merged-range protection for mapped XLSX writes.
+- Bounded content-free XLSX merged and hidden-layout metadata.
+- XLSX print-page rendering to PNG through optional LibreOffice.
 
 ### Changed
 

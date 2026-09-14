@@ -8,6 +8,7 @@ import { type OfficePackage, packOfficePackage, unpackOfficePackage } from "./oo
 const MAX_COLUMN = 16_384;
 const MAX_ROW = 1_048_576;
 const MAX_MUTATED_CELLS = 1_000_000;
+const MAX_STRUCTURE_RANGES = 1_000;
 
 type Package = OfficePackage;
 type XmlObject = Record<string, unknown>;
@@ -24,6 +25,12 @@ export interface XlsxSheetStructure {
 	columns: number;
 	formulaCells: number;
 	mergedRanges: number;
+	mergedRangeAddresses: string[];
+	mergedRangesTruncated: boolean;
+	hiddenRowRanges: string[];
+	hiddenRowsTruncated: boolean;
+	hiddenColumnRanges: string[];
+	hiddenColumnsTruncated: boolean;
 	styledCells: number;
 }
 
@@ -38,6 +45,7 @@ export interface FillOptions {
 	startCell: string;
 	hasHeader?: boolean;
 	valueMode?: "text" | "auto";
+	columnMap?: Record<string, string>;
 	dryRun?: boolean;
 	signal?: AbortSignal;
 }
@@ -532,6 +540,63 @@ function overlaps(left: CellRange, right: CellRange): boolean {
 	);
 }
 
+function formatRange(range: CellRange): string {
+	const start = formatCell(range.start);
+	const end = formatCell(range.end);
+	return start === end ? start : `${start}:${end}`;
+}
+
+function mergedRanges(worksheet: XmlObject): CellRange[] {
+	return directObjects(directObject(worksheet, "mergeCells"), "mergeCell").map((merge) => {
+		const reference = attr(merge, "ref");
+		if (!reference) throw new Error("XLSX worksheet contains a merged range without a reference");
+		try {
+			return parseRange(reference);
+		} catch {
+			throw new Error("XLSX worksheet contains an invalid merged range");
+		}
+	});
+}
+
+function boundedRanges(ranges: string[]): { values: string[]; truncated: boolean } {
+	return {
+		values: ranges.slice(0, MAX_STRUCTURE_RANGES),
+		truncated: ranges.length > MAX_STRUCTURE_RANGES,
+	};
+}
+
+function hiddenRowRanges(worksheet: XmlObject): string[] {
+	const rows = directObjects(sheetData(worksheet), "row")
+		.filter((row) => ["1", "true"].includes(attr(row, "hidden") ?? ""))
+		.map((row) => Number(attr(row, "r")))
+		.filter((row) => Number.isInteger(row) && row >= 1 && row <= MAX_ROW)
+		.sort((left, right) => left - right);
+	const ranges: string[] = [];
+	for (let index = 0; index < rows.length; ) {
+		const start = rows[index];
+		let end = start;
+		while (rows[index + 1] === end + 1) end = rows[++index];
+		ranges.push(start === end ? String(start) : `${start}:${end}`);
+		index += 1;
+	}
+	return ranges;
+}
+
+function hiddenColumnRanges(worksheet: XmlObject): string[] {
+	return directObjects(directObject(worksheet, "cols"), "col")
+		.filter((column) => ["1", "true"].includes(attr(column, "hidden") ?? ""))
+		.map((column) => {
+			const start = Number(attr(column, "min"));
+			const end = Number(attr(column, "max"));
+			if (!Number.isInteger(start) || !Number.isInteger(end) || start < 1 || end > MAX_COLUMN) {
+				throw new Error("XLSX worksheet contains an invalid hidden column definition");
+			}
+			return start === end
+				? columnNumberToName(start)
+				: `${columnNumberToName(start)}:${columnNumberToName(end)}`;
+		});
+}
+
 function setCellValue(
 	cell: XmlObject,
 	value: string,
@@ -603,18 +668,11 @@ function actualUsedRange(worksheet: XmlObject): CellRange | null {
 			}
 		}
 	}
-	for (const merge of directObjects(directObject(worksheet, "mergeCells"), "mergeCell")) {
-		const reference = attr(merge, "ref");
-		if (!reference) continue;
-		try {
-			const range = parseRange(reference);
-			minimumRow = Math.min(minimumRow, range.start.row);
-			minimumColumn = Math.min(minimumColumn, range.start.column);
-			maximumRow = Math.max(maximumRow, range.end.row);
-			maximumColumn = Math.max(maximumColumn, range.end.column);
-		} catch {
-			throw new Error("XLSX worksheet contains an invalid merged range");
-		}
+	for (const range of mergedRanges(worksheet)) {
+		minimumRow = Math.min(minimumRow, range.start.row);
+		minimumColumn = Math.min(minimumColumn, range.start.column);
+		maximumRow = Math.max(maximumRow, range.end.row);
+		maximumColumn = Math.max(maximumColumn, range.end.column);
 	}
 	if (maximumRow === 0) return null;
 	return {
@@ -654,6 +712,9 @@ function updateDimension(worksheet: XmlObject, prefix?: string): void {
 function inspectSheet(pkg: Package, sheet: ResolvedSheet): XlsxSheetStructure {
 	const worksheet = rootObject(parseXml(pkg[sheet.part], sheet.part), "worksheet", sheet.part);
 	const used = actualUsedRange(worksheet);
+	const merges = boundedRanges(mergedRanges(worksheet).map(formatRange));
+	const hiddenRows = boundedRanges(hiddenRowRanges(worksheet));
+	const hiddenColumns = boundedRanges(hiddenColumnRanges(worksheet));
 	let formulaCells = 0;
 	let styledCells = 0;
 	for (const row of directObjects(sheetData(worksheet), "row")) {
@@ -670,7 +731,13 @@ function inspectSheet(pkg: Package, sheet: ResolvedSheet): XlsxSheetStructure {
 		rows: used ? used.end.row - used.start.row + 1 : 0,
 		columns: used ? used.end.column - used.start.column + 1 : 0,
 		formulaCells,
-		mergedRanges: directObjects(directObject(worksheet, "mergeCells"), "mergeCell").length,
+		mergedRanges: mergedRanges(worksheet).length,
+		mergedRangeAddresses: merges.values,
+		mergedRangesTruncated: merges.truncated,
+		hiddenRowRanges: hiddenRows.values,
+		hiddenRowsTruncated: hiddenRows.truncated,
+		hiddenColumnRanges: hiddenColumns.values,
+		hiddenColumnsTruncated: hiddenColumns.truncated,
 		styledCells,
 	};
 }
@@ -688,11 +755,17 @@ export async function inspectXlsxStructure(path: string): Promise<XlsxStructure>
 	};
 }
 
+interface MappedColumn {
+	source: number;
+	destination: number;
+}
+
 function validateFilledPackage(
 	pkg: Package,
 	sheetName: string,
 	destination: CellRange,
 	rows: string[][],
+	columns: MappedColumn[],
 	mode: "text" | "auto",
 ): void {
 	const sheet = resolveSheet(pkg, sheetName);
@@ -713,9 +786,9 @@ function validateFilledPackage(
 	);
 	for (let row = destination.start.row; row <= destination.end.row; row += 1) {
 		const cells = cellsByAddress(rowsByNumberMap.get(row) ?? {});
-		for (let column = destination.start.column; column <= destination.end.column; column += 1) {
-			const cell = cells.get(formatCell({ row, column }));
-			const expected = rows[row - destination.start.row][column - destination.start.column] ?? "";
+		for (const column of columns) {
+			const cell = cells.get(formatCell({ row, column: column.destination }));
+			const expected = rows[row - destination.start.row][column.source] ?? "";
 			if (!cellMatchesValue(cell, expected, mode)) {
 				throw new Error("XLSX output validation failed for destination values");
 			}
@@ -733,6 +806,50 @@ function parseCsvRows(bytes: Uint8Array): string[][] {
 	} catch {
 		throw new Error("Invalid UTF-8 or malformed CSV input");
 	}
+}
+
+function resolveMappedColumns(
+	columnMap: Record<string, string> | undefined,
+	header: string[] | undefined,
+	sourceColumns: number,
+	startColumn: number,
+): MappedColumn[] {
+	if (!columnMap) {
+		return Array.from({ length: sourceColumns }, (_, source) => ({
+			source,
+			destination: startColumn + source,
+		}));
+	}
+	const entries = Object.entries(columnMap);
+	if (entries.length === 0) throw new Error("XLSX column_map must not be empty");
+	const ordinal = entries.every(([source]) => /^[1-9]\d*$/.test(source));
+	const headers = entries.every(([source]) => !/^[1-9]\d*$/.test(source));
+	if (!ordinal && !headers)
+		throw new Error("XLSX column_map keys must be all ordinals or all headers");
+	const destinations = entries.map(([, destination]) => columnNameToNumber(destination));
+	if (new Set(destinations).size !== destinations.length) {
+		throw new Error("XLSX column_map destinations must be unique");
+	}
+	if (ordinal) {
+		return entries.map(([source], index) => {
+			const sourceIndex = Number(source) - 1;
+			if (sourceIndex >= sourceColumns)
+				throw new Error("XLSX column_map source ordinal is outside the CSV");
+			return { source: sourceIndex, destination: destinations[index] };
+		});
+	}
+	if (!header) throw new Error("Header XLSX column_map requires has_header=true");
+	const headerIndexes = new Map<string, number>();
+	for (const [index, value] of header.entries()) {
+		if (headerIndexes.has(value)) throw new Error("CSV headers must be unique for XLSX column_map");
+		headerIndexes.set(value, index);
+	}
+	return entries.map(([source], index) => {
+		const sourceIndex = headerIndexes.get(source);
+		if (sourceIndex === undefined)
+			throw new Error("XLSX column_map header is not present in the CSV");
+		return { source: sourceIndex, destination: destinations[index] };
+	});
 }
 
 function throwIfAborted(signal?: AbortSignal): void {
@@ -773,26 +890,53 @@ export async function fillXlsxFromCsv(
 	const sheet = resolveSheet(pkg, options.sheet);
 	const allRows = parseCsvRows(new Uint8Array(await readFile(resolve(csvPath))));
 	throwIfAborted(options.signal);
-	const rows = (options.hasHeader ?? true) ? allRows.slice(1) : allRows;
+	const hasHeader = options.hasHeader ?? true;
+	const rows = hasHeader ? allRows.slice(1) : allRows;
 	if (rows.length === 0) throw new Error("CSV contains no destination data rows");
-	const columns = Math.max(0, ...rows.map((row) => row.length));
-	if (columns === 0) throw new Error("CSV contains no destination columns");
-	const destination = parseRange(rangeFromDimensions(options.startCell, rows.length, columns));
-	if (cellCount(destination) > MAX_MUTATED_CELLS) {
+	const sourceColumns = Math.max(0, ...allRows.map((row) => row.length));
+	if (sourceColumns === 0) throw new Error("CSV contains no destination columns");
+	const mappedColumns = resolveMappedColumns(
+		options.columnMap,
+		hasHeader ? allRows[0] : undefined,
+		sourceColumns,
+		start.column,
+	);
+	const minimumColumn = Math.min(...mappedColumns.map((column) => column.destination));
+	const maximumColumn = Math.max(...mappedColumns.map((column) => column.destination));
+	const destination = {
+		start: { row: start.row, column: minimumColumn },
+		end: { row: start.row + rows.length - 1, column: maximumColumn },
+	};
+	if (rows.length * mappedColumns.length > MAX_MUTATED_CELLS) {
 		throw new Error("XLSX destination exceeds the supported mutation limit");
 	}
-	const targetRange = `${formatCell(destination.start)}:${formatCell(destination.end)}`;
+	const targetRange = formatRange(destination);
 	const worksheetDocument = parseXml(pkg[sheet.part], sheet.part);
 	const worksheet = rootObject(worksheetDocument, "worksheet", sheet.part);
 	const prefix = xmlPrefix(worksheetDocument, "worksheet");
 	const existingRows = rowsByNumber(worksheet, prefix);
+	const mappedDestinations = mappedColumns.flatMap((column) =>
+		rows.map((_, rowOffset) => ({
+			start: { row: start.row + rowOffset, column: column.destination },
+			end: { row: start.row + rowOffset, column: column.destination },
+		})),
+	);
 	let formulaConflicts = 0;
 	for (const formulaRange of formulaRanges(worksheet)) {
-		if (overlaps(destination, formulaRange)) formulaConflicts += 1;
+		if (mappedDestinations.some((cell) => overlaps(cell, formulaRange))) formulaConflicts += 1;
 	}
 	if (formulaConflicts > 0) {
 		throw new Error(
 			`Destination intersects ${formulaConflicts} formula cell${formulaConflicts === 1 ? "" : "s"}. Refusing to overwrite formulas.`,
+		);
+	}
+	let mergedConflicts = 0;
+	for (const mergedRange of mergedRanges(worksheet)) {
+		if (mappedDestinations.some((cell) => overlaps(cell, mergedRange))) mergedConflicts += 1;
+	}
+	if (mergedConflicts > 0) {
+		throw new Error(
+			`Destination intersects ${mergedConflicts} merged range${mergedConflicts === 1 ? "" : "s"}. Refusing to overwrite merged cells.`,
 		);
 	}
 	const result: XlsxWriteResult = {
@@ -800,7 +944,7 @@ export async function fillXlsxFromCsv(
 		targetRange,
 		writtenRange: targetRange,
 		rows: rows.length,
-		columns,
+		columns: mappedColumns.length,
 		formulaConflicts,
 		changedParts: [sheet.part],
 		output,
@@ -812,12 +956,12 @@ export async function fillXlsxFromCsv(
 		throwIfAborted(options.signal);
 		const row = ensureRow(worksheet, existingRows, start.row + rowOffset);
 		const cells = cellsByAddress(row);
-		for (let columnOffset = 0; columnOffset < columns; columnOffset += 1) {
+		for (const column of mappedColumns) {
 			const address = formatCell({
 				row: start.row + rowOffset,
-				column: start.column + columnOffset,
+				column: column.destination,
 			});
-			setCellValue(ensureCell(cells, address), rows[rowOffset][columnOffset] ?? "", mode, prefix);
+			setCellValue(ensureCell(cells, address), rows[rowOffset][column.source] ?? "", mode, prefix);
 		}
 		syncCells(row, cells, prefix);
 	}
@@ -825,7 +969,7 @@ export async function fillXlsxFromCsv(
 	updateDimension(worksheet, prefix);
 	pkg[sheet.part] = serializeXml(worksheetDocument);
 	validatePackage(pkg);
-	validateFilledPackage(pkg, sheet.name, destination, rows, mode);
+	validateFilledPackage(pkg, sheet.name, destination, rows, mappedColumns, mode);
 	throwIfAborted(options.signal);
 	if (options.dryRun) return result;
 	await writePackageAtomically(
@@ -834,7 +978,7 @@ export async function fillXlsxFromCsv(
 		async (temporary) => {
 			const candidate = await load(temporary);
 			validatePackage(candidate);
-			validateFilledPackage(candidate, sheet.name, destination, rows, mode);
+			validateFilledPackage(candidate, sheet.name, destination, rows, mappedColumns, mode);
 		},
 		options.signal,
 	);

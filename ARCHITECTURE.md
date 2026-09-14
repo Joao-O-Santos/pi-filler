@@ -18,8 +18,8 @@ view: text | formatting | image | structure
 
 DOCX supports text, formatting, and image reads; text search;
 Markdown-to-DOCX writes; and narrow OOXML patches. PDF supports text and
-image reads plus text search. XLSX supports structure-only reads,
-CSV-to-template writes, and formatting/layout patches.
+image reads plus text search. XLSX supports content-free structure and
+image reads, CSV-to-template writes, and formatting/layout patches.
 
 The schema describes operation-specific path roles and defaults.
 `format` selects the document or target format, rather than every input:
@@ -31,18 +31,19 @@ an existing directory or PNG prefix that creates page images, not one
 final PNG.
 
 The schema labels page fields as 1-based and inclusive, and XLSX cells
-and ranges as A1 notation. Unsupported combinations and
-operation-irrelevant parameters are rejected explicitly. Paths and
-required query/output values cannot be empty. Writes and patches require
-an output distinct from the input. `dry_run` is supported for DOCX
-patches and XLSX writes and patches; it still requires an output path
-but does not create or replace it.
+and ranges as A1 notation. `start_cell` supplies the write row and the
+default upper-left column; explicit XLSX map destinations are absolute.
+Unsupported combinations and operation-irrelevant parameters are
+rejected explicitly. Paths and required query/output values cannot be
+empty. Writes and patches require an output distinct from the input.
+`dry_run` is supported for DOCX patches and XLSX writes and patches; it
+still requires an output path but does not create or replace it.
 
 Prompt guidance supplies the compact operation matrix needed to choose a
 valid call without retrying through invalid combinations. It names path
-roles, required XLSX write and patch fields, XLSX's structural-only
-privacy boundary, PDF search and XLSX write defaults, page-range rules,
-and operation-appropriate narrowing of truncated results.
+roles, required XLSX write and patch fields, XLSX's content-free privacy
+boundary, PDF search and XLSX write defaults, page-range rules, and
+operation-appropriate narrowing of truncated results.
 
 That guidance is package-owned. The registered `promptSnippet` and
 `promptGuidelines` travel with `pi-filler` and are the appropriate place
@@ -59,8 +60,8 @@ Timed-out commands are force-terminated. The adapter otherwise only
 normalizes errors and missing-executable messages.
 
 Required executables are `pandoc`, `pdftotext`, `pdftocairo`, and
-`pdfgrep`. LibreOffice is optional at runtime and used for DOCX image
-rendering.
+`pdfgrep`. LibreOffice is optional at runtime and used for DOCX and XLSX
+image rendering.
 
 ## PDF
 
@@ -83,8 +84,10 @@ page files are sorted by numeric page number.
 XLSX data is tool-local. Workbook cells, CSV fields, formulas, comments,
 and other spreadsheet text are never included in normal model-facing
 results or errors. Structural reads report sheet names, active sheet,
-used ranges, dimensions, and counts for formulas, merges, and styled
-cells.
+used ranges, dimensions, counts for formulas, merges, and styled cells,
+and bounded merged-range addresses and hidden row and column ranges.
+This layout metadata can reveal limited layout and occupancy
+information, but not cell values or headers.
 
 `fflate` preserves package members and `fast-xml-parser` mutates only
 the selected worksheet and, for style patches, `xl/styles.xml`.
@@ -92,7 +95,10 @@ Worksheet names are resolved through `xl/workbook.xml` relationships
 rather than filename assumptions. `csv-parse` handles source CSV syntax.
 Writes use inline strings by default, may infer only empty, numeric, and
 boolean primitives in automatic mode, and never infer dates or formulas.
-Destination formulas cause the entire write to fail.
+An optional column map maps either all 1-based source ordinals or all
+exact, unique CSV headers to absolute Excel columns; maps may omit
+source columns but cannot repeat a destination. Destination formulas and
+merged ranges cause the entire write to fail.
 
 Style patches cover bold, italic, font size in points, RGB fill,
 alignment, wrapping, Excel number-format codes, and a uniform border.
@@ -100,6 +106,11 @@ Equivalent style components and cell formats are reused. Column width
 uses Excel character-width units; row height uses points. Both apply to
 the addressed range's columns and rows. Existing cell values and
 formulas remain unchanged during formatting.
+
+XLSX image reads convert all workbook print pages to a temporary PDF
+through LibreOffice, then use the common PDF renderer to create numbered
+PNG files. They do not select a sheet. The temporary PDF is removed and
+is not an exported artifact.
 
 XLSX writes and patches require a distinct output path. They run through
 the file mutation queue, build and validate a temporary sibling package,

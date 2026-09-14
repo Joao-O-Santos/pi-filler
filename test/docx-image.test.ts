@@ -55,6 +55,44 @@ test("renders selected DOCX pages through LibreOffice and pdftocairo", async () 
 	}
 });
 
+test("renders XLSX print pages through LibreOffice and pdftocairo", async () => {
+	const directory = await mkdtemp(join(tmpdir(), "pi-filler-xlsx-image-test-"));
+	const input = join(directory, "input.xlsx");
+	await writeFile(input, "fixture");
+	await script(
+		directory,
+		"libreoffice",
+		'printf "%s\\n" "$@" > "$LIBREOFFICE_LOG"\nwhile [ "$1" ]; do if [ "$1" = "--outdir" ]; then shift; out="$1"; fi; shift; done\ntouch "$out/input.pdf"',
+	);
+	await script(
+		directory,
+		"pdftocairo",
+		'printf "%s\\n" "$@" > "$PDFTOCAIRO_LOG"\nfor arg do prefix="$arg"; done\ntouch "$prefix-1.png"',
+	);
+	const previous = process.env.PATH;
+	process.env.PATH = `${directory}:${previous ?? ""}`;
+	process.env.LIBREOFFICE_LOG = join(directory, "libreoffice-args");
+	process.env.PDFTOCAIRO_LOG = join(directory, "pdftocairo-args");
+	try {
+		const result = await executeFiller(
+			{
+				format: "xlsx",
+				action: "read",
+				view: "image",
+				path: input,
+				output: join(directory, "render"),
+			},
+			directory,
+		);
+		assert.deepEqual(result.details.files, [join(directory, "render-1.png")]);
+		assert.match(await readFile(process.env.LIBREOFFICE_LOG, "utf8"), /--convert-to\npdf/);
+	} finally {
+		process.env.PATH = previous;
+		delete process.env.LIBREOFFICE_LOG;
+		delete process.env.PDFTOCAIRO_LOG;
+	}
+});
+
 test("DOCX image reads require an output path", async () => {
 	await assert.rejects(
 		() =>

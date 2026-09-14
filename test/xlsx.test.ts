@@ -45,7 +45,7 @@ async function writeXlsxFixture(path: string, formulaInTarget = false): Promise<
 			'<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><dimension ref="A1"/><sheetData><row r="1"><c r="A1" t="inlineStr"><is><t>untouched</t></is></c></row></sheetData></worksheet>',
 		),
 		"xl/worksheets/sheet2.xml": xml(
-			`<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><dimension ref="A1:C10"/><cols><col min="1" max="3" hidden="1" style="1" width="9"/></cols><sheetData><row r="1"><c r="A1" s="1" t="inlineStr"><is><t>${SECRET}</t></is></c></row><row r="2"><c r="A2" s="1" t="inlineStr"><is><t>template</t></is></c>${formulaInTarget ? `<c r="B2"><f>${SECRET}+1</f><v>2</v></c>` : ""}</row><row r="10"><c r="C10"><f>${SECRET}+2</f><v>3</v></c></row></sheetData><mergeCells count="1"><mergeCell ref="A5:B5"/></mergeCells></worksheet>`,
+			`<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><dimension ref="A1:C10"/><cols><col min="1" max="3" hidden="1" style="1" width="9"/></cols><sheetData><row r="1"><c r="A1" s="1" t="inlineStr"><is><t>${SECRET}</t></is></c></row><row r="2" hidden="1"><c r="A2" s="1" t="inlineStr"><is><t>template</t></is></c>${formulaInTarget ? `<c r="B2"><f>${SECRET}+1</f><v>2</v></c>` : ""}</row><row r="10"><c r="C10"><f>${SECRET}+2</f><v>3</v></c></row></sheetData><mergeCells count="1"><mergeCell ref="A5:B5"/></mergeCells></worksheet>`,
 		),
 		"xl/worksheets/_rels/sheet2.xml.rels": xml(
 			'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="comment" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="../comments1.xml"/><Relationship Id="drawing" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing1.xml"/></Relationships>',
@@ -132,6 +132,12 @@ test("inspects XLSX structure through relationship IDs without exposing content"
 		columns: 3,
 		formulaCells: 1,
 		mergedRanges: 1,
+		mergedRangeAddresses: ["A5:B5"],
+		mergedRangesTruncated: false,
+		hiddenRowRanges: ["2"],
+		hiddenRowsTruncated: false,
+		hiddenColumnRanges: ["A:C"],
+		hiddenColumnsTruncated: false,
 		styledCells: 2,
 	});
 	assert.equal(exposed(structure), false);
@@ -140,6 +146,27 @@ test("inspects XLSX structure through relationship IDs without exposing content"
 		directory,
 	);
 	assert.equal(exposed(result), false);
+});
+
+test("bounds content-free XLSX layout ranges", async () => {
+	const directory = await mkdtemp(join(tmpdir(), "pi-filler-xlsx-layout-bound-"));
+	const input = join(directory, "input.xlsx");
+	await writeXlsxFixture(input);
+	const contents = await packageContents(input);
+	const merges = Array.from(
+		{ length: 1_001 },
+		(_, index) => `<mergeCell ref="D${index + 1}"/>`,
+	).join("");
+	const worksheet = new TextDecoder().decode(contents["xl/worksheets/sheet2.xml"]);
+	contents["xl/worksheets/sheet2.xml"] = Uint8Array.from(
+		new TextEncoder().encode(worksheet.replace(/<mergeCells[^>]*>[\s\S]*?<\/mergeCells>/, `<mergeCells>${merges}</mergeCells>`)),
+	);
+	await writeFile(input, zipSync(contents));
+	const structure = await inspectXlsxStructure(input);
+	assert.equal(structure.worksheets[0].mergedRanges, 1_001);
+	assert.equal(structure.worksheets[0].mergedRangeAddresses.length, 1_000);
+	assert.equal(structure.worksheets[0].mergedRangesTruncated, true);
+	assert.equal(exposed(structure), false);
 });
 
 test("handles prefixed worksheets and styles while reporting the resolved part", async () => {
@@ -522,6 +549,91 @@ test("mutates a LibreOffice-produced XLSX fixture and optionally reopens it", as
 		if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
 		context.diagnostic("LibreOffice unavailable; package-level integration checks passed");
 	}
+});
+
+test("maps CSV ordinal and header columns without exposing values", async () => {
+	const directory = await mkdtemp(join(tmpdir(), "pi-filler-xlsx-column-map-"));
+	const input = join(directory, "input.xlsx");
+	const ordinalOutput = join(directory, "ordinal.xlsx");
+	const headerOutput = join(directory, "header.xlsx");
+	const csv = join(directory, "source.csv");
+	await writeXlsxFixture(input);
+	await writeFile(csv, `name,number,private\nAda,001,${SECRET}\n`);
+	const ordinal = await fillXlsxFromCsv(input, csv, ordinalOutput, {
+		sheet: "Results",
+		startCell: "A2",
+		columnMap: { "1": "A", "2": "C", "3": "B" },
+	});
+	assert.deepEqual(
+		{ range: ordinal.writtenRange, columns: ordinal.columns },
+		{ range: "A2:C2", columns: 3 },
+	);
+	const ordinalSheet = new TextDecoder().decode(
+		await packagePart(ordinalOutput, "xl/worksheets/sheet2.xml"),
+	);
+	assert.match(ordinalSheet, /r="A2"[^>]*>[\s\S]*?>Ada</);
+	assert.match(ordinalSheet, new RegExp(`r="B2"[^>]*>[\\s\\S]*?>${SECRET}`));
+	assert.match(ordinalSheet, /r="C2"[^>]*>[\s\S]*?>001</);
+	const header = await fillXlsxFromCsv(input, csv, headerOutput, {
+		sheet: "Results",
+		startCell: "A2",
+		columnMap: { name: "B", number: "A" },
+	});
+	assert.deepEqual(
+		{ range: header.writtenRange, columns: header.columns },
+		{ range: "A2:B2", columns: 2 },
+	);
+	assert.equal(exposed(ordinal), false);
+	assert.equal(exposed(header), false);
+});
+
+test("rejects invalid CSV column maps and mapped writes into merged cells", async () => {
+	const directory = await mkdtemp(join(tmpdir(), "pi-filler-xlsx-column-map-errors-"));
+	const input = join(directory, "input.xlsx");
+	const output = join(directory, "output.xlsx");
+	const csv = join(directory, "source.csv");
+	await writeXlsxFixture(input);
+	await writeFile(csv, "name,name,number\nAda,Ada,001\n");
+	await assert.rejects(
+		() =>
+			fillXlsxFromCsv(input, csv, output, {
+				sheet: "Results",
+				startCell: "A2",
+				columnMap: { name: "A" },
+			}),
+		/headers must be unique/,
+	);
+	await assert.rejects(
+		() =>
+			fillXlsxFromCsv(input, csv, output, {
+				sheet: "Results",
+				startCell: "A2",
+				columnMap: { "1": "A", name: "B" },
+			}),
+		/keys must be all ordinals or all headers/,
+	);
+	await assert.rejects(
+		() =>
+			fillXlsxFromCsv(input, csv, output, {
+				sheet: "Results",
+				startCell: "A2",
+				columnMap: { "1": "A", "2": "A" },
+			}),
+		/destinations must be unique/,
+	);
+	await writeFile(csv, "heading\nvalue\n");
+	for (const dryRun of [false, true]) {
+		await assert.rejects(
+			() =>
+				fillXlsxFromCsv(input, csv, output, {
+					sheet: "Results",
+					startCell: "A5",
+					dryRun,
+				}),
+			/intersects 1 merged range/,
+		);
+	}
+	assert.equal(await exists(output), false);
 });
 
 test("keeps XLSX failures private and output-safe", async () => {

@@ -47,8 +47,10 @@ The current pre-1.0 source implements:
   patches;
 - transactional patching with dry runs and relationship validation;
 - deterministic regression tests for the supported surface;
-- structural-only XLSX inspection, CSV-to-template filling, primitive
-  automatic typing, formula protection, and narrow style/layout patches;
+- content-free XLSX layout inspection, mapped CSV-to-template filling,
+  primitive automatic typing, formula and merged-range protection,
+  narrow style/layout patches, and optional image rendering through
+  LibreOffice;
 - package-owned prompt guidance that keeps deterministic XLSX processing
   local when the model does not need spreadsheet contents.
 
@@ -67,9 +69,10 @@ promised to be lexically identical to their originals.
 
 Spreadsheet cells, CSV fields, formulas, comments, and other workbook
 text are tool-local data. Normal XLSX results and errors expose only
-structural or operational metadata. XLSX support does not calculate
-formulas or provide arbitrary content extraction or spreadsheet
-programming.
+structural or operational metadata. Bounded layout metadata can reveal
+limited layout and occupancy information, but not cell values or
+headers. XLSX support does not calculate formulas or provide arbitrary
+content extraction or spreadsheet programming.
 
 Model-facing schema descriptions and prompt guidance should make a valid
 format/action/view combination possible in one call, distinguish source
@@ -94,15 +97,16 @@ inspection.
   agree with implemented behavior.
 - Model-facing descriptions make valid calls and safe follow-up calls
   possible without inventing unsupported operations or output semantics.
-- Regression coverage protects the key schema and prompt commitments.
+- Regression coverage protects the key schema and prompt commitments,
+  including content-free XLSX mapping, layout inspection, and rendering.
 - Durable state, generated site files, and synchronization fingerprints
   reflect the accepted documentation; verification passes.
 
 ## Previous action
 
-Established package-owned prompt guidance as the durable integration
-boundary for deterministic, privacy-preserving document automation and
-documented that no separate Pi Sych skill is required.
+Added narrow attendance-template support to the existing XLSX surface:
+explicit CSV column maps, merged-range write protection, bounded
+content-free layout metadata, and optional LibreOffice image rendering.
 
 ## Immediate next step
 

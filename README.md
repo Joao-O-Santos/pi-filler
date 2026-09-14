@@ -66,7 +66,8 @@ supply only its relevant fields:
 | PDF | `read` | `image` | `output`; optional `first_page`, `last_page` |
 | PDF | `search` | `text` or omitted | `query`; optional `first_page`, `last_page`, `literal`, `ignore_case` |
 | XLSX | `read` | `structure` | none |
-| XLSX | `write` | omitted | template `path`, `source_csv`, `sheet`, A1 `start_cell`, `output` |
+| XLSX | `read` | `image` | `output`; optional `first_page`, `last_page`; all workbook print pages |
+| XLSX | `write` | omitted | template `path`, `source_csv`, `sheet`, A1 `start_cell`, `output`; optional `column_map` |
 | XLSX | `patch` | omitted | `sheet`, A1 `range`, `xlsx_patches`, `output` |
 
 PDF write and patch, and XLSX search, are unsupported. Parameters
@@ -158,17 +159,25 @@ or element ordering may change.
 Spreadsheet cell values, CSV fields, formulas, comments, and other
 workbook text are processed locally and are not returned to the model.
 Structural results contain sheet names, ranges, dimensions, counts,
-changed package parts, and write status---not workbook or CSV contents.
+merged-range addresses, hidden row and column ranges, changed package
+parts, and write status---not workbook or CSV contents. Layout-range
+arrays are capped and report whether they were truncated; this metadata
+can reveal limited layout and occupancy information.
 
 - `read` with `view: "structure"` reports workbook and worksheet shape.
+- `read` with `view: "image"` renders all workbook print pages through
+  LibreOffice to numbered PNG files; it does not select a sheet.
 - `write` fills an existing workbook template from CSV.
 - `patch` changes formatting or layout while preserving cell contents.
 
 CSV writes skip the first record by default (`has_header: true`) and
 preserve fields as text by default (`value_mode: "text"`). Automatic
 mode recognizes only empty values, numbers, and booleans; it does not
-infer dates or formulas. The entire write fails if its destination
-intersects an existing formula.
+infer dates or formulas. `column_map` optionally maps either all 1-based
+CSV ordinals or all exact CSV headers to absolute XLSX column letters,
+such as `{ "1": "A", "2": "C" }`. Header mappings require unique CSV
+headers; destinations must be unique. The entire write fails if its
+mapped destination cells intersect an existing formula or merged range.
 
 XLSX patches support bold, italic, font size, six-digit RGB fills,
 horizontal and vertical alignment, wrapping, Excel number-format codes,
@@ -195,7 +204,7 @@ or replacing output; its required `output` path is still validated.
 Required for the corresponding operations:
 
 - `pandoc` for DOCX text conversion, search, and generation;
-- `libreoffice` for DOCX image rendering;
+- `libreoffice` for DOCX and XLSX image rendering;
 - `pdftotext` for PDF text extraction;
 - `pdftocairo` for PDF and DOCX page rendering; and
 - `pdfgrep` for page-aware PDF search.

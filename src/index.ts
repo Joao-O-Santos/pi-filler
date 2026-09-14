@@ -210,7 +210,8 @@ export const fillerSchema = Type.Object(
 		),
 		start_cell: Type.Optional(
 			Type.String({
-				description: "Upper-left XLSX destination cell in A1 notation, such as A2",
+				description:
+					"XLSX start row and default upper-left destination cell in A1 notation, such as A2; column_map destinations are absolute",
 				minLength: 1,
 			}),
 		),
@@ -227,6 +228,13 @@ export const fillerSchema = Type.Object(
 			StringEnum(["text", "auto"] as const, {
 				default: "text",
 				description: "Write CSV fields as text, or infer only empty, number, and boolean values",
+			}),
+		),
+		column_map: Type.Optional(
+			Type.Record(Type.String({ minLength: 1 }), Type.String({ minLength: 1 }), {
+				description:
+					"CSV source columns to absolute XLSX destination columns: all 1-based ordinals or all exact headers to A1 column letters",
+				minProperties: 1,
 			}),
 		),
 		xlsx_patches: Type.Optional(xlsxPatchesSchema),
@@ -279,6 +287,7 @@ const controlFields: ControlField[] = [
 	"range",
 	"has_header",
 	"value_mode",
+	"column_map",
 	"xlsx_patches",
 	"dry_run",
 	"literal",
@@ -357,7 +366,13 @@ function assertSupported(input: FillerInput): void {
 
 	if (input.format === "xlsx") {
 		if (input.action === "read") {
-			if (input.view !== "structure") throw new Error("XLSX read requires view=structure");
+			if (input.view === "image") {
+				if (!input.output) throw new Error("XLSX image reads require output");
+				assertParameters(input, ["output", "first_page", "last_page"]);
+				return;
+			}
+			if (input.view !== "structure")
+				throw new Error("XLSX read requires view=structure or view=image");
 			assertParameters(input, []);
 			return;
 		}
@@ -374,6 +389,7 @@ function assertSupported(input: FillerInput): void {
 				"start_cell",
 				"has_header",
 				"value_mode",
+				"column_map",
 				"dry_run",
 			]);
 			return;
@@ -488,6 +504,28 @@ export async function executeFiller(
 
 	if (input.format === "xlsx") {
 		if (input.action === "read") {
+			if (input.view === "image") {
+				const output = normalizePath(input.output ?? "", cwd);
+				const temporary = await mkdtemp(join(tmpdir(), "pi-filler-xlsx-"));
+				try {
+					const converted = await runCommand(
+						"libreoffice",
+						["--headless", "--convert-to", "pdf", "--outdir", temporary, path],
+						{ signal, cwd: temporary },
+					);
+					if (converted.code !== 0) throw commandError(converted, "libreoffice");
+					const pdf = join(temporary, `${basename(path, extname(path))}.pdf`);
+					const files = await withFileMutationQueue(output, () =>
+						renderPdfPages(pdf, output, range, { signal }),
+					);
+					return {
+						text: `Rendered ${files.length} page image${files.length === 1 ? "" : "s"}:\n${files.join("\n")}`,
+						details: { files },
+					};
+				} finally {
+					await rm(temporary, { recursive: true, force: true });
+				}
+			}
 			const result = await inspectXlsxStructure(path);
 			return {
 				text: JSON.stringify(result, null, 2),
@@ -503,6 +541,7 @@ export async function executeFiller(
 					startCell: input.start_cell ?? "",
 					hasHeader: input.has_header,
 					valueMode: input.value_mode,
+					columnMap: input.column_map,
 					dryRun: input.dry_run,
 					signal,
 				}),
@@ -566,13 +605,13 @@ export default function extension(pi: ExtensionAPI): void {
 		name: "filler",
 		label: "Filler",
 		description:
-			"Work directly with local DOCX, PDF, and XLSX files. Read, search, or render DOCX and PDF; write DOCX from Markdown; inspect XLSX structure, fill XLSX templates from CSV, and patch supported formatting.",
+			"Work directly with local DOCX, PDF, and XLSX files. Read, search, or render DOCX and PDF; write DOCX from Markdown; inspect or render XLSX, fill XLSX templates from CSV, and patch supported formatting.",
 		promptSnippet:
 			"Work directly with local DOCX, PDF, and XLSX files using supported format/action/view combinations.",
 		promptGuidelines: [
 			"Use filler directly for local DOCX, PDF, or XLSX work; choose a supported format/action/view combination and provide only that operation's fields.",
-			"For filler read, use DOCX text, formatting, or image; PDF text or image; or XLSX structure. For filler search, use DOCX or PDF text (or omit view); XLSX search is unsupported. Image output is an existing directory or PNG prefix that creates page images, not one final PNG.",
-			"For filler DOCX write, path is Markdown and output is the new DOCX; reference_docx is optional. For filler XLSX write, path is the template and source_csv, sheet, A1-style start_cell, and output are required. XLSX processing stays local and results do not return cell or CSV contents.",
+			"For filler read, use DOCX text, formatting, or image; PDF text or image; or XLSX structure or image. XLSX images render all workbook print pages through LibreOffice and do not accept sheet. For filler search, use DOCX or PDF text (or omit view); XLSX search is unsupported. Image output is an existing directory or PNG prefix that creates page images, not one final PNG.",
+			"For filler DOCX write, path is Markdown and output is the new DOCX; reference_docx is optional. For filler XLSX write, path is the template and source_csv, sheet, A1-style start_cell, and output are required; column_map optionally maps all CSV ordinals or all exact headers to XLSX columns. XLSX processing stays local and results do not return cell or CSV contents.",
 			"For filler patch, provide a new output path plus DOCX patches, or XLSX sheet, A1-style range, and xlsx_patches. dry_run: true still requires output but does not create or replace it. PDF queries are regular expressions by default; use literal: true for literal text. XLSX writes skip a header and preserve text by default.",
 			"For filler results, DOCX search may be truncated; narrow its query. PDF text or search may be truncated; narrow its page range or query.",
 		],
