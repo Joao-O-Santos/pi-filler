@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### Added
+
+- Pandoc-backed PPTX text extraction, GFM generation, and slide
+  rendering through LibreOffice and Poppler.
+- Narrow transactional PPTX OOXML patches for slide dimensions, core
+  metadata, and text replacement across formatted runs.
+
+### Changed
+
+- Extend the model-facing filler operation matrix with PPTX reads,
+  searches, writes, patches, and image rendering.
+
 ## 0.2.0 --- 2026-09-14
 
 ### Added

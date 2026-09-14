@@ -2,8 +2,8 @@
 
 `pi-filler` is a small Pi extension for deterministic document handling.
 It delegates common document conversion and PDF extraction to mature
-command-line tools and keeps Word- and spreadsheet-specific mutations
-narrow and inspectable.
+command-line tools and keeps Word-, presentation-, and
+spreadsheet-specific mutations narrow and inspectable.
 
 ## Model-facing API
 
@@ -11,19 +11,22 @@ The extension exposes one `filler` tool with explicit `format`,
 `action`, and operation-dependent `view` fields:
 
 ``` text
-format: docx | pdf | xlsx
+format: docx | pdf | pptx | xlsx
 action: read | search | write | patch
 view: text | formatting | image | structure
 ```
 
 DOCX supports text, formatting, and image reads; text search;
-Markdown-to-DOCX writes; and narrow OOXML patches. PDF supports text and
-image reads plus text search. XLSX supports content-free structure and
-image reads, CSV-to-template writes, and formatting/layout patches.
+Markdown-to-DOCX writes; and narrow OOXML patches. PPTX supports text,
+formatting, and image reads; text search; GFM-to-PPTX writes; and narrow
+OOXML patches. PDF supports text and image reads plus text search. XLSX
+supports content-free structure and image reads, CSV-to-template writes,
+and formatting/layout patches.
 
 The schema describes operation-specific path roles and defaults.
 `format` selects the document or target format, rather than every input:
-DOCX write takes Markdown at `path`, and XLSX write takes the workbook
+DOCX and PPTX writes take Markdown at `path` (with an optional
+format-specific reference document), and XLSX write takes the workbook
 template at `path` plus values from `source_csv`. Other operations use
 `path` as the input document. Relative paths resolve from Pi's working
 directory; a leading `@` is removed before resolution. Image `output` is
@@ -36,14 +39,16 @@ default upper-left column; explicit XLSX map destinations are absolute.
 Unsupported combinations and operation-irrelevant parameters are
 rejected explicitly. Paths and required query/output values cannot be
 empty. Writes and patches require an output distinct from the input.
-`dry_run` is supported for DOCX patches and XLSX writes and patches; it
-still requires an output path but does not create or replace it.
+`dry_run` is supported for DOCX and PPTX patches and XLSX writes and
+patches; it still requires an output path but does not create or replace
+it.
 
 Prompt guidance supplies the compact operation matrix needed to choose a
 valid call without retrying through invalid combinations. It names path
-roles, required XLSX write and patch fields, XLSX's content-free privacy
-boundary, PDF search and XLSX write defaults, page-range rules, and
-operation-appropriate narrowing of truncated results.
+roles, required XLSX write and patch fields, PPTX patch fields, XLSX's
+content-free privacy boundary, PDF search and XLSX write defaults,
+page-range rules, and operation-appropriate narrowing of truncated
+results.
 
 That guidance is package-owned. The registered `promptSnippet` and
 `promptGuidelines` travel with `pi-filler` and are the appropriate place
@@ -63,8 +68,8 @@ Timed-out commands are force-terminated. The adapter otherwise only
 normalizes errors and missing-executable messages.
 
 Required executables are `pandoc`, `pdftotext`, `pdftocairo`, and
-`pdfgrep`. LibreOffice is optional at runtime and used for DOCX and XLSX
-image rendering.
+`pdfgrep`. LibreOffice is optional at runtime and used for DOCX, PPTX,
+and XLSX image rendering.
 
 ## PDF
 
@@ -121,6 +126,28 @@ the file mutation queue, build and validate a temporary sibling package,
 and rename it only after successful validation. Dry runs parse all local
 inputs but return only structural operation metadata.
 
+## PPTX conversion and rendering
+
+Pandoc converts PPTX to GFM Markdown for reads and searches. GFM
+Markdown converts to PPTX for writes; an optional reference PPTX
+supplies the presentation template. PPTX extraction is semantic and
+lossy rather than a round-trip representation of slide layout,
+animation, themes, or every object.
+
+PPTX image reads convert the presentation to PDF through LibreOffice,
+then use the common PDF renderer to create numbered PNG slide images.
+Page ranges are 1-based and inclusive.
+
+## PPTX OOXML
+
+PPTX inspection reports slide dimensions in EMUs, slide count, and
+common core metadata. Patches support slide dimensions, common core
+metadata, and text replacement within slide text paragraphs.
+Replacements can target one slide or all slides and can span DrawingML
+text runs; replacement text inherits the first matched run's formatting.
+Edited XML parts are reserialized, while untouched package parts are
+preserved at the part content level.
+
 ## DOCX text and generation
 
 Pandoc converts DOCX to Markdown for reads and searches. Search examines
@@ -170,6 +197,12 @@ and patches use temporary sibling files and atomic renames. Source files
 are not modified.
 
 ## Scope boundary
+
+PPTX support does not promise arbitrary XML editing, preservation of
+every PowerPoint feature, or automatic layout repair. It does not
+manipulate charts, SmartArt, animations, transitions, notes, masters,
+themes, or embedded objects except by preserving untouched package
+parts.
 
 The project is not a general office suite, broad PDF toolkit, complete
 DOCX anonymizer, or spreadsheet programming environment. XLSX support

@@ -3,8 +3,8 @@
 ## Objective
 
 Build `pi-filler`, a small deterministic document helper for Pi that
-fills DOCX, PDF, and XLSX workflow gaps without requiring a full office
-suite.
+fills DOCX, PDF, PPTX, and XLSX workflow gaps without requiring a full
+office suite.
 
 ## Intended use
 
@@ -15,15 +15,15 @@ privacy-preserving spreadsheet template filling and formatting.
 
 ## Scope
 
-Pandoc handles DOCX conversion. Poppler command-line tools handle PDF
-text and rendering. `pdfgrep` handles page-aware PDF search. Targeted
-Word formatting changes operate on OOXML inside the DOCX package. XLSX
-operations parse workbook OOXML and CSV data locally, mutate only needed
-package parts, and return structural metadata rather than spreadsheet
-contents.
+Pandoc handles DOCX and PPTX conversion. Poppler command-line tools
+handle PDF text and rendering. `pdfgrep` handles page-aware PDF search.
+Targeted Word and presentation patches operate on OOXML inside their
+packages. XLSX operations parse workbook OOXML and CSV data locally,
+mutate only needed package parts, and return structural metadata rather
+than spreadsheet contents.
 
-LibreOffice provides optional DOCX-to-PDF rendering for image reads. PDF
-writing and patching are outside the current scope.
+LibreOffice provides optional DOCX/PPTX-to-PDF rendering for image
+reads. PDF writing and patching are outside the current scope.
 
 ## Constraints
 
@@ -39,7 +39,8 @@ mirror for verification and Pages.
 
 The current pre-1.0 source implements:
 
-- one `filler` tool with explicit DOCX/PDF/XLSX operation combinations;
+- one `filler` tool with explicit DOCX/PDF/PPTX/XLSX operation
+  combinations;
 - bounded, cancellable, finite-time external command execution;
 - PDF text, search, and selected-page rendering;
 - DOCX text, search, and validated transactional generation;
@@ -51,6 +52,8 @@ The current pre-1.0 source implements:
   primitive automatic typing, formula and merged-range protection,
   narrow style/layout patches, and optional image rendering through
   LibreOffice;
+- Pandoc-based PPTX text extraction, GFM generation, slide rendering,
+  and narrow transactional OOXML patches;
 - package-owned prompt guidance that keeps deterministic XLSX processing
   local when the model does not need spreadsheet contents.
 
@@ -63,8 +66,8 @@ README badge. Tagging and publication require explicit instruction.
 clears common core metadata fields but does not promise removal of every
 possible author or identity trace.
 
-Untouched DOCX and XLSX package parts are preserved byte-for-byte at the
-part content level. Edited XML parts are reserialized and are not
+Untouched DOCX, PPTX, and XLSX package parts are preserved byte-for-byte
+at the part content level. Edited XML parts are reserialized and are not
 promised to be lexically identical to their originals.
 
 Spreadsheet cell values, CSV fields, formula contents, and comments are
@@ -74,7 +77,10 @@ ranges, dimensions, counts, merge addresses, hidden ranges, changed
 parts, and output paths. Bounded layout metadata can reveal limited
 layout and occupancy information, but not cell values or CSV contents.
 XLSX support does not calculate formulas or provide arbitrary content
-extraction or spreadsheet programming.
+extraction or spreadsheet programming. PPTX support does not promise
+arbitrary XML editing or automatic layout repair; it preserves
+unsupported presentation parts but does not manipulate charts, SmartArt,
+animations, transitions, notes, masters, themes, or embedded objects.
 
 Model-facing schema descriptions and prompt guidance should make a valid
 format/action/view combination possible in one call, distinguish source
@@ -101,15 +107,16 @@ interpretation only when the task actually requires semantic inspection.
 - Model-facing descriptions make valid calls and safe follow-up calls
   possible without inventing unsupported operations or output semantics.
 - Regression coverage protects the key schema and prompt commitments,
-  including content-free XLSX mapping, layout inspection, and rendering.
+  including PPTX conversion, targeted OOXML patches, rendering, and
+  content-free XLSX mapping, layout inspection, and rendering;
+  project-wide line and function coverage remain above 90%.
 - Durable state, generated site files, and synchronization fingerprints
   reflect the accepted documentation; verification passes.
 
 ## Previous action
 
-Added narrow attendance-template support to the existing XLSX surface:
-explicit CSV column maps, merged-range write protection, bounded
-content-free layout metadata, and optional LibreOffice image rendering.
+Added PPTX conversion, slide rendering, and narrow OOXML text/slide-size
+patches alongside the existing DOCX, PDF, and XLSX surface.
 
 ## Immediate next step
 

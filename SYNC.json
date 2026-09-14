@@ -4,18 +4,18 @@
   "artifacts": [
     {
       "path": "PROJECT.md",
-      "fingerprint": "sha256:d97eb524a6525a2bc993b101dfd0b30c2aa805f9f5916a6a6bec054b49bb27c8",
+      "fingerprint": "sha256:03332d40df9e40c0b7cd42092f8427e5276ba2a2b4fa9e00474ab2aa3a82840c",
       "status": "current",
       "role": "project",
       "dependsOn": [],
       "acknowledgement": {
         "at": "2026-09-14T19:38:56.000Z",
-        "reason": "Added explicit content-blind XLSX write and patch guidance; synchronized the model-facing prompt, regression test, and documentation."
+        "reason": "Added PPTX conversion, rendering, and narrow OOXML patch guidance; synchronized the model-facing prompt, regression tests, and documentation."
       }
     },
     {
       "path": "ARCHITECTURE.md",
-      "fingerprint": "sha256:0f0563e998bfae2888e45eef021db77c48cb10277044e23314979fc7d016d2da",
+      "fingerprint": "sha256:d3ea159b58ef04e926910e52da54e1af881cec756ca5d0223c8be558c0ddfee0",
       "status": "current",
       "role": "architecture",
       "dependsOn": [
@@ -23,12 +23,12 @@
       ],
       "acknowledgement": {
         "at": "2026-09-14T19:38:56.000Z",
-        "reason": "Added explicit content-blind XLSX write and patch guidance; synchronized the model-facing prompt, regression test, and documentation."
+        "reason": "Added PPTX conversion, rendering, and narrow OOXML patch guidance; synchronized the model-facing prompt, regression tests, and documentation."
       }
     },
     {
       "path": "README.md",
-      "fingerprint": "sha256:6198e4f2d2beb687fc4d6b3a5f98bfaf397d4e16e1dc656dc3e364517b6626a6",
+      "fingerprint": "sha256:5f48a7048be57778b01296566cfbee8b1b6bfdc17a95bae270cb8d83a2ec0e46",
       "status": "current",
       "role": "documentation",
       "dependsOn": [
@@ -37,7 +37,7 @@
       ],
       "acknowledgement": {
         "at": "2026-09-14T19:38:56.000Z",
-        "reason": "Added the content-blind XLSX privacy preference to the public package documentation."
+        "reason": "Added the PPTX operation matrix, conversion limits, rendering, and patch guidance to the public package documentation."
       }
     },
     {
@@ -68,7 +68,7 @@
     },
     {
       "path": "CHANGELOG.md",
-      "fingerprint": "sha256:dd4e5215c96f526eb785e8e0d76acc352b87957476fafc54a7bbc8020732890b",
+      "fingerprint": "sha256:90b188935a7d9e05a7e0e9cf59be0b944b30da111a66ea48658a5b8e0494321",
       "status": "current",
       "role": "changelog",
       "dependsOn": [
@@ -77,7 +77,7 @@
       ],
       "acknowledgement": {
         "at": "2026-09-14T14:12:51.089Z",
-        "reason": "Prepared the authorized 0.2.0 minor release after successful main-branch CI and local verification."
+        "reason": "Recorded the PPTX feature in the unreleased changelog after local verification."
       }
     }
   ]

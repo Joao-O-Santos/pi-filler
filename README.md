@@ -10,11 +10,11 @@ version](https://img.shields.io/npm/v/pi-filler.svg)](https://www.npmjs.com/pack
 downloads](https://img.shields.io/npm/dt/pi-filler.svg)](https://www.npmjs.com/package/pi-filler)
 [![license](https://img.shields.io/npm/l/pi-filler.svg)](https://gitlab.com/Joao-O-Santos/pi-filler/-/blob/main/LICENSE)
 
-**Deterministic DOCX, PDF, and XLSX tooling for Pi.**
+**Deterministic DOCX, PDF, PPTX, and XLSX tooling for Pi.**
 
 `pi-filler` covers document tasks that do not fit an ordinary Markdown
 workflow. It delegates conversion and PDF extraction to mature
-command-line tools while keeping DOCX and XLSX mutations narrow,
+command-line tools while keeping DOCX, PPTX, and XLSX mutations narrow,
 transactional, and inspectable.
 
 The project is experimental and pre-1.0. The README documents the
@@ -45,15 +45,15 @@ Node.js and do not require an office suite.
 The extension exposes one `filler` tool:
 
 ``` text
-format: docx | pdf | xlsx
+format: docx | pdf | pptx | xlsx
 action: read | search | write | patch
 view: text | formatting | image | structure
 ```
 
-`format` names the document or target format, not every input: DOCX
-writes take Markdown at `path`, and XLSX writes take a workbook template
-at `path` plus CSV at `source_csv`. Choose a supported combination and
-supply only its relevant fields:
+`format` names the document or target format, not every input: DOCX and
+PPTX writes take Markdown at `path`, and XLSX writes take a workbook
+template at `path` plus CSV at `source_csv`. Choose a supported
+combination and supply only its relevant fields:
 
 | Format | Action | View | Required additional fields |
 |---------------|---------------|---------------|---------------------------|
@@ -62,6 +62,11 @@ supply only its relevant fields:
 | DOCX | `search` | `text` or omitted | `query`; optional `ignore_case` |
 | DOCX | `write` | omitted | Markdown `path`, `output`; optional `reference_docx` |
 | DOCX | `patch` | omitted | `output`, `patches`; optional `dry_run` |
+| PPTX | `read` | `text` or `formatting` | none |
+| PPTX | `read` | `image` | `output`; optional `first_page`, `last_page` |
+| PPTX | `search` | `text` or omitted | `query`; optional `ignore_case` |
+| PPTX | `write` | omitted | Markdown `path`, `output`; optional `reference_pptx` |
+| PPTX | `patch` | omitted | `output`, `pptx_patches`; optional `dry_run` |
 | PDF | `read` | `text` | optional `first_page`, `last_page` |
 | PDF | `read` | `image` | `output`; optional `first_page`, `last_page` |
 | PDF | `search` | `text` or omitted | `query`; optional `first_page`, `last_page`, `literal`, `ignore_case` |
@@ -115,8 +120,9 @@ filler({
 ```
 
 Results may be truncated. For a truncated PDF text read, use a page
-range; for PDF or DOCX search, narrow the query. PDF search can also use
-a page range. Dry runs still read and validate all local inputs.
+range; for PDF, DOCX, or PPTX search, narrow the query. PDF search can
+also use a page range. Dry runs still read and validate all local
+inputs.
 
 ## PDF operations
 
@@ -192,12 +198,31 @@ calculation or generation, spreadsheet scripting, or manipulation of
 charts, pivots, macros, comments, named ranges, tables, data validation,
 conditional formatting, or external data.
 
+## PPTX operations
+
+- Text reads and search convert PPTX through Pandoc to GFM Markdown.
+- Writes convert GFM Markdown into a validated PPTX; an optional
+  reference PPTX supplies Pandoc presentation styles.
+- Formatting reads report slide dimensions, slide count, and common core
+  metadata.
+- Patches change slide dimensions, common core metadata, and targeted
+  text in slide text paragraphs. Text replacements may target one
+  1-based slide or all slides. They can span formatted text runs, with
+  replacement text inheriting the first run's formatting.
+- PPTX-to-Markdown extraction is semantic and lossy: it is not a
+  reversible representation of positions, animations, themes, or all
+  presentation objects.
+
+Slide dimensions use EMUs (English Metric Units); 914,400 EMUs equal one
+inch. PPTX image reads convert slides through LibreOffice to PDF and
+render numbered PNG files; `first_page` and `last_page` select slides.
+
 ## Output and mutation behavior
 
-DOCX and XLSX writes and patches use temporary sibling files, validate
-the result, and rename it into place only after success. Source files
-are not modified. PDF image rendering similarly protects prior output
-until the new render succeeds.
+DOCX, PPTX, and XLSX writes and patches use temporary sibling files,
+validate the result, and rename it into place only after success. Source
+files are not modified. PDF and office image rendering similarly
+protects prior output until the new render succeeds.
 
 `dry_run` validates the requested operation and inputs without creating
 or replacing output; its required `output` path is still validated.
@@ -206,10 +231,10 @@ or replacing output; its required `output` path is still validated.
 
 Required for the corresponding operations:
 
-- `pandoc` for DOCX text conversion, search, and generation;
-- `libreoffice` for DOCX and XLSX image rendering;
+- `pandoc` for DOCX/PPTX text conversion, search, and generation;
+- `libreoffice` for DOCX, PPTX, and XLSX image rendering;
 - `pdftotext` for PDF text extraction;
-- `pdftocairo` for PDF, DOCX, and XLSX page rendering; and
+- `pdftocairo` for PDF, DOCX, PPTX, and XLSX page rendering; and
 - `pdfgrep` for page-aware PDF search.
 
 A missing executable produces an explicit error naming the unavailable
@@ -224,8 +249,9 @@ make site
 ```
 
 `make verify` runs typechecking, lint and formatting checks,
-deterministic tests, and `npm pack --dry-run`. `make site` regenerates
-the tracked static site after documentation changes.
+deterministic tests, project-wide line/function coverage checks, and
+`npm pack --dry-run`. `make site` regenerates the tracked static site
+after documentation changes.
 
 Dependencies and CI actions follow current upstream releases rather than
 being pinned. GitLab is canonical and the only release authority. GitHub
