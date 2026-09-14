@@ -15,7 +15,7 @@
     },
     {
       "path": "ARCHITECTURE.md",
-      "fingerprint": "sha256:d3ea159b58ef04e926910e52da54e1af881cec756ca5d0223c8be558c0ddfee0",
+      "fingerprint": "sha256:8c6d9cb6fbddabf1f2a311eb747a822e6f8a80de80554dead4bdddc45644388b",
       "status": "current",
       "role": "architecture",
       "dependsOn": [
@@ -68,7 +68,7 @@
     },
     {
       "path": "CHANGELOG.md",
-      "fingerprint": "sha256:90b188935a7d9e05a7e0e9cf59be0b944b30da111a66ea48658a5b8e0494321",
+      "fingerprint": "sha256:c19b8829152b03cc2d16683f1f3e9fca32c37b94babd0faa1fef374e77e14b7c",
       "status": "current",
       "role": "changelog",
       "dependsOn": [

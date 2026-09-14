@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.3.0 --- 2026-09-14
+
 ### Added
 
 - Pandoc-backed PPTX text extraction, GFM generation, and slide
