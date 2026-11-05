@@ -51,21 +51,30 @@ export interface DocxPatchResult {
 }
 
 type Package = OfficePackage;
-type XmlObject = Record<string, unknown>;
+type XmlObject = { children: XmlEntry[]; attributes: Record<string, string> };
+type XmlEntry = Record<string, unknown>;
 
 const WORD_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
 const CORE_NS = "http://schemas.openxmlformats.org/package/2006/metadata/core-properties";
 const DC_NS = "http://purl.org/dc/elements/1.1/";
 
-const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "@_" });
-const builder = new XMLBuilder({
+const xmlOptions = {
 	ignoreAttributes: false,
 	attributeNamePrefix: "@_",
-	format: false,
-});
+	preserveOrder: true,
+	parseTagValue: false,
+	parseAttributeValue: false,
+	trimValues: false,
+	commentPropName: "#comment",
+	cdataPropName: "#cdata",
+};
+const parser = new XMLParser(xmlOptions);
+const builder = new XMLBuilder(xmlOptions);
 
-function isObject(value: unknown): value is XmlObject {
-	return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+function wrap(entry: XmlEntry, key: string): XmlObject {
+	entry[":@"] ??= {};
+	const attributes = entry[":@"] as Record<string, string>;
+	return { children: entry[key] as XmlEntry[], attributes };
 }
 
 function localName(name: string): string {
@@ -75,43 +84,44 @@ function localName(name: string): string {
 function parseXml(bytes: Uint8Array | undefined, part: string): XmlObject {
 	if (!bytes) throw new Error(`DOCX is missing required part ${part}`);
 	try {
-		return parser.parse(new TextDecoder().decode(bytes), true) as XmlObject;
+		return {
+			children: parser.parse(new TextDecoder().decode(bytes), true) as XmlEntry[],
+			attributes: {},
+		};
 	} catch (error) {
 		throw new Error(`Invalid XML in ${part}: ${error instanceof Error ? error.message : error}`);
 	}
 }
 
 function serializeXml(value: XmlObject): Uint8Array {
-	return new TextEncoder().encode(builder.build(value));
+	return new TextEncoder().encode(builder.build(value.children));
 }
 
 function unpack(bytes: Uint8Array): Package {
 	return unpackOfficePackage(bytes, "DOCX");
 }
 
-function findAll(value: unknown, suffix: string, found: XmlObject[] = []): XmlObject[] {
-	if (!value || typeof value !== "object") return found;
-	for (const [key, child] of Object.entries(value)) {
-		if (!key.startsWith("@_") && localName(key) === suffix) {
-			for (const item of Array.isArray(child) ? child : [child]) {
-				if (isObject(item)) found.push(item);
-			}
+function findAll(value: XmlObject, suffix: string, found: XmlObject[] = []): XmlObject[] {
+	for (const entry of value.children) {
+		for (const [key, child] of Object.entries(entry)) {
+			if (!Array.isArray(child)) continue;
+			const node = wrap(entry, key);
+			if (localName(key) === suffix) found.push(node);
+			findAll(node, suffix, found);
 		}
-		findAll(child, suffix, found);
 	}
 	return found;
 }
 
-function first(value: unknown, suffix: string): XmlObject | undefined {
+function first(value: XmlObject, suffix: string): XmlObject | undefined {
 	return findAll(value, suffix)[0];
 }
 
 function directObject(value: XmlObject | undefined, suffix: string): XmlObject | undefined {
 	if (!value) return undefined;
-	for (const [key, child] of Object.entries(value)) {
-		if (key.startsWith("@_") || localName(key) !== suffix) continue;
-		const candidate = Array.isArray(child) ? child[0] : child;
-		return isObject(candidate) ? candidate : undefined;
+	for (const entry of value.children) {
+		const key = Object.keys(entry).find((name) => name !== ":@" && localName(name) === suffix);
+		if (key && Array.isArray(entry[key])) return wrap(entry, key);
 	}
 	return undefined;
 }
@@ -124,7 +134,7 @@ function rootObject(value: XmlObject, suffix: string): XmlObject {
 
 function attr(value: XmlObject | undefined, name: string): string | undefined {
 	if (!value) return undefined;
-	for (const [key, child] of Object.entries(value)) {
+	for (const [key, child] of Object.entries(value.attributes)) {
 		if (key.startsWith("@_") && localName(key) === name && child !== undefined) {
 			return String(child);
 		}
@@ -138,27 +148,35 @@ function numberAttr(value: XmlObject | undefined, name: string): number | undefi
 }
 
 function namespacePrefix(root: XmlObject, uri: string, preferred: string): string {
-	for (const [key, value] of Object.entries(root)) {
+	for (const [key, value] of Object.entries(root.attributes)) {
 		if (key.startsWith("@_xmlns:") && value === uri) return key.slice("@_xmlns:".length);
 	}
-	root[`@_xmlns:${preferred}`] = uri;
-	return preferred;
+	let prefix = preferred;
+	for (let suffix = 1; root.attributes[`@_xmlns:${prefix}`] !== undefined; suffix++) {
+		prefix = `${preferred}${suffix}`;
+	}
+	root.attributes[`@_xmlns:${prefix}`] = uri;
+	return prefix;
 }
 
 function setAttr(value: XmlObject, name: string, setting: number | string, prefix: string): void {
-	const existing = Object.keys(value).find(
+	const existing = Object.keys(value.attributes).find(
 		(key) => key.startsWith("@_") && localName(key) === name,
 	);
-	value[existing ?? `@_${prefix}:${name}`] = String(setting);
+	value.attributes[existing ?? `@_${prefix}:${name}`] = String(setting);
 }
 
 function removeDirect(value: XmlObject, name: string): void {
-	for (const key of Object.keys(value)) {
-		if (!key.startsWith("@_") && localName(key) === name) delete value[key];
-	}
+	value.children.splice(
+		0,
+		value.children.length,
+		...value.children.filter(
+			(entry) => !Object.keys(entry).some((key) => key !== ":@" && localName(key) === name),
+		),
+	);
 }
 
-function countTags(value: unknown, suffix: string): number {
+function countTags(value: XmlObject, suffix: string): number {
 	return findAll(value, suffix).length;
 }
 
@@ -175,31 +193,31 @@ const metadataNamespaces: Record<string, string> = {
 	lastModifiedBy: CORE_NS,
 };
 
-function childText(value: XmlObject, name: string): string | undefined {
-	for (const [key, child] of Object.entries(value)) {
-		if (key.startsWith("@_") || localName(key) !== name) continue;
-		if (typeof child === "string" || typeof child === "number") return String(child);
-		if (isObject(child)) {
-			const text = child["#text"];
-			if (typeof text === "string" || typeof text === "number") return String(text);
-		}
+function literalText(value: XmlObject): string {
+	let text = "";
+	for (const entry of value.children) {
+		if (entry["#text"] !== undefined) text += String(entry["#text"]);
+		else
+			for (const [key, child] of Object.entries(entry)) {
+				if (Array.isArray(child)) text += literalText(wrap(entry, key));
+			}
 	}
-	return undefined;
+	return text;
+}
+
+function childText(value: XmlObject, name: string): string | undefined {
+	const child = directObject(value, name);
+	return child ? literalText(child) : undefined;
 }
 
 function setChildText(value: XmlObject, name: string, text: string): void {
-	const existing = Object.keys(value).find(
-		(key) => !key.startsWith("@_") && localName(key) === name,
-	);
-	if (existing) {
-		const child = value[existing];
-		if (isObject(child)) child["#text"] = text;
-		else value[existing] = text;
-		return;
+	let child = directObject(value, name);
+	if (!child) {
+		const uri = metadataNamespaces[name] ?? DC_NS;
+		const prefix = namespacePrefix(value, uri, uri === CORE_NS ? "cp" : "dc");
+		child = ensureChild(value, name, prefix);
 	}
-	const uri = metadataNamespaces[name] ?? DC_NS;
-	const prefix = namespacePrefix(value, uri, uri === CORE_NS ? "cp" : "dc");
-	value[`${prefix}:${name}`] = text;
+	child.children.splice(0, child.children.length, { "#text": text });
 }
 
 function coreMetadata(pkg: Package): Record<string, string> {
@@ -217,8 +235,9 @@ function coreMetadata(pkg: Package): Record<string, string> {
 function countTrackedChanges(pkg: Package, document: XmlObject): number {
 	let count = countTags(document, "ins") + countTags(document, "del");
 	const contentPart = /^word\/(?:header\d+|footer\d+|footnotes|endnotes|comments)\.xml$/;
+	const commentPart = relatedPart(pkg, "comments", "word/comments.xml");
 	for (const [part, bytes] of Object.entries(pkg)) {
-		if (!contentPart.test(part)) continue;
+		if (!contentPart.test(part) && part !== commentPart) continue;
 		const content = parseXml(bytes, part);
 		count += countTags(content, "ins") + countTags(content, "del");
 	}
@@ -233,6 +252,7 @@ function inspectPackage(pkg: Package): DocxFormatting {
 	const margin = directObject(section, "pgMar");
 	const line = directObject(section, "lnNumType");
 	const pageNum = directObject(section, "pgNumType");
+	const commentsPart = relatedPart(pkg, "comments", "word/comments.xml");
 	return {
 		page: {
 			width: numberAttr(size, "w"),
@@ -251,8 +271,8 @@ function inspectPackage(pkg: Package): DocxFormatting {
 			count_by: numberAttr(line, "countBy"),
 		},
 		pageNumbering: { start: numberAttr(pageNum, "start"), format: attr(pageNum, "fmt") },
-		comments: pkg["word/comments.xml"]
-			? countTags(parseXml(pkg["word/comments.xml"], "word/comments.xml"), "comment")
+		comments: pkg[commentsPart]
+			? countTags(parseXml(pkg[commentsPart], commentsPart), "comment")
 			: 0,
 		trackedChanges: countTrackedChanges(pkg, document),
 		metadata: coreMetadata(pkg),
@@ -264,16 +284,48 @@ function firstSection(document: XmlObject, prefix: string): XmlObject {
 	if (existing) return existing;
 	const body = first(document, "body");
 	if (!body) throw new Error("DOCX is missing document body");
-	const section: XmlObject = {};
-	body[`${prefix}:sectPr`] = section;
-	return section;
+	return ensureChild(body, "sectPr", prefix);
 }
+
+// CT_SectPr sequence: insert new properties without moving existing children.
+const sectionOrder = [
+	"headerReference",
+	"footerReference",
+	"footnotePr",
+	"endnotePr",
+	"type",
+	"pgSz",
+	"pgMar",
+	"paperSrc",
+	"pgBorders",
+	"lnNumType",
+	"pgNumType",
+	"cols",
+	"formProt",
+	"vAlign",
+	"noEndnote",
+	"titlePg",
+	"textDirection",
+	"bidi",
+	"rtlGutter",
+	"docGrid",
+	"printerSettings",
+	"sectPrChange",
+];
 
 function ensureChild(parent: XmlObject, name: string, prefix: string): XmlObject {
 	let child = directObject(parent, name);
 	if (!child) {
-		child = {};
-		parent[`${prefix}:${name}`] = child;
+		const entry: XmlEntry = { [`${prefix}:${name}`]: [] };
+		const rank = sectionOrder.indexOf(name);
+		const next =
+			rank < 0
+				? -1
+				: parent.children.findIndex((node) =>
+						Object.keys(node).some((key) => sectionOrder.indexOf(localName(key)) > rank),
+					);
+		parent.children.splice(next < 0 ? parent.children.length : next, 0, entry);
+		child = wrap(entry, `${prefix}:${name}`);
 	}
 	return child;
 }
@@ -468,6 +520,21 @@ function validatePackage(pkg: Package): void {
 
 async function load(path: string): Promise<Package> {
 	return unpack(new Uint8Array(await readFile(resolve(path))));
+}
+
+function relatedPart(pkg: Package, suffix: string, fallback: string): string {
+	const bytes = pkg["word/_rels/document.xml.rels"];
+	if (bytes) {
+		for (const rel of findAll(parseXml(bytes, "word/_rels/document.xml.rels"), "Relationship")) {
+			if (attr(rel, "Type")?.endsWith(`/${suffix}`) && attr(rel, "TargetMode") !== "External") {
+				const target = attr(rel, "Target") ?? "";
+				return posix.normalize(
+					target.startsWith("/") ? target.slice(1) : posix.join("word", target),
+				);
+			}
+		}
+	}
+	return fallback;
 }
 
 export async function inspectDocx(path: string): Promise<DocxFormatting> {

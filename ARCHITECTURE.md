@@ -161,8 +161,10 @@ validation succeeds.
 ## DOCX OOXML
 
 `fflate` reads and writes ZIP packages. `fast-xml-parser` handles the
-small set of XML parts needed by the supported patches. XML is checked
-for well-formedness before the parsed representation is accepted.
+small set of XML parts needed by the supported patches. DOCX parsing
+and serialization preserve child order, literal text, whitespace,
+comments, and CDATA without numeric coercion. XML is checked for
+well-formedness before the parsed representation is accepted.
 
 Inspection and mutation match XML names by local name and preserve or
 derive the document's namespace prefix when writing Word attributes.

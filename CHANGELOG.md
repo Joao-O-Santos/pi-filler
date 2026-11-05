@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Fixed
+
+- Preserve DOCX child order, whitespace, numeric-looking text, and
+  mixed-content markup during page, margin, numbering, and metadata
+  patches. Add whole-document preservation regression fixtures.
+
 ## 0.3.0 --- 2026-09-14
 
 ### Added
