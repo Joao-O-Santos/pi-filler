@@ -1,16 +1,16 @@
 {
   "version": 2,
-  "confirmedAt": "2026-11-05T14:32:03.335Z",
+  "confirmedAt": "2026-11-05T14:33:36.147Z",
   "artifacts": [
     {
       "path": "PROJECT.md",
-      "fingerprint": "sha256:00a07acc603b166a2e6dfd6f23554b01256726bc769bb08627af76c380071705",
+      "fingerprint": "sha256:c792beb68bd08245408ef245b0ecf089c7dcbdde62bb3700bf1a853734f5a41a",
       "status": "current",
       "role": "project",
       "dependsOn": [],
       "acknowledgement": {
-        "at": "2026-11-05T14:32:03.335Z",
-        "reason": "Added public conversion-routing, reference-forwarding and failure-preservation tests without removing existing tests. Local make verify passed (74 tests, no skips); line/function/branch coverage is 96.65%/97.20%/83.08%. Corrected CI and Pages are green on GitLab and GitHub; the disabled GitHub Pages service is now enabled for its existing workflow."
+        "at": "2026-11-05T14:33:36.147Z",
+        "reason": "Prepared owner-authorized feature version 0.4.0 and release notes after corrected CI and Pages passed on GitLab and GitHub. Release preflight passed with 74 tests, no skips, restored/improved coverage and intended npm package contents. The release commit must pass CI before tagging; tag publication must then be verified."
       }
     },
     {
@@ -68,7 +68,7 @@
     },
     {
       "path": "CHANGELOG.md",
-      "fingerprint": "sha256:b969549c2e4bfa733a0abf0ff850ef412fabeb7df7c411993ac2314ab5923ebd",
+      "fingerprint": "sha256:12fd8a4105b38c7e7063cd3393160567d955856cb86e96cc9861e8ffa5609aea",
       "status": "current",
       "role": "changelog",
       "dependsOn": [
@@ -76,8 +76,8 @@
         "ARCHITECTURE.md"
       ],
       "acknowledgement": {
-        "at": "2026-11-05T14:32:03.335Z",
-        "reason": "Added public conversion-routing, reference-forwarding and failure-preservation tests without removing existing tests. Local make verify passed (74 tests, no skips); line/function/branch coverage is 96.65%/97.20%/83.08%. Corrected CI and Pages are green on GitLab and GitHub; the disabled GitHub Pages service is now enabled for its existing workflow."
+        "at": "2026-11-05T14:33:36.147Z",
+        "reason": "Prepared owner-authorized feature version 0.4.0 and release notes after corrected CI and Pages passed on GitLab and GitHub. Release preflight passed with 74 tests, no skips, restored/improved coverage and intended npm package contents. The release commit must pass CI before tagging; tag publication must then be verified."
       }
     }
   ]

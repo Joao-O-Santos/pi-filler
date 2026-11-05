@@ -143,10 +143,11 @@ including real Pandoc conversion; line/function/branch coverage is
 tree was independently checked with `make verify`. Git signing remains
 enabled.
 
-## Immediate next step
+## Release authorization
 
-The owner authorized fixing CI and releasing the next feature version,
-`0.4.0`, after CI passes. Use signed commits and a signed `v0.4.0` tag;
-push through GitLab, whose tag pipeline verifies and publishes to npm
-with provenance. GitHub remains a verification and Pages mirror only. Do
-not tag before the corrected commit's CI succeeds.
+The owner authorized the `0.4.0` feature release after CI passes. Use
+signed commits and a signed `v0.4.0` tag; push through GitLab, whose tag
+pipeline verifies and publishes to npm with provenance. GitHub remains a
+verification and Pages mirror only. Verify the release commit's CI
+before tagging and the tag pipeline's result after pushing. Further
+versions require new owner instructions.
