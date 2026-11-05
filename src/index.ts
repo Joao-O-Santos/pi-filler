@@ -1,6 +1,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, extname, join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import { StringEnum } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import {
@@ -573,7 +574,15 @@ export async function executeFiller(
 			try {
 				const converted = await runCommand(
 					"libreoffice",
-					["--headless", "--convert-to", "pdf", "--outdir", temporary, path],
+					[
+						`-env:UserInstallation=${pathToFileURL(join(temporary, "profile")).href}`,
+						"--headless",
+						"--convert-to",
+						"pdf",
+						"--outdir",
+						temporary,
+						path,
+					],
 					{ signal, cwd: temporary },
 				);
 				if (converted.code !== 0) throw commandError(converted, "libreoffice");
@@ -637,7 +646,15 @@ export async function executeFiller(
 			try {
 				const converted = await runCommand(
 					"libreoffice",
-					["--headless", "--convert-to", "pdf", "--outdir", temporary, path],
+					[
+						`-env:UserInstallation=${pathToFileURL(join(temporary, "profile")).href}`,
+						"--headless",
+						"--convert-to",
+						"pdf",
+						"--outdir",
+						temporary,
+						path,
+					],
 					{ signal, cwd: temporary },
 				);
 				if (converted.code !== 0) throw commandError(converted, "libreoffice");
@@ -697,7 +714,15 @@ export async function executeFiller(
 				try {
 					const converted = await runCommand(
 						"libreoffice",
-						["--headless", "--convert-to", "pdf", "--outdir", temporary, path],
+						[
+							`-env:UserInstallation=${pathToFileURL(join(temporary, "profile")).href}`,
+							"--headless",
+							"--convert-to",
+							"pdf",
+							"--outdir",
+							temporary,
+							path,
+						],
 						{ signal, cwd: temporary },
 					);
 					if (converted.code !== 0) throw commandError(converted, "libreoffice");

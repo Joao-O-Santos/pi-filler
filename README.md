@@ -241,7 +241,8 @@ or replacing output; its required `output` path is still validated.
 Required for the corresponding operations:
 
 - `pandoc` for DOCX/PPTX text conversion, search, and generation;
-- `libreoffice` for DOCX, PPTX, and XLSX image rendering;
+- `libreoffice` for DOCX, PPTX, and XLSX image rendering (each
+  conversion uses a private temporary profile, removed on completion);
 - `pdftotext` for PDF text extraction;
 - `pdftocairo` for PDF, DOCX, PPTX, and XLSX page rendering; and
 - `pdfgrep` for page-aware PDF search.

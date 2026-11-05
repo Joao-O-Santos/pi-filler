@@ -69,7 +69,10 @@ normalizes errors and missing-executable messages.
 
 Required executables are `pandoc`, `pdftotext`, `pdftocairo`, and
 `pdfgrep`. LibreOffice is optional at runtime and used for DOCX, PPTX,
-and XLSX image rendering.
+and XLSX image rendering. Each conversion passes a separate temporary
+`UserInstallation` file URL, preventing reuse of a live user profile or
+another conversion's profile. Profiles and temporary PDFs are removed
+on success, failure, or cancellation.
 
 ## PDF
 

@@ -12,6 +12,8 @@
 
 ### Fixed
 
+- Isolate DOCX, PPTX, and XLSX LibreOffice conversions in per-call
+  temporary profiles; clean profiles on success, failure, and abort.
 - Preserve DOCX child order, whitespace, numeric-looking text, and
   mixed-content markup during page, margin, numbering, and metadata
   patches. Add whole-document preservation regression fixtures.
