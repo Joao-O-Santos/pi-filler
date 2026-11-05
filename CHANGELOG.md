@@ -22,6 +22,9 @@
   provider-compatible schema shapes at runtime.
 - Test public DOCX/PPTX conversion routes, reference forwarding, and
   preservation of source files and prior outputs on conversion failure.
+- Retry transient Pandoc release-request failures up to three times,
+  fail immediately on client/rate-limit errors, and clean private
+  installer temporary files on success or failure.
 - Leave Markdown formatting to the repository formatter when using
   current Biome releases.
 - Isolate DOCX, PPTX, and XLSX LibreOffice conversions in per-call

@@ -134,10 +134,13 @@ the repository formatter instead of Biome's newly enabled formatter.
 Added public DOCX/PPTX routing and failed-conversion preservation tests,
 retaining all existing tests and restoring line coverage. Enabled the
 existing GitHub Pages workflow on the mirror; Pages had been disabled.
+Added bounded retries for transient Pandoc release-request failures and
+private installer temporary-file cleanup, with offline subprocess tests
+for recovery, exhausted attempts, client/rate-limit errors, and cleanup.
 
 ## Verification
 
-Full verification passed with current dependencies: 74 tests, no skips,
+Full verification passed with current dependencies: 82 tests, no skips,
 including real Pandoc conversion; line/function/branch coverage is
 96.65%/97.20%/83.08%. Site build also passed. Each intermediate atomic
 tree was independently checked with `make verify`. Git signing remains
