@@ -131,13 +131,17 @@ complete modern comment-thread support.
 Repaired current-upstream schema typing with native TypeBox enums and
 compile-time/runtime regression checks. Kept Markdown formatting with
 the repository formatter instead of Biome's newly enabled formatter.
+Added public DOCX/PPTX routing and failed-conversion preservation tests,
+retaining all existing tests and restoring line coverage. Enabled the
+existing GitHub Pages workflow on the mirror; Pages had been disabled.
 
 ## Verification
 
-Full verification passed with current dependencies: 72 tests, no skips,
-including real Pandoc conversion; line/function coverage is
-96.40%/96.15%. Site build also passed. Each intermediate atomic tree was
-independently checked with `make verify`. Git signing remains enabled.
+Full verification passed with current dependencies: 74 tests, no skips,
+including real Pandoc conversion; line/function/branch coverage is
+96.65%/97.20%/83.08%. Site build also passed. Each intermediate atomic
+tree was independently checked with `make verify`. Git signing remains
+enabled.
 
 ## Immediate next step
 

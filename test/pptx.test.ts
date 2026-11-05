@@ -1,7 +1,7 @@
 // biome-ignore-all format: fixture-heavy regression tests preserve readable XML literals
 
 import assert from "node:assert/strict";
-import { chmod, mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -141,8 +141,9 @@ test("routes PPTX formatting and patch operations through filler", async () => {
 	assert.equal(patch.details.written, false);
 });
 
-test("converts PPTX text through Pandoc and writes validated output", async () => {
+test("converts PPTX text through Pandoc and writes validated output", async (t) => {
 	const directory = await mkdtemp(join(tmpdir(), "pi-filler-pptx-pandoc-"));
+	t.after(() => rm(directory, { recursive: true, force: true }));
 	const input = join(directory, "input.pptx");
 	const output = join(directory, "output.pptx");
 	const source = join(directory, "slides.md");
@@ -154,7 +155,6 @@ test("converts PPTX text through Pandoc and writes validated output", async () =
 		'if [ "$1" = "--from=pptx" ]; then printf "# Extracted\\n\\nNeedle\\n"; else cp "$PPTX_FIXTURE" "$4"; fi',
 	);
 	const env = { ...process.env, PATH: `${directory}:${process.env.PATH ?? ""}`, PPTX_FIXTURE: input };
-
 	const read = await readPptxText(input, { env });
 	assert.equal(read.text, "# Extracted\n\nNeedle\n");
 	const search = await searchPptx(input, "needle", { env, ignoreCase: true });
@@ -162,6 +162,74 @@ test("converts PPTX text through Pandoc and writes validated output", async () =
 	assert.equal(search.text, "line 3: Needle");
 	await writePptx(source, output, { env, referencePptx: input });
 	assert.equal((await inspectPptx(output)).slideCount, 2);
+});
+
+test("routes PPTX text reads, search, and Markdown writes through filler", async (t) => {
+	const directory = await mkdtemp(join(tmpdir(), "pi-filler-pptx-pandoc-"));
+	t.after(() => rm(directory, { recursive: true, force: true }));
+	const input = join(directory, "input.pptx");
+	const output = join(directory, "output.pptx");
+	const source = join(directory, "slides.md");
+	const argsLog = join(directory, "args.log");
+	await pptxFixture(input);
+	await writeFile(source, "# Slides\n\nContent\n");
+	await script(
+		directory,
+		"pandoc",
+		'printf "%s\\n" "$@" >> "$PANDOC_ARGS"; if [ "$1" = "--from=pptx" ]; then printf "# Extracted\\n\\nNeedle\\nNeedle again\\n"; else cp "$PPTX_FIXTURE" "$4"; fi',
+	);
+
+	const originalInput = await readFile(input);
+	const originalPath = process.env.PATH;
+	const originalFixture = process.env.PPTX_FIXTURE;
+	const originalArgs = process.env.PANDOC_ARGS;
+	try {
+		process.env.PATH = `${directory}:${originalPath ?? ""}`;
+		process.env.PPTX_FIXTURE = input;
+		process.env.PANDOC_ARGS = argsLog;
+		const read = await executeFiller(
+			{ format: "pptx", action: "read", view: "text", path: input },
+			directory,
+		);
+		assert.equal(read.text, "# Extracted\n\nNeedle\nNeedle again\n");
+		const search = await executeFiller(
+			{ format: "pptx", action: "search", path: input, query: "needle", ignore_case: true },
+			directory,
+		);
+		assert.equal(search.details.matchCount, 2);
+		assert.equal(search.text, "line 3: Needle\nline 4: Needle again");
+		assert.equal(search.text.split("line 3: Needle").length - 1, 1);
+		const written = await executeFiller(
+			{
+				format: "pptx",
+				action: "write",
+				path: source,
+				output,
+				reference_pptx: input,
+			},
+			directory,
+		);
+		assert.match(written.text, /Wrote/);
+		assert.equal((await inspectPptx(output)).slideCount, 2);
+		assert.equal(await readFile(source, "utf8"), "# Slides\n\nContent\n");
+		const args = await readFile(argsLog, "utf8");
+		assert.match(args, /--from=gfm/);
+		assert.match(args, /--to=pptx/);
+		assert.ok(args.includes(`--reference-doc\n${input}\n`));
+		const priorOutput = await readFile(output);
+		await script(directory, "pandoc", 'echo "PPTX conversion fixture failure" >&2; exit 2');
+		await assert.rejects(executeFiller({format:"pptx",action:"write",path:source,output},directory),/PPTX conversion fixture failure/);
+		assert.deepEqual(await readFile(output),priorOutput);
+		assert.deepEqual(await readFile(input),originalInput);
+		assert.equal(await readFile(source,"utf8"),"# Slides\n\nContent\n");
+	} finally {
+		if (originalPath === undefined) delete process.env.PATH;
+		else process.env.PATH = originalPath;
+		if (originalFixture === undefined) delete process.env.PPTX_FIXTURE;
+		else process.env.PPTX_FIXTURE = originalFixture;
+		if (originalArgs === undefined) delete process.env.PANDOC_ARGS;
+		else process.env.PANDOC_ARGS = originalArgs;
+	}
 });
 
 async function exists(path: string): Promise<boolean> {

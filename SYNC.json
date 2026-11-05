@@ -1,16 +1,16 @@
 {
   "version": 2,
-  "confirmedAt": "2026-11-05T14:20:50.698Z",
+  "confirmedAt": "2026-11-05T14:32:03.335Z",
   "artifacts": [
     {
       "path": "PROJECT.md",
-      "fingerprint": "sha256:6528ca023884f20a1e014ca874f06bb2a947248a23d8556c064ad5d5d935ff9a",
+      "fingerprint": "sha256:00a07acc603b166a2e6dfd6f23554b01256726bc769bb08627af76c380071705",
       "status": "current",
       "role": "project",
       "dependsOn": [],
       "acknowledgement": {
-        "at": "2026-11-05T14:20:50.698Z",
-        "reason": "Reproduced CI errors with current dependencies; repaired native TypeBox enum inference and Markdown formatter ownership, with compile-time and runtime regressions. Local make verify (72 tests, no skips) and site build passed. Owner authorized the 0.4.0 feature release only after CI succeeds."
+        "at": "2026-11-05T14:32:03.335Z",
+        "reason": "Added public conversion-routing, reference-forwarding and failure-preservation tests without removing existing tests. Local make verify passed (74 tests, no skips); line/function/branch coverage is 96.65%/97.20%/83.08%. Corrected CI and Pages are green on GitLab and GitHub; the disabled GitHub Pages service is now enabled for its existing workflow."
       }
     },
     {
@@ -68,7 +68,7 @@
     },
     {
       "path": "CHANGELOG.md",
-      "fingerprint": "sha256:b71c7a865b1b234378e608e203f39a1f11b1c0a7109bd0670c5f4ab31fb4e3b0",
+      "fingerprint": "sha256:b969549c2e4bfa733a0abf0ff850ef412fabeb7df7c411993ac2314ab5923ebd",
       "status": "current",
       "role": "changelog",
       "dependsOn": [
@@ -76,8 +76,8 @@
         "ARCHITECTURE.md"
       ],
       "acknowledgement": {
-        "at": "2026-11-05T14:20:50.698Z",
-        "reason": "Reproduced CI errors with current dependencies; repaired native TypeBox enum inference and Markdown formatter ownership, with compile-time and runtime regressions. Local make verify (72 tests, no skips) and site build passed. Owner authorized the 0.4.0 feature release only after CI succeeds."
+        "at": "2026-11-05T14:32:03.335Z",
+        "reason": "Added public conversion-routing, reference-forwarding and failure-preservation tests without removing existing tests. Local make verify passed (74 tests, no skips); line/function/branch coverage is 96.65%/97.20%/83.08%. Corrected CI and Pages are green on GitLab and GitHub; the disabled GitHub Pages service is now enabled for its existing workflow."
       }
     }
   ]

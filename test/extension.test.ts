@@ -1,7 +1,7 @@
 // biome-ignore-all format: fixture-heavy regression tests preserve readable shell and XML literals
 
 import assert from "node:assert/strict";
-import { chmod, mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -301,6 +301,52 @@ test("writes and validates transactional DOCX output", async () => {
 		/Invalid DOCX ZIP/,
 	);
 	assert.equal(await statSafe(invalid), false);
+});
+
+test("routes DOCX generation and patches transactionally through filler", async (t) => {
+	const { directory, env } = await fakeCommands();
+	t.after(() => rm(directory, { recursive: true, force: true }));
+	const source = join(directory, "source.md");
+	const output = join(directory, "nested", "generated.docx");
+	const patched = join(directory, "patched.docx");
+	const fixture = env.PANDOC_DOCX_FIXTURE ?? "";
+	const originalFixture = await readFile(fixture);
+	await writeFile(source, "# Source\n\nUnchanged content\n");
+	const keys = ["PATH", "PANDOC_LOG", "PANDOC_DOCX_FIXTURE", "PANDOC_INVALID"];
+	const previous = Object.fromEntries(keys.map(key => [key, process.env[key]]));
+	try {
+		for (const key of keys) {
+			if (env[key] === undefined) delete process.env[key];
+			else process.env[key] = env[key];
+		}
+		delete process.env.PANDOC_INVALID;
+		for (const reference of [fixture, undefined]) {
+			const result = await executeFiller({format:"docx",action:"write",path:source,output,reference_docx:reference}, directory);
+			assert.equal(result.details.output, output);
+			assert.equal((await inspectDocx(output)).metadata.title, "Original");
+			const args = await readFile(env.PANDOC_LOG ?? "", "utf8");
+			assert.match(args, /--from=markdown-smart/);
+			assert.equal(args.includes("--reference-doc"), reference !== undefined);
+			if (reference) assert.ok(args.includes(`--reference-doc\n${reference}\n`));
+		}
+		const priorOutput = await readFile(output);
+		const patch = await executeFiller({format:"docx",action:"patch",path:output,output:patched,patches:{metadata:{title:"Routed title"},margins:{top:720}}},directory);
+		assert.equal(patch.details.written,true);
+		const inspected = await inspectDocx(patched);
+		assert.equal(inspected.metadata.title,"Routed title");
+		assert.equal(inspected.margins.top,720);
+		assert.deepEqual(await readFile(output),priorOutput);
+		process.env.PANDOC_INVALID = "1";
+		await assert.rejects(executeFiller({format:"docx",action:"write",path:source,output},directory),/Invalid DOCX ZIP/);
+		assert.deepEqual(await readFile(output),priorOutput);
+		assert.deepEqual(await readFile(fixture),originalFixture);
+		assert.equal(await readFile(source,"utf8"),"# Source\n\nUnchanged content\n");
+	} finally {
+		for (const [key, value] of Object.entries(previous)) {
+			if (value === undefined) delete process.env[key];
+			else process.env[key] = value;
+		}
+	}
 });
 
 test("reports Pandoc failures and rejects identical DOCX paths", async () => {
