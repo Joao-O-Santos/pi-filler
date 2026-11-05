@@ -13,10 +13,10 @@ The extension exposes one `filler` tool with explicit `format`,
 ``` text
 format: docx | pdf | pptx | xlsx
 action: read | search | write | patch
-view: text | formatting | image | structure
+view: text | formatting | image | structure | review
 ```
 
-DOCX supports text, formatting, and image reads; text search;
+DOCX supports text, formatting, review, and image reads; text search;
 Markdown-to-DOCX writes; and narrow OOXML patches. PPTX supports text,
 formatting, and image reads; text search; GFM-to-PPTX writes; and narrow
 OOXML patches. PDF supports text and image reads plus text search. XLSX
@@ -71,8 +71,8 @@ Required executables are `pandoc`, `pdftotext`, `pdftocairo`, and
 `pdfgrep`. LibreOffice is optional at runtime and used for DOCX, PPTX,
 and XLSX image rendering. Each conversion passes a separate temporary
 `UserInstallation` file URL, preventing reuse of a live user profile or
-another conversion's profile. Profiles and temporary PDFs are removed
-on success, failure, or cancellation.
+another conversion's profile. Profiles and temporary PDFs are removed on
+success, failure, or cancellation.
 
 ## PDF
 
@@ -156,12 +156,12 @@ preserved at the part content level.
 Pandoc converts DOCX to Pandoc Markdown with smart typography disabled
 for reads and searches. `track_changes` selects `accept` (default),
 `reject`, or `all`; the latter includes review spans and comments.
-Search examines the full bounded extraction, then returns bounded
-match text plus a match count rather than duplicating full matches.
-DOCX generation also uses Pandoc Markdown, preserving supported native
-review spans instead of treating them as literal GFM text. PPTX remains
-GFM. A reference DOCX supplies template defaults, not lossless recovery
-of original Word layout, comment threads, or every revision type.
+Search examines the full bounded extraction, then returns bounded match
+text plus a match count rather than duplicating full matches. DOCX
+generation also uses Pandoc Markdown, preserving supported native review
+spans instead of treating them as literal GFM text. PPTX remains GFM. A
+reference DOCX supplies template defaults, not lossless recovery of
+original Word layout, comment threads, or every revision type.
 
 DOCX generation writes to a temporary sibling, validates the generated
 ZIP/OOXML package, and renames it to the requested output only after
@@ -170,10 +170,10 @@ validation succeeds.
 ## DOCX OOXML
 
 `fflate` reads and writes ZIP packages. `fast-xml-parser` handles the
-small set of XML parts needed by the supported patches. DOCX parsing
-and serialization preserve child order, literal text, whitespace,
-comments, and CDATA without numeric coercion. XML is checked for
-well-formedness before the parsed representation is accepted.
+small set of XML parts needed by the supported patches. DOCX parsing and
+serialization preserve child order, literal text, whitespace, comments,
+and CDATA without numeric coercion. XML is checked for well-formedness
+before the parsed representation is accepted.
 
 Inspection and mutation match XML names by local name and preserve or
 derive the document's namespace prefix when writing Word attributes.
@@ -193,6 +193,22 @@ current patch surface covers:
 Orientation-only changes keep page dimensions consistent. Untouched ZIP
 package parts remain content-identical. Edited XML parts are
 reserialized, so lexical XML details inside those parts may change.
+
+## DOCX review inspection
+
+Review reads resolve comments and legacy extended-comment parts through
+main-document relationships, with conventional filenames as fallback.
+They expose paginated IDs, bounded text/author/date fields,
+main-document range or point-anchor context, and matched legacy
+resolution/reply metadata. Ranges include all revision text; missing or
+unmatched anchors are explicit. This is read-only and does not accept
+revisions, resolve comments, or promise complete modern thread support.
+
+`review_offset` defaults to 0; `review_limit` defaults to 20 and caps at
+50. A 24 KB serialized-record budget may shorten a page; `nextOffset`
+points to its first unreturned comment. Text/excerpts have truncation
+flags and code-point limits of 1,000/200. Tool details retain only
+counts and the continuation offset, not duplicate comment bodies.
 
 ## Validation
 

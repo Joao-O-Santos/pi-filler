@@ -47,7 +47,7 @@ The extension exposes one `filler` tool:
 ``` text
 format: docx | pdf | pptx | xlsx
 action: read | search | write | patch
-view: text | formatting | image | structure
+view: text | formatting | image | structure | review
 ```
 
 `format` names the document or target format, not every input: DOCX and
@@ -59,6 +59,7 @@ combination and supply only its relevant fields:
 |---------------|---------------|---------------|---------------------------|
 | DOCX | `read` | `text` | optional `track_changes` |
 | DOCX | `read` | `formatting` | none |
+| DOCX | `read` | `review` | optional `review_offset`, `review_limit` |
 | DOCX | `read` | `image` | `output`; optional `first_page`, `last_page` |
 | DOCX | `search` | `text` or omitted | `query`; optional `ignore_case`, `track_changes` |
 | DOCX | `write` | omitted | Markdown `path`, `output`; optional `reference_docx` |
@@ -137,11 +138,10 @@ inputs.
 
 ## DOCX operations
 
-- Text reads and search use Pandoc Markdown, not GFM.
-  `track_changes` defaults to `accept`; choose `reject` for pre-edit
-  text or `all` for insertion/deletion spans and comments. This selects
-  an extraction view; it does not perform native Word acceptance or
-  rejection.
+- Text reads and search use Pandoc Markdown, not GFM. `track_changes`
+  defaults to `accept`; choose `reject` for pre-edit text or `all` for
+  insertion/deletion spans and comments. This selects an extraction
+  view; it does not perform native Word acceptance or rejection.
 - Image reads convert DOCX through LibreOffice and then render the
   resulting PDF pages.
 - Writes convert Pandoc Markdown into a validated DOCX, including
@@ -153,8 +153,24 @@ inputs.
 - Formatting reads inspect page setup, margins, sections, line and page
   numbering, comments, inserted/deleted tracked-change markers, and
   common core metadata.
+- Review reads return comment IDs, bounded text/author/date fields,
+  main-document anchor excerpts, and supported legacy reply/resolution
+  metadata. They never edit comments or resolve threads.
 - Patches change first-section page setup, margins, line numbering, page
   numbering, and common core metadata.
+
+Review pagination uses zero-based `review_offset` (default 0) and
+`review_limit` (default 20, maximum 50). A byte budget may return fewer
+records; follow `nextOffset` until it is null. Comment text is capped at
+1,000 Unicode code points and anchor excerpts at 200, with truncation
+flags; author/date fields are bounded to 128/64 UTF-16 code units.
+Ranges include insertion and deletion text, not an accepted-view
+projection. Point anchors show paragraph context. A missing anchor means
+not found in the main document, not necessarily a damaged comment.
+Legacy `commentsExtended` metadata supports resolution and reply-parent
+reporting where matched; additional modern thread features may be
+unsupported and are reported as warnings. This is not native Word
+acceptance/rejection or a complete review-history export.
 
 DOCX page dimensions and margins use twips (twentieths of a point); 1
 inch is 1,440 twips. Page setup, margins, line numbering, and page

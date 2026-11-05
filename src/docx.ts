@@ -522,6 +522,35 @@ async function load(path: string): Promise<Package> {
 	return unpack(new Uint8Array(await readFile(resolve(path))));
 }
 
+export interface DocxReviewComment {
+	id: string;
+	author?: string;
+	date?: string;
+	text: string;
+	textTruncated: boolean;
+	anchor: { kind: "range" | "point" | "unmatched" | "not-found"; text: string; truncated: boolean };
+	resolved?: boolean;
+	replyTo?: string;
+}
+
+function reviewText(node: XmlObject): string {
+	let text = "";
+	for (const entry of node.children) {
+		for (const [name, value] of Object.entries(entry)) {
+			if (!Array.isArray(value)) continue;
+			const child = wrap(entry, name);
+			const tag = localName(name);
+			if (tag === "t" || tag === "delText") {
+				text += literalText(child);
+			} else if (tag === "tab") text += "\t";
+			else if (tag === "br" || tag === "cr") text += "\n";
+			else text += reviewText(child);
+			if (tag === "p") text += "\n";
+		}
+	}
+	return text;
+}
+
 function relatedPart(pkg: Package, suffix: string, fallback: string): string {
 	const bytes = pkg["word/_rels/document.xml.rels"];
 	if (bytes) {
@@ -535,6 +564,122 @@ function relatedPart(pkg: Package, suffix: string, fallback: string): string {
 		}
 	}
 	return fallback;
+}
+
+/** Read-only, bounded inspection; anchors include all revision text in the main document. */
+export async function inspectDocxReview(path: string, offset = 0, limit = 20) {
+	if (!Number.isInteger(offset) || offset < 0)
+		throw new Error("review_offset must be a nonnegative integer");
+	if (!Number.isInteger(limit) || limit < 1 || limit > 50)
+		throw new Error("review_limit must be between 1 and 50");
+	const pkg = await load(path);
+	validatePackage(pkg);
+	const part = relatedPart(pkg, "comments", "word/comments.xml");
+	const comments = pkg[part] ? findAll(parseXml(pkg[part], part), "comment") : [];
+	const selected = comments.slice(offset, offset + limit);
+	const warnings = new Set<string>();
+	const anchors = new Map<string, DocxReviewComment["anchor"]>();
+	const active = new Set<string>();
+	const ids = new Set(selected.map((comment) => attr(comment, "id") ?? ""));
+	const clip = (value: string, size: number) => [...value].slice(0, size).join("");
+	function append(text: string) {
+		for (const id of active) {
+			const anchor = anchors.get(id);
+			if (!anchor) continue;
+			const combined = anchor.text + text;
+			anchor.text = clip(combined, 200);
+			anchor.truncated ||= anchor.text !== combined;
+		}
+	}
+	function walk(node: XmlObject, paragraph = "") {
+		for (const entry of node.children) {
+			for (const [name, value] of Object.entries(entry)) {
+				if (!Array.isArray(value)) continue;
+				const child = wrap(entry, name);
+				const tag = localName(name);
+				const id = attr(child, "id") ?? "";
+				if (tag === "commentRangeStart" && ids.has(id)) {
+					if (anchors.has(id))
+						warnings.add(
+							"Multiple or overlapping ranges for the same comment ID are not fully represented.",
+						);
+					anchors.set(id, { kind: "unmatched", text: "", truncated: false });
+					active.add(id);
+				} else if (tag === "commentRangeEnd" && ids.has(id)) {
+					const anchor = anchors.get(id);
+					if (anchor && active.has(id)) {
+						anchor.kind = "range";
+						active.delete(id);
+					} else warnings.add("An unmatched comment range end was found.");
+				} else if (tag === "commentReference" && ids.has(id) && !anchors.has(id)) {
+					anchors.set(id, {
+						kind: "point",
+						text: clip(paragraph, 200),
+						truncated: [...paragraph].length > 200,
+					});
+				} else if (tag === "t" || tag === "delText") {
+					append(literalText(child));
+				} else if (tag === "tab") append("\t");
+				else if (tag === "br" || tag === "cr") append("\n");
+				else walk(child, tag === "p" ? reviewText(child) : paragraph);
+				if (tag === "p") append("\n");
+			}
+		}
+	}
+	walk(parseXml(pkg["word/document.xml"], "word/document.xml"));
+	if (active.size) warnings.add("Some comment ranges have no closing marker.");
+	const extendedPart = relatedPart(pkg, "commentsExtended", "word/commentsExtended.xml");
+	const extended = pkg[extendedPart]
+		? findAll(parseXml(pkg[extendedPart], extendedPart), "commentEx")
+		: [];
+	const paraIds = new Map(
+		comments.map((comment) => [attr(findAll(comment, "p").at(-1), "paraId"), attr(comment, "id")]),
+	);
+	const result: DocxReviewComment[] = [];
+	let consumed = 0;
+	for (const comment of selected) {
+		const id = attr(comment, "id") ?? "";
+		if (Buffer.byteLength(id) > 512)
+			throw new Error("DOCX comment identifier exceeds inspection limit");
+		const fullText = reviewText(comment).replace(/\n$/, "");
+		const text = clip(fullText, 1000);
+		const paraId = attr(findAll(comment, "p").at(-1), "paraId");
+		const ex =
+			paraId === undefined ? undefined : extended.find((item) => attr(item, "paraId") === paraId);
+		const done = attr(ex, "done");
+		const knownDone = done !== undefined && ["1", "0", "true", "false", "on", "off"].includes(done);
+		if (done !== undefined && !knownDone)
+			warnings.add("An unsupported comment resolution value was found.");
+		const parent = attr(ex, "paraIdParent");
+		const record: DocxReviewComment = {
+			id,
+			author: attr(comment, "author")?.slice(0, 128),
+			date: attr(comment, "date")?.slice(0, 64),
+			text,
+			textTruncated: text !== fullText,
+			anchor: anchors.get(id) ?? { kind: "not-found", text: "", truncated: false },
+			resolved: knownDone ? ["1", "true", "on"].includes(done ?? "") : undefined,
+			replyTo: parent === undefined ? undefined : paraIds.get(parent),
+		};
+		if (parent !== undefined && record.replyTo === undefined)
+			warnings.add("A comment reply parent could not be matched.");
+		if (result.length && Buffer.byteLength(JSON.stringify([...result, record])) > 24000) break;
+		result.push(record);
+		consumed++;
+	}
+	if (Object.keys(pkg).some((name) => /comments(?:Ids|Extensible)|people\.xml/.test(name)))
+		warnings.add(
+			"Additional modern comment metadata is present; not all thread features are inspected.",
+		);
+	return {
+		totalComments: comments.length,
+		offset,
+		returned: result.length,
+		nextOffset: offset + consumed < comments.length ? offset + consumed : null,
+		comments: result,
+		warnings: [...warnings],
+		anchorScope: "main document, including insertion and deletion text",
+	};
 }
 
 export async function inspectDocx(path: string): Promise<DocxFormatting> {

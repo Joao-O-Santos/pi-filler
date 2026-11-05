@@ -10,7 +10,7 @@ import {
 	withFileMutationQueue,
 } from "@earendil-works/pi-coding-agent";
 import { type Static, Type } from "typebox";
-import { type DocxPatchSet, inspectDocx, patchDocx } from "./docx.js";
+import { type DocxPatchSet, inspectDocx, inspectDocxReview, patchDocx } from "./docx.js";
 import {
 	readDocxText,
 	readPptxText,
@@ -254,7 +254,7 @@ export const fillerSchema = Type.Object(
 			description: "Operation; supported combinations depend on format and view",
 		}),
 		view: Type.Optional(
-			StringEnum(["text", "formatting", "image", "structure"] as const, {
+			StringEnum(["text", "formatting", "image", "structure", "review"] as const, {
 				description: "Read/search representation; omit for write and patch",
 			}),
 		),
@@ -272,6 +272,21 @@ export const fillerSchema = Type.Object(
 		),
 		query: Type.Optional(
 			Type.String({ description: "DOCX, PDF, or PPTX search query", minLength: 1 }),
+		),
+		review_offset: Type.Optional(
+			Type.Integer({
+				minimum: 0,
+				default: 0,
+				description: "DOCX review read: zero-based comment offset",
+			}),
+		),
+		review_limit: Type.Optional(
+			Type.Integer({
+				minimum: 1,
+				maximum: 50,
+				default: 20,
+				description: "DOCX review read: maximum comments; byte budget may return fewer",
+			}),
 		),
 		track_changes: Type.Optional(
 			StringEnum(["accept", "reject", "all"] as const, {
@@ -365,6 +380,8 @@ const controlFields: ControlField[] = [
 	"output",
 	"query",
 	"track_changes",
+	"review_offset",
+	"review_limit",
 	"reference_docx",
 	"pptx_patches",
 	"reference_pptx",
@@ -418,13 +435,19 @@ function assertSupported(input: FillerInput): void {
 	if (!input.path) throw new Error("path must not be empty");
 	if (input.format === "docx") {
 		if (input.action === "read") {
+			if (input.view === "review") {
+				assertParameters(input, ["review_offset", "review_limit"]);
+				return;
+			}
 			if (input.view === "image") {
 				if (!input.output) throw new Error("DOCX image reads require output");
 				assertParameters(input, ["output", "first_page", "last_page"]);
 				return;
 			}
 			if (input.view !== "text" && input.view !== "formatting") {
-				throw new Error("DOCX read requires view=text, view=formatting, or view=image");
+				throw new Error(
+					"DOCX read requires view=text, view=formatting, view=review, or view=image",
+				);
 			}
 			assertParameters(input, input.view === "text" ? ["track_changes"] : []);
 			return;
@@ -564,6 +587,17 @@ export async function executeFiller(
 	const range = { firstPage: input.first_page, lastPage: input.last_page };
 
 	if (input.format === "docx") {
+		if (input.action === "read" && input.view === "review") {
+			const review = await inspectDocxReview(path, input.review_offset, input.review_limit);
+			return {
+				text: JSON.stringify(review, null, 2),
+				details: {
+					totalComments: review.totalComments,
+					returned: review.returned,
+					nextOffset: review.nextOffset,
+				},
+			};
+		}
 		if (input.action === "read" && input.view === "formatting") {
 			const formatting = await inspectDocx(path);
 			return { text: JSON.stringify(formatting, null, 2), details: { formatting } };
@@ -822,7 +856,7 @@ export default function extension(pi: ExtensionAPI): void {
 			"Work directly with local DOCX, PDF, PPTX, and XLSX files using supported format/action/view combinations.",
 		promptGuidelines: [
 			"Use filler when a supported deterministic local DOCX, PDF, PPTX, or XLSX operation satisfies the task; choose a supported format/action/view combination and provide only that operation's fields.",
-			"For filler reads, use DOCX or PPTX text, formatting, or image; PDF text or image; or XLSX structure or image.",
+			"For filler reads, use DOCX text, formatting, review, or image; PPTX text, formatting, or image; PDF text or image; or XLSX structure or image. DOCX review returns bounded comment text, authors, main-document anchor excerpts, and supported legacy reply/resolution metadata; review_offset defaults to 0 and review_limit to 20 (max 50). Follow nextOffset; text/excerpts may be truncated and modern thread metadata may be unsupported.",
 			"For filler searches, use DOCX, PPTX, or PDF text (or omit view); XLSX search is unsupported.",
 			"For filler image output, use an existing directory or PNG prefix; the operation creates numbered page/slide images, not one final PNG. DOCX, PPTX, and XLSX images convert through LibreOffice; XLSX images render workbook print pages and do not accept sheet. first_page and last_page select resulting pages.",
 			"For DOCX/PPTX writes, path is Markdown and output is the new document; reference_docx/reference_pptx is optional. DOCX uses Pandoc Markdown (smart typography disabled), including native review spans; PPTX uses GFM Markdown. DOCX generation is not a lossless round trip of an existing Word layout. For XLSX writes, path is the template and source_csv, sheet, A1-style start_cell, and output are required; column_map optionally maps all CSV ordinals or all exact headers to XLSX columns.",

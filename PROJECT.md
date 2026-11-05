@@ -42,10 +42,14 @@ The current pre-1.0 source implements:
 - one `filler` tool with explicit DOCX/PDF/PPTX/XLSX operation
   combinations;
 - bounded, cancellable, finite-time external command execution;
+- isolated per-conversion LibreOffice profiles, cleaned on all exits;
 - PDF text, search, and selected-page rendering;
-- DOCX text, search, and validated transactional generation;
-- prefix-flexible OOXML inspection and conservative first-section
-  patches;
+- DOCX Pandoc Markdown text/search with accepted, rejected, or all
+  revision views, plus validated transactional generation;
+- bounded read-only comment inspection with main-document anchors,
+  legacy resolution/reply metadata, and pagination;
+- prefix-flexible, order- and text-preserving DOCX OOXML inspection and
+  conservative first-section patches;
 - transactional patching with dry runs and relationship validation;
 - deterministic regression tests for the supported surface;
 - content-free XLSX layout inspection, mapped CSV-to-template filling,
@@ -115,10 +119,23 @@ interpretation only when the task actually requires semantic inspection.
 
 ## Previous action
 
-Added PPTX conversion, slide rendering, and narrow OOXML text/slide-size
-patches alongside the existing DOCX, PDF, and XLSX surface.
+Fixed DOCX patch corruption of order, whitespace, and numeric-looking
+text; preserved namespace bindings and section-property order. Switched
+DOCX conversion to native Pandoc Markdown with explicit revision views,
+isolated LibreOffice profiles, and added bounded read-only comment
+inspection. Added preservation, real-Pandoc round-trip, profile cleanup,
+review pagination, and malformed-metadata regression tests. Scope stays
+narrow: no general Word editing engine, native acceptance/rejection, or
+complete modern comment-thread support.
+
+## Verification
+
+Full verification passed: 71 tests, no skips, including real Pandoc
+conversion; line/function coverage is 96.65%/96.15%. Site build also
+passed. Each intermediate atomic tree was independently checked with
+`make verify`. Git signing remains enabled.
 
 ## Immediate next step
 
-Verify the synchronized documentation and package state, then publish
-the accepted package version when the release pipeline can be triggered.
+Await explicit release instructions. Tagging, release, and npm
+publication are not authorized.

@@ -1,34 +1,34 @@
 {
   "version": 2,
-  "confirmedAt": "2026-09-14T19:38:56.000Z",
+  "confirmedAt": "2026-11-05T14:10:08.826Z",
   "artifacts": [
     {
       "path": "PROJECT.md",
-      "fingerprint": "sha256:03332d40df9e40c0b7cd42092f8427e5276ba2a2b4fa9e00474ab2aa3a82840c",
+      "fingerprint": "sha256:d4c7efd91e22cf3a8fd94e99f992d685bf83f2d1611e7a5a79633b9144dbc998",
       "status": "current",
       "role": "project",
       "dependsOn": [],
       "acknowledgement": {
-        "at": "2026-09-14T19:38:56.000Z",
-        "reason": "Added PPTX conversion, rendering, and narrow OOXML patch guidance; synchronized the model-facing prompt, regression tests, and documentation."
+        "at": "2026-11-05T14:10:08.826Z",
+        "reason": "Reviewed completed DOCX preservation, native Pandoc review conversion, isolated LibreOffice profiles and bounded comment inspection against implementation and tests. Final make verify (71 tests, no skips) and site build passed; signing is unblocked and remains enabled. No release or npm publication is authorized."
       }
     },
     {
       "path": "ARCHITECTURE.md",
-      "fingerprint": "sha256:8c6d9cb6fbddabf1f2a311eb747a822e6f8a80de80554dead4bdddc45644388b",
+      "fingerprint": "sha256:e575967931d026d2d803279e1e20c9423d2a8cfda3e42bc4c7c6ea8cd396f945",
       "status": "current",
       "role": "architecture",
       "dependsOn": [
         "PROJECT.md"
       ],
       "acknowledgement": {
-        "at": "2026-09-14T19:38:56.000Z",
-        "reason": "Added PPTX conversion, rendering, and narrow OOXML patch guidance; synchronized the model-facing prompt, regression tests, and documentation."
+        "at": "2026-11-05T14:10:08.826Z",
+        "reason": "Reviewed completed DOCX preservation, native Pandoc review conversion, isolated LibreOffice profiles and bounded comment inspection against implementation and tests. Final make verify (71 tests, no skips) and site build passed; signing is unblocked and remains enabled. No release or npm publication is authorized."
       }
     },
     {
       "path": "README.md",
-      "fingerprint": "sha256:5f48a7048be57778b01296566cfbee8b1b6bfdc17a95bae270cb8d83a2ec0e46",
+      "fingerprint": "sha256:4ccbce71dbdd52bac5206c107549b7b1a56fc4f5eafd48cafa53fc26726c13b8",
       "status": "current",
       "role": "documentation",
       "dependsOn": [
@@ -36,8 +36,8 @@
         "ARCHITECTURE.md"
       ],
       "acknowledgement": {
-        "at": "2026-09-14T19:38:56.000Z",
-        "reason": "Added the PPTX operation matrix, conversion limits, rendering, and patch guidance to the public package documentation."
+        "at": "2026-11-05T14:10:08.826Z",
+        "reason": "Reviewed completed DOCX preservation, native Pandoc review conversion, isolated LibreOffice profiles and bounded comment inspection against implementation and tests. Final make verify (71 tests, no skips) and site build passed; signing is unblocked and remains enabled. No release or npm publication is authorized."
       }
     },
     {
@@ -68,7 +68,7 @@
     },
     {
       "path": "CHANGELOG.md",
-      "fingerprint": "sha256:c19b8829152b03cc2d16683f1f3e9fca32c37b94babd0faa1fef374e77e14b7c",
+      "fingerprint": "sha256:59d5edcd21a76a6e269afafa407a0d95c645a25df7e5bf25217e1313f206a3c4",
       "status": "current",
       "role": "changelog",
       "dependsOn": [
@@ -76,8 +76,8 @@
         "ARCHITECTURE.md"
       ],
       "acknowledgement": {
-        "at": "2026-09-14T14:12:51.089Z",
-        "reason": "Recorded the PPTX feature in the unreleased changelog after local verification."
+        "at": "2026-11-05T14:10:08.826Z",
+        "reason": "Reviewed completed DOCX preservation, native Pandoc review conversion, isolated LibreOffice profiles and bounded comment inspection against implementation and tests. Final make verify (71 tests, no skips) and site build passed; signing is unblocked and remains enabled. No release or npm publication is authorized."
       }
     }
   ]

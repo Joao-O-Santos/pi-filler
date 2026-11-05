@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Added
+
+- Bounded read-only DOCX review inspection with comment text, main-body
+  anchors, legacy resolution/reply metadata, and pagination.
+
 ### Changed
 
 - Use Pandoc Markdown with smart typography disabled for DOCX
