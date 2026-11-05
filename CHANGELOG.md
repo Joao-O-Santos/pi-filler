@@ -17,6 +17,11 @@
 
 ### Fixed
 
+- Use native TypeBox enums to preserve input typing and optional fields
+  with current Pi releases. Check enum types at compile time and verify
+  provider-compatible schema shapes at runtime.
+- Leave Markdown formatting to the repository formatter when using
+  current Biome releases.
 - Isolate DOCX, PPTX, and XLSX LibreOffice conversions in per-call
   temporary profiles; clean profiles on success, failure, and abort.
 - Preserve DOCX child order, whitespace, numeric-looking text, and

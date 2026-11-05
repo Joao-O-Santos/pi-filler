@@ -173,6 +173,28 @@ test("extension registers one self-describing filler tool", () => {
 	assert.equal(properties.value_mode?.default, "text");
 });
 
+test("schema enums stay provider-compatible and optional fields stay optional", () => {
+	const schema = JSON.parse(JSON.stringify(fillerSchema));
+	assert.deepEqual(schema.required, ["format", "action", "path"]);
+	const properties = schema.properties;
+	const enums = [
+		properties.format, properties.action, properties.view,
+		properties.track_changes, properties.value_mode,
+		properties.patches.properties.page.properties.orientation,
+		properties.patches.properties.lineNumbering.properties.mode,
+		properties.xlsx_patches.properties.alignment.properties.horizontal,
+		properties.xlsx_patches.properties.alignment.properties.vertical,
+		properties.xlsx_patches.properties.border.properties.style,
+	];
+	for (const value of enums) {
+		assert.equal(value.type, "string");
+		assert.ok(value.enum.length > 0);
+		assert.ok(value.enum.every((item: unknown) => typeof item === "string"));
+		assert.equal(value.anyOf, undefined);
+		assert.equal(value.oneOf, undefined);
+	}
+});
+
 test("reports missing executables clearly", async () => {
 	await assert.rejects(
 		() => runCommand("pi-filler-command-that-does-not-exist", []),

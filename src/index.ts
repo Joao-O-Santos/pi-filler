@@ -2,7 +2,6 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, extname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { StringEnum } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import {
 	DEFAULT_MAX_BYTES,
@@ -35,7 +34,7 @@ const docxPatchesSchema = Type.Object(
 					height: Type.Optional(
 						Type.Integer({ description: "Page height in twips (1/20 point)", minimum: 1 }),
 					),
-					orientation: Type.Optional(StringEnum(["portrait", "landscape"] as const)),
+					orientation: Type.Optional(Type.Enum(["portrait", "landscape"], { type: "string" })),
 				},
 				{
 					additionalProperties: false,
@@ -65,7 +64,9 @@ const docxPatchesSchema = Type.Object(
 		lineNumbering: Type.Optional(
 			Type.Object(
 				{
-					mode: Type.Optional(StringEnum(["off", "continuous", "newPage", "newSection"] as const)),
+					mode: Type.Optional(
+						Type.Enum(["off", "continuous", "newPage", "newSection"], { type: "string" }),
+					),
 					start: Type.Optional(Type.Integer({ description: "Starting line number", minimum: 0 })),
 					count_by: Type.Optional(Type.Integer({ description: "Numbering interval", minimum: 1 })),
 				},
@@ -211,8 +212,8 @@ const xlsxPatchesSchema = Type.Object(
 		alignment: Type.Optional(
 			Type.Object(
 				{
-					horizontal: Type.Optional(StringEnum(["left", "center", "right"] as const)),
-					vertical: Type.Optional(StringEnum(["top", "center", "bottom"] as const)),
+					horizontal: Type.Optional(Type.Enum(["left", "center", "right"], { type: "string" })),
+					vertical: Type.Optional(Type.Enum(["top", "center", "bottom"], { type: "string" })),
 					wrap_text: Type.Optional(Type.Boolean()),
 				},
 				{ additionalProperties: false, description: "Cell alignment changes", minProperties: 1 },
@@ -223,7 +224,7 @@ const xlsxPatchesSchema = Type.Object(
 		),
 		border: Type.Optional(
 			Type.Object(
-				{ style: Type.Optional(StringEnum(["thin", "medium", "thick"] as const)) },
+				{ style: Type.Optional(Type.Enum(["thin", "medium", "thick"], { type: "string" })) },
 				{ additionalProperties: false, minProperties: 1 },
 			),
 		),
@@ -247,14 +248,17 @@ const xlsxPatchesSchema = Type.Object(
 
 export const fillerSchema = Type.Object(
 	{
-		format: StringEnum(["docx", "pdf", "pptx", "xlsx"] as const, {
+		format: Type.Enum(["docx", "pdf", "pptx", "xlsx"], {
+			type: "string",
 			description: "Document or target format; selects supported operations and path roles",
 		}),
-		action: StringEnum(["read", "search", "write", "patch"] as const, {
+		action: Type.Enum(["read", "search", "write", "patch"], {
+			type: "string",
 			description: "Operation; supported combinations depend on format and view",
 		}),
 		view: Type.Optional(
-			StringEnum(["text", "formatting", "image", "structure", "review"] as const, {
+			Type.Enum(["text", "formatting", "image", "structure", "review"], {
+				type: "string",
 				description: "Read/search representation; omit for write and patch",
 			}),
 		),
@@ -289,7 +293,8 @@ export const fillerSchema = Type.Object(
 			}),
 		),
 		track_changes: Type.Optional(
-			StringEnum(["accept", "reject", "all"] as const, {
+			Type.Enum(["accept", "reject", "all"], {
+				type: "string",
 				default: "accept",
 				description: "DOCX text read/search revision view; all includes review spans and comments",
 			}),
@@ -325,7 +330,8 @@ export const fillerSchema = Type.Object(
 			Type.Boolean({ default: true, description: "Skip the first CSV record as a header" }),
 		),
 		value_mode: Type.Optional(
-			StringEnum(["text", "auto"] as const, {
+			Type.Enum(["text", "auto"], {
+				type: "string",
 				default: "text",
 				description: "Write CSV fields as text, or infer only empty, number, and boolean values",
 			}),

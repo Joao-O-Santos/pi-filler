@@ -23,6 +23,9 @@ OOXML patches. PDF supports text and image reads plus text search. XLSX
 supports content-free structure and image reads, CSV-to-template writes,
 and formatting/layout patches.
 
+Schema construction and static input inference both use TypeBox. Enums
+remain flat string enums for provider compatibility.
+
 The schema describes operation-specific path roles and defaults.
 `format` selects the document or target format, rather than every input:
 DOCX and PPTX writes take Markdown at `path` (with an optional

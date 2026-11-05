@@ -1,29 +1,29 @@
 {
   "version": 2,
-  "confirmedAt": "2026-11-05T14:10:08.826Z",
+  "confirmedAt": "2026-11-05T14:20:50.698Z",
   "artifacts": [
     {
       "path": "PROJECT.md",
-      "fingerprint": "sha256:d4c7efd91e22cf3a8fd94e99f992d685bf83f2d1611e7a5a79633b9144dbc998",
+      "fingerprint": "sha256:6528ca023884f20a1e014ca874f06bb2a947248a23d8556c064ad5d5d935ff9a",
       "status": "current",
       "role": "project",
       "dependsOn": [],
       "acknowledgement": {
-        "at": "2026-11-05T14:10:08.826Z",
-        "reason": "Reviewed completed DOCX preservation, native Pandoc review conversion, isolated LibreOffice profiles and bounded comment inspection against implementation and tests. Final make verify (71 tests, no skips) and site build passed; signing is unblocked and remains enabled. No release or npm publication is authorized."
+        "at": "2026-11-05T14:20:50.698Z",
+        "reason": "Reproduced CI errors with current dependencies; repaired native TypeBox enum inference and Markdown formatter ownership, with compile-time and runtime regressions. Local make verify (72 tests, no skips) and site build passed. Owner authorized the 0.4.0 feature release only after CI succeeds."
       }
     },
     {
       "path": "ARCHITECTURE.md",
-      "fingerprint": "sha256:e575967931d026d2d803279e1e20c9423d2a8cfda3e42bc4c7c6ea8cd396f945",
+      "fingerprint": "sha256:4075679aced79f8c089840d731e9b0bba17a326988d471068824a128be6d29f4",
       "status": "current",
       "role": "architecture",
       "dependsOn": [
         "PROJECT.md"
       ],
       "acknowledgement": {
-        "at": "2026-11-05T14:10:08.826Z",
-        "reason": "Reviewed completed DOCX preservation, native Pandoc review conversion, isolated LibreOffice profiles and bounded comment inspection against implementation and tests. Final make verify (71 tests, no skips) and site build passed; signing is unblocked and remains enabled. No release or npm publication is authorized."
+        "at": "2026-11-05T14:20:50.698Z",
+        "reason": "Reproduced CI errors with current dependencies; repaired native TypeBox enum inference and Markdown formatter ownership, with compile-time and runtime regressions. Local make verify (72 tests, no skips) and site build passed. Owner authorized the 0.4.0 feature release only after CI succeeds."
       }
     },
     {
@@ -68,7 +68,7 @@
     },
     {
       "path": "CHANGELOG.md",
-      "fingerprint": "sha256:59d5edcd21a76a6e269afafa407a0d95c645a25df7e5bf25217e1313f206a3c4",
+      "fingerprint": "sha256:b71c7a865b1b234378e608e203f39a1f11b1c0a7109bd0670c5f4ab31fb4e3b0",
       "status": "current",
       "role": "changelog",
       "dependsOn": [
@@ -76,8 +76,8 @@
         "ARCHITECTURE.md"
       ],
       "acknowledgement": {
-        "at": "2026-11-05T14:10:08.826Z",
-        "reason": "Reviewed completed DOCX preservation, native Pandoc review conversion, isolated LibreOffice profiles and bounded comment inspection against implementation and tests. Final make verify (71 tests, no skips) and site build passed; signing is unblocked and remains enabled. No release or npm publication is authorized."
+        "at": "2026-11-05T14:20:50.698Z",
+        "reason": "Reproduced CI errors with current dependencies; repaired native TypeBox enum inference and Markdown formatter ownership, with compile-time and runtime regressions. Local make verify (72 tests, no skips) and site build passed. Owner authorized the 0.4.0 feature release only after CI succeeds."
       }
     }
   ]

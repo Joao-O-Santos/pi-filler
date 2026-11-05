@@ -128,14 +128,21 @@ review pagination, and malformed-metadata regression tests. Scope stays
 narrow: no general Word editing engine, native acceptance/rejection, or
 complete modern comment-thread support.
 
+Repaired current-upstream schema typing with native TypeBox enums and
+compile-time/runtime regression checks. Kept Markdown formatting with
+the repository formatter instead of Biome's newly enabled formatter.
+
 ## Verification
 
-Full verification passed: 71 tests, no skips, including real Pandoc
-conversion; line/function coverage is 96.65%/96.15%. Site build also
-passed. Each intermediate atomic tree was independently checked with
-`make verify`. Git signing remains enabled.
+Full verification passed with current dependencies: 72 tests, no skips,
+including real Pandoc conversion; line/function coverage is
+96.40%/96.15%. Site build also passed. Each intermediate atomic tree was
+independently checked with `make verify`. Git signing remains enabled.
 
 ## Immediate next step
 
-Await explicit release instructions. Tagging, release, and npm
-publication are not authorized.
+The owner authorized fixing CI and releasing the next feature version,
+`0.4.0`, after CI passes. Use signed commits and a signed `v0.4.0` tag;
+push through GitLab, whose tag pipeline verifies and publishes to npm
+with provenance. GitHub remains a verification and Pages mirror only. Do
+not tag before the corrected commit's CI succeeds.
