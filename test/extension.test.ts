@@ -67,7 +67,7 @@ async function fakeCommands(): Promise<{ directory: string; env: NodeJS.ProcessE
 	const pandoc = [
 		'printf "%s\\n" "$@" > "$PANDOC_LOG"',
 		'if [ "$PANDOC_FAIL" = "1" ]; then echo "pandoc failed" >&2; exit 2; fi',
-		'if [ "$1" = "--from=gfm" ]; then',
+		'if [ "$1" = "--from=markdown-smart" ]; then',
 		'  previous=""',
 		'  for arg do',
 		'    if [ "$previous" = "--output" ]; then output="$arg"; fi',
@@ -166,6 +166,9 @@ test("extension registers one self-describing filler tool", () => {
 			/DOCX\/PPTX search may.*PDF text or search/.test(guideline),
 		),
 	);
+	assert.equal(properties.track_changes?.default, "accept");
+	assert.ok(registered?.promptGuidelines?.some((guideline) => /track_changes defaults to accept/.test(guideline)));
+	assert.ok(registered?.promptGuidelines?.some((guideline) => /DOCX uses Pandoc Markdown/.test(guideline)));
 	assert.equal(properties.has_header?.default, true);
 	assert.equal(properties.value_mode?.default, "text");
 });
@@ -239,6 +242,11 @@ test("reads and searches DOCX through full Pandoc output", async () => {
 
 	const text = await readDocxText(input, { env });
 	assert.equal(text.text, "# Heading\nBody text\nBody match\n");
+	assert.match(await readFile(env.PANDOC_LOG ?? "", "utf8"), /--to=markdown-smart\n--track-changes=accept/);
+	await readDocxText(input, { env, trackChanges: "all" });
+	assert.match(await readFile(env.PANDOC_LOG ?? "", "utf8"), /--track-changes=all/);
+	await searchDocx(input, "match", { env, trackChanges: "reject" });
+	assert.match(await readFile(env.PANDOC_LOG ?? "", "utf8"), /--track-changes=reject/);
 	const search = await searchDocx(input, "match", { env });
 	assert.equal(search.matchCount, 1);
 	assert.equal(search.text, "line 3: Body match");
@@ -261,7 +269,7 @@ test("writes and validates transactional DOCX output", async () => {
 	await writeDocx(source, output, { env, referenceDocx: reference });
 	assert.equal((await inspectDocx(output)).metadata.title, "Original");
 	const args = await readFile(env.PANDOC_LOG ?? "", "utf8");
-	assert.match(args, /--from=gfm/);
+	assert.match(args, /--from=markdown-smart/);
 	assert.match(args, /--reference-doc/);
 	assert.match(args, /source\.md/);
 

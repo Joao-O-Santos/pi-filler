@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Changed
+
+- Use Pandoc Markdown with smart typography disabled for DOCX
+  conversion, preserving supported review spans and anchored comments.
+  Keep PPTX conversion on GFM.
+- Expose `track_changes: accept | reject | all` for DOCX text reads and
+  searches; default to the accepted view.
+
 ### Fixed
 
 - Preserve DOCX child order, whitespace, numeric-looking text, and

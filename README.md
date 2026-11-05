@@ -57,9 +57,10 @@ combination and supply only its relevant fields:
 
 | Format | Action | View | Required additional fields |
 |---------------|---------------|---------------|---------------------------|
-| DOCX | `read` | `text` or `formatting` | none |
+| DOCX | `read` | `text` | optional `track_changes` |
+| DOCX | `read` | `formatting` | none |
 | DOCX | `read` | `image` | `output`; optional `first_page`, `last_page` |
-| DOCX | `search` | `text` or omitted | `query`; optional `ignore_case` |
+| DOCX | `search` | `text` or omitted | `query`; optional `ignore_case`, `track_changes` |
 | DOCX | `write` | omitted | Markdown `path`, `output`; optional `reference_docx` |
 | DOCX | `patch` | omitted | `output`, `patches`; optional `dry_run` |
 | PPTX | `read` | `text` or `formatting` | none |
@@ -136,11 +137,19 @@ inputs.
 
 ## DOCX operations
 
-- Text reads and search convert DOCX through Pandoc.
+- Text reads and search use Pandoc Markdown, not GFM.
+  `track_changes` defaults to `accept`; choose `reject` for pre-edit
+  text or `all` for insertion/deletion spans and comments. This selects
+  an extraction view; it does not perform native Word acceptance or
+  rejection.
 - Image reads convert DOCX through LibreOffice and then render the
   resulting PDF pages.
-- Writes convert a Markdown input into a validated DOCX, optionally
-  using a reference DOCX for styles and layout.
+- Writes convert Pandoc Markdown into a validated DOCX, including
+  supported native review spans and anchored comments. Smart typography
+  is disabled, preserving literal quotes and dashes. An optional
+  reference DOCX supplies styles and layout defaults; conversion is not
+  a lossless round trip of existing Word layout, comment threads, or
+  every revision type.
 - Formatting reads inspect page setup, margins, sections, line and page
   numbering, comments, inserted/deleted tracked-change markers, and
   common core metadata.

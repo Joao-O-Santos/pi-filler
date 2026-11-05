@@ -6,6 +6,12 @@ import { inspectDocx } from "./docx.js";
 import { inspectPptx } from "./pptx.js";
 import { commandError, type RunCommandOptions, runCommand } from "./process.js";
 
+export type TrackChanges = "accept" | "reject" | "all";
+
+export interface DocxReadOptions extends RunCommandOptions {
+	trackChanges?: TrackChanges;
+}
+
 export interface DocxTextResult {
 	text: string;
 	truncation: TruncationResult;
@@ -34,18 +40,22 @@ async function runPandoc(
 async function extractMarkdown(
 	path: string,
 	from: "docx" | "pptx",
-	options?: RunCommandOptions,
+	options?: DocxReadOptions,
 ): Promise<string> {
 	const source = resolve(path);
-	const output = await runPandoc(
-		[`--from=${from}`, "--to=gfm", "--wrap=none", source],
-		options,
-		source,
-	);
+	const args =
+		from === "docx"
+			? [
+					"--from=docx",
+					"--to=markdown-smart",
+					`--track-changes=${options?.trackChanges ?? "accept"}`,
+				]
+			: ["--from=pptx", "--to=gfm"];
+	const output = await runPandoc([...args, "--wrap=none", source], options, source);
 	return output.toString("utf8");
 }
 
-async function extractDocxMarkdown(path: string, options?: RunCommandOptions): Promise<string> {
+async function extractDocxMarkdown(path: string, options?: DocxReadOptions): Promise<string> {
 	return extractMarkdown(path, "docx", options);
 }
 
@@ -55,7 +65,7 @@ async function extractPptxMarkdown(path: string, options?: RunCommandOptions): P
 
 export async function readDocxText(
 	path: string,
-	options?: RunCommandOptions,
+	options?: DocxReadOptions,
 ): Promise<DocxTextResult> {
 	const truncation = truncateHead(await extractDocxMarkdown(path, options));
 	return { text: truncation.content, truncation };
@@ -75,7 +85,7 @@ function searchMarkdown(extracted: string, query: string, ignoreCase = false): D
 export async function searchDocx(
 	path: string,
 	query: string,
-	options: RunCommandOptions & { ignoreCase?: boolean } = {},
+	options: DocxReadOptions & { ignoreCase?: boolean } = {},
 ): Promise<DocxSearchResult> {
 	return searchMarkdown(await extractDocxMarkdown(path, options), query, options.ignoreCase);
 }
@@ -117,7 +127,7 @@ export async function writeDocx(
 		`.${output.split(/[\\/]/).pop() ?? "output.docx"}.${randomUUID()}.tmp`,
 	);
 	await mkdir(dirname(output), { recursive: true });
-	const args = ["--from=gfm", "--to=docx", "--output", temporary];
+	const args = ["--from=markdown-smart", "--to=docx", "--output", temporary];
 	if (options.referenceDocx) args.push("--reference-doc", resolve(options.referenceDocx));
 	args.push(source);
 	try {

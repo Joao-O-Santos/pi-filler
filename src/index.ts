@@ -272,6 +272,12 @@ export const fillerSchema = Type.Object(
 		query: Type.Optional(
 			Type.String({ description: "DOCX, PDF, or PPTX search query", minLength: 1 }),
 		),
+		track_changes: Type.Optional(
+			StringEnum(["accept", "reject", "all"] as const, {
+				default: "accept",
+				description: "DOCX text read/search revision view; all includes review spans and comments",
+			}),
+		),
 		reference_docx: Type.Optional(
 			Type.String({ description: "Reference DOCX for writes", minLength: 1 }),
 		),
@@ -357,6 +363,7 @@ type ControlField = Exclude<keyof FillerInput, "format" | "action" | "view" | "p
 const controlFields: ControlField[] = [
 	"output",
 	"query",
+	"track_changes",
 	"reference_docx",
 	"pptx_patches",
 	"reference_pptx",
@@ -418,7 +425,7 @@ function assertSupported(input: FillerInput): void {
 			if (input.view !== "text" && input.view !== "formatting") {
 				throw new Error("DOCX read requires view=text, view=formatting, or view=image");
 			}
-			assertParameters(input, []);
+			assertParameters(input, input.view === "text" ? ["track_changes"] : []);
 			return;
 		}
 		if (input.action === "search") {
@@ -426,7 +433,7 @@ function assertSupported(input: FillerInput): void {
 				throw new Error("DOCX search requires view=text or no view");
 			}
 			if (!input.query) throw new Error("DOCX search requires query");
-			assertParameters(input, ["query", "ignore_case"]);
+			assertParameters(input, ["query", "ignore_case", "track_changes"]);
 			return;
 		}
 		if (input.action === "write") {
@@ -583,11 +590,12 @@ export async function executeFiller(
 			}
 		}
 		if (input.action === "read") {
-			const result = await readDocxText(path, { signal });
+			const result = await readDocxText(path, { signal, trackChanges: input.track_changes });
 			return { text: result.text, details: { truncation: result.truncation } };
 		}
 		if (input.action === "search") {
 			const result = await searchDocx(path, input.query ?? "", {
+				trackChanges: input.track_changes,
 				ignoreCase: input.ignore_case,
 				signal,
 			});
@@ -792,10 +800,10 @@ export default function extension(pi: ExtensionAPI): void {
 			"For filler reads, use DOCX or PPTX text, formatting, or image; PDF text or image; or XLSX structure or image.",
 			"For filler searches, use DOCX, PPTX, or PDF text (or omit view); XLSX search is unsupported.",
 			"For filler image output, use an existing directory or PNG prefix; the operation creates numbered page/slide images, not one final PNG. DOCX, PPTX, and XLSX images convert through LibreOffice; XLSX images render workbook print pages and do not accept sheet. first_page and last_page select resulting pages.",
-			"For DOCX/PPTX writes, path is Markdown and output is the new document; reference_docx/reference_pptx is optional. PPTX uses GFM Markdown. For XLSX writes, path is the template and source_csv, sheet, A1-style start_cell, and output are required; column_map optionally maps all CSV ordinals or all exact headers to XLSX columns.",
+			"For DOCX/PPTX writes, path is Markdown and output is the new document; reference_docx/reference_pptx is optional. DOCX uses Pandoc Markdown (smart typography disabled), including native review spans; PPTX uses GFM Markdown. DOCX generation is not a lossless round trip of an existing Word layout. For XLSX writes, path is the template and source_csv, sheet, A1-style start_cell, and output are required; column_map optionally maps all CSV ordinals or all exact headers to XLSX columns.",
 			"When an XLSX write or patch can perform the requested deterministic transformation without inspecting CSV or cell contents, do not read those contents into model context merely to carry out the transformation. Processing stays local and results do not return cell or CSV contents.",
 			"For filler patches, provide a new output path plus DOCX patches, PPTX pptx_patches, or XLSX sheet, A1-style range, and xlsx_patches. PPTX text replacements target slide text paragraphs and may name a 1-based slide. dry_run: true still requires output but does not create or replace it.",
-			"For filler defaults, PDF queries are regular expressions by default; use literal: true for literal text. XLSX writes skip a header and preserve text by default.",
+			"For filler DOCX text reads/searches, track_changes defaults to accept; use reject for the pre-edit text or all for insertion/deletion spans and comments. This selects an extraction view, not native Word acceptance/rejection. For filler defaults, PDF queries are regular expressions by default; use literal: true for literal text. XLSX writes skip a header and preserve text by default.",
 			"For filler results, DOCX/PPTX search may be truncated; narrow its query. PDF text or search may be truncated; narrow its page range or query.",
 		],
 		parameters: fillerSchema,

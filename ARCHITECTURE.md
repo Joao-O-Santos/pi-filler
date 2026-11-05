@@ -150,9 +150,15 @@ preserved at the part content level.
 
 ## DOCX text and generation
 
-Pandoc converts DOCX to Markdown for reads and searches. Search examines
-the full bounded Pandoc extraction, then returns bounded match text plus
-a match count instead of duplicating the full match set in tool details.
+Pandoc converts DOCX to Pandoc Markdown with smart typography disabled
+for reads and searches. `track_changes` selects `accept` (default),
+`reject`, or `all`; the latter includes review spans and comments.
+Search examines the full bounded extraction, then returns bounded
+match text plus a match count rather than duplicating full matches.
+DOCX generation also uses Pandoc Markdown, preserving supported native
+review spans instead of treating them as literal GFM text. PPTX remains
+GFM. A reference DOCX supplies template defaults, not lossless recovery
+of original Word layout, comment threads, or every revision type.
 
 DOCX generation writes to a temporary sibling, validates the generated
 ZIP/OOXML package, and renames it to the requested output only after
