@@ -63,7 +63,7 @@ combination and supply only its relevant fields:
 | DOCX | `read` | `image` | `output`; optional `first_page`, `last_page` |
 | DOCX | `search` | `text` or omitted | `query`; optional `ignore_case`, `track_changes` |
 | DOCX | `write` | omitted | Markdown `path`, `output`; optional `reference_docx` |
-| DOCX | `patch` | omitted | `output`, `patches`; optional `dry_run` |
+| DOCX | `patch` | omitted | `output` and exactly one of `patches` or `tracked_replace`; optional `dry_run` only with `patches` |
 | PPTX | `read` | `text` or `formatting` | none |
 | PPTX | `read` | `image` | `output`; optional `first_page`, `last_page` |
 | PPTX | `search` | `text` or omitted | `query`; optional `ignore_case` |
@@ -157,7 +157,55 @@ inputs.
   main-document anchor excerpts, and supported legacy reply/resolution
   metadata. They never edit comments or resolve threads.
 - Patches change first-section page setup, margins, line numbering, page
-  numbering, and common core metadata.
+  numbering, and common core metadata. Alternatively, `tracked_replace`
+  makes a narrow tracked text replacement using an optional separate
+  executable.
+
+### Tracked replacement
+
+Use `format: "docx"`, `action: "patch"`, `path`, `output`, and exactly
+one `tracked_replace` object instead of `patches`. Omit `view` and
+`dry_run` (even `false` is rejected). The object accepts only:
+
+- `old`: nonempty string containing the literal text to match;
+- `new`: string containing replacement text; an empty string deletes;
+- `author`: nonempty string for the revision author;
+- `expected_sha256`: optional lowercase, 64-hex-digit source hash.
+
+Install `docx-toolkit` separately and make the executable available on
+`PATH`; pi-filler never installs or downloads it. For example, from an
+accessible toolkit checkout, run `uv tool install /path/to/docx-toolkit`
+and ensure the uv tool executable directory is on `PATH`. The toolkit
+repository is currently private and its own-code license is not yet
+selected. The output must differ from the input and must not already
+exist. Publication requires hard-link support in the output directory.
+Pi-filler probes protocol v1 capability, computes the source SHA-256,
+checks any supplied expected hash, and passes its computed hash to the
+toolkit for freshness checks. The final check is not a lock against
+concurrent changes. On success, the result contains `output`,
+`source_sha256`, and `output_sha256`; pi-filler independently hashes the
+output and checks it against the toolkit's result.
+
+Replacement requires one unique literal match within a single text run
+in a simple main-document paragraph or table. Existing basic insertions,
+deletions, and unthreaded comments may be retained outside the target
+paragraph under strict structural checks, with no comment range
+enclosing the target. Threaded comments, complex revisions, fields,
+other stories, cross-run matches, signed packages, and other unsupported
+structures are rejected. This does not accept or reject revisions or
+edit comments. Structural validation does not establish Microsoft Word
+behavior or visual fidelity; inspect a copy in the target application.
+
+The request, including text and author, is sent locally over stdin, not
+command-line arguments. It remains sensitive in process memory and
+pipes; protect these and the output file. Normal results omit the
+requested text, author, and toolkit diagnostics. A transport,
+subprocess, or protocol failure during replacement can leave the output
+in an unknown state. Inspect any output before retrying; pi-filler does
+not automatically retry or clean it up. Cancellation and timeout
+terminate the direct child only, not necessarily its descendants.
+
+### Review inspection and formatting patches
 
 Review pagination uses zero-based `review_offset` (default 0) and
 `review_limit` (default 20, maximum 50). A byte budget may return fewer
@@ -244,13 +292,16 @@ render numbered PNG files; `first_page` and `last_page` select slides.
 
 ## Output and mutation behavior
 
-DOCX, PPTX, and XLSX writes and patches use temporary sibling files,
-validate the result, and rename it into place only after success. Source
-files are not modified. PDF and office image rendering similarly
+DOCX, PPTX, and XLSX writes and ordinary patches use temporary sibling
+files, validate the result, and rename it into place only after success.
+Tracked replacement instead requires a nonexistent output and uses the
+separate toolkit's publication mechanism described above. Source files
+are not intentionally modified. PDF and office image rendering similarly
 protects prior output until the new render succeeds.
 
-`dry_run` validates the requested operation and inputs without creating
-or replacing output; its required `output` path is still validated.
+Where supported, `dry_run` validates the requested operation and inputs
+without creating or replacing output; its required `output` path is
+still validated. It is not supported for tracked replacement.
 
 ## External tools
 
@@ -260,8 +311,10 @@ Required for the corresponding operations:
 - `libreoffice` for DOCX, PPTX, and XLSX image rendering (each
   conversion uses a private temporary profile, removed on completion);
 - `pdftotext` for PDF text extraction;
-- `pdftocairo` for PDF, DOCX, PPTX, and XLSX page rendering; and
-- `pdfgrep` for page-aware PDF search.
+- `pdftocairo` for PDF, DOCX, PPTX, and XLSX page rendering;
+- `pdfgrep` for page-aware PDF search; and
+- separately installed `docx-toolkit` on `PATH` for DOCX tracked
+  replacement only.
 
 A missing executable produces an explicit error naming the unavailable
 program.
@@ -280,10 +333,8 @@ deterministic tests, project-wide line/function coverage checks, and
 after documentation changes.
 
 Dependencies and CI actions follow current upstream releases rather than
-being pinned. GitLab is canonical and the only release authority. GitHub
-may mirror the repository, verify it, and publish GitHub Pages. A
-`vX.Y.Z` GitLab tag must match `package.json`; after verification it
-publishes to npm with provenance.
+being pinned. GitLab is canonical; GitHub may mirror the repository,
+verify it, and publish GitHub Pages.
 
 ## License
 

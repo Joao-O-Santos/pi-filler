@@ -50,7 +50,11 @@ The current pre-1.0 source implements:
   legacy resolution/reply metadata, and pagination;
 - prefix-flexible, order- and text-preserving DOCX OOXML inspection and
   conservative first-section patches;
-- transactional patching with dry runs and relationship validation;
+- transactional ordinary patching with dry runs and relationship
+  validation;
+- optional DOCX tracked replacement via a separately installed
+  `docx-toolkit` executable on `PATH`, without automatic installation or
+  download;
 - deterministic regression tests for the supported surface;
 - content-free XLSX layout inspection, mapped CSV-to-template filling,
   primitive automatic typing, formula and merged-range protection,
@@ -69,6 +73,31 @@ README badge. Tagging and publication require explicit instruction.
 `clearCoreMetadata` is deliberately narrower than anonymization. It
 clears common core metadata fields but does not promise removal of every
 possible author or identity trace.
+
+DOCX tracked replacement accepts `tracked_replace` instead of `patches`
+with nonempty string `old`, string `new` (empty deletes), nonempty
+string `author`, and optional lowercase 64-hex `expected_sha256`. It
+requires a separate nonexistent output, rejects `view` and `dry_run`
+even when false, and probes protocol capability before use. It computes
+a source hash, checks the optional expected hash, passes the computed
+hash for freshness checks, and verifies the output hash. Freshness
+checks are not a lock. Publication requires hard-link support. Text and
+author travel over local stdin, not command-line arguments; pipes,
+memory, and output still require protection. Results omit requested
+text, author, and toolkit diagnostics. A subprocess, transport, or
+protocol failure can leave an unknown output; inspect it before
+retrying. There is no automatic retry or cleanup, and timeout or
+cancellation terminates only the direct child.
+
+Replacement is limited to a unique literal single-run match in a simple
+main-document paragraph or table. Basic existing revisions and
+unthreaded comments outside the target paragraph may be retained only
+under strict checks and without an enclosing comment range. Threaded
+comments, complex revisions, fields, other stories, cross-run matches,
+signed packages, and other unsupported structures are rejected. There is
+no accept/reject or comment editing. Structural validation does not
+establish Microsoft Word behavior or visual fidelity; inspect a copy in
+the target application.
 
 Untouched DOCX, PPTX, and XLSX package parts are preserved byte-for-byte
 at the part content level. Edited XML parts are reserialized and are not
@@ -140,17 +169,17 @@ for recovery, exhausted attempts, client/rate-limit errors, and cleanup.
 
 ## Verification
 
-Full verification passed with current dependencies: 82 tests, no skips,
-including real Pandoc conversion; line/function/branch coverage is
+The optional tracked replacement integration passed `make verify` with
+its real toolkit executable available: 109 tests, no skips; line,
+function, and branch coverage were 97.11%, 97.32%, and 84.57%.
+`make site` also passed. The real-backend test uses a synthetic DOCX; it
+does not establish Word compatibility. No new tag or release was
+created.
+
+## Previous verification
+
+At the previous verification, 82 tests passed with no skips, including
+real Pandoc conversion; line/function/branch coverage is
 96.65%/97.20%/83.08%. Site build also passed. Each intermediate atomic
 tree was independently checked with `make verify`. Git signing remains
 enabled.
-
-## Release authorization
-
-The owner authorized the `0.4.0` feature release after CI passes. Use
-signed commits and a signed `v0.4.0` tag; push through GitLab, whose tag
-pipeline verifies and publishes to npm with provenance. GitHub remains a
-verification and Pages mirror only. Verify the release commit's CI
-before tagging and the tag pipeline's result after pushing. Further
-versions require new owner instructions.

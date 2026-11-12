@@ -1,34 +1,34 @@
 {
   "version": 2,
-  "confirmedAt": "2026-11-05T14:42:37.079Z",
+  "confirmedAt": "2026-11-12T14:32:46Z",
   "artifacts": [
     {
       "path": "PROJECT.md",
-      "fingerprint": "sha256:615ba306699ee5b6d66ba9481a560a59e84572b22cc7971f1993462901fc409a",
+      "fingerprint": "sha256:77c765e84ae57d88d5809d24432100c079bcdfc98dab4473e5876bdb91c28ef4",
       "status": "current",
       "role": "project",
       "dependsOn": [],
       "acknowledgement": {
-        "at": "2026-11-05T14:42:37.079Z",
-        "reason": "Hardened current-Pandoc installation after a CI HTTP 504: bounded transient-request retries, no client/rate-limit retries and private temporary-file cleanup. Offline subprocess regressions and make verify passed (82 tests, no skips); source coverage remains 96.65% lines, 97.20% functions and 83.08% branches. The 0.4.0 tag remains gated on the final commit's CI."
+        "at": "2026-11-12T14:32:46Z",
+        "reason": "Added optional docx-toolkit tracked replacement; make verify passed with the synthetic real-backend test and 109 tests, and make site passed. No release or tag was created."
       }
     },
     {
       "path": "ARCHITECTURE.md",
-      "fingerprint": "sha256:4075679aced79f8c089840d731e9b0bba17a326988d471068824a128be6d29f4",
+      "fingerprint": "sha256:aa03aa2ae3a301a95b1f5e85e8bcb639e0f4982e10a7dccd1542cfe717d63572",
       "status": "current",
       "role": "architecture",
       "dependsOn": [
         "PROJECT.md"
       ],
       "acknowledgement": {
-        "at": "2026-11-05T14:20:50.698Z",
-        "reason": "Reproduced CI errors with current dependencies; repaired native TypeBox enum inference and Markdown formatter ownership, with compile-time and runtime regressions. Local make verify (72 tests, no skips) and site build passed. Owner authorized the 0.4.0 feature release only after CI succeeds."
+        "at": "2026-11-12T14:32:46Z",
+        "reason": "Documented the optional subprocess integration, protocol, safety boundaries, and direct-child cancellation behavior after implementation and verification."
       }
     },
     {
       "path": "README.md",
-      "fingerprint": "sha256:4ccbce71dbdd52bac5206c107549b7b1a56fc4f5eafd48cafa53fc26726c13b8",
+      "fingerprint": "sha256:62b62f8aa5cba8ef94c4618a988ea25ff92c2801e456fd202d5da811d7f43291",
       "status": "current",
       "role": "documentation",
       "dependsOn": [
@@ -36,8 +36,8 @@
         "ARCHITECTURE.md"
       ],
       "acknowledgement": {
-        "at": "2026-11-05T14:10:08.826Z",
-        "reason": "Reviewed completed DOCX preservation, native Pandoc review conversion, isolated LibreOffice profiles and bounded comment inspection against implementation and tests. Final make verify (71 tests, no skips) and site build passed; signing is unblocked and remains enabled. No release or npm publication is authorized."
+        "at": "2026-11-12T14:32:46Z",
+        "reason": "Updated the operation matrix, optional installation, tracked replacement usage, and limitations to reflect the verified integration."
       }
     },
     {
@@ -68,7 +68,7 @@
     },
     {
       "path": "CHANGELOG.md",
-      "fingerprint": "sha256:c5d929df2e2e4b0e3dc2ce1ecc5013a5186fc0c69a8127cdd12a01bd4316f10b",
+      "fingerprint": "sha256:68df1888c1636d10a35c34680685ea3778ba53b4e75abb372e8602616cb5be90",
       "status": "current",
       "role": "changelog",
       "dependsOn": [
@@ -76,8 +76,8 @@
         "ARCHITECTURE.md"
       ],
       "acknowledgement": {
-        "at": "2026-11-05T14:42:37.079Z",
-        "reason": "Hardened current-Pandoc installation after a CI HTTP 504: bounded transient-request retries, no client/rate-limit retries and private temporary-file cleanup. Offline subprocess regressions and make verify passed (82 tests, no skips); source coverage remains 96.65% lines, 97.20% functions and 83.08% branches. The 0.4.0 tag remains gated on the final commit's CI."
+        "at": "2026-11-12T14:32:46Z",
+        "reason": "Recorded the tracked replacement integration as unreleased; no version or feature tag was created."
       }
     }
   ]

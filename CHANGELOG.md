@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Optional DOCX tracked replacement through a separately installed
+  `docx-toolkit` executable, with a versioned stdin protocol, source and
+  output fingerprint checks, conservative error handling, and
+  independent synthetic integration tests.
+
 ## 0.4.0 --- 2026-11-05
 
 ### Added

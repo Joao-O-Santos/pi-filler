@@ -42,9 +42,9 @@ default upper-left column; explicit XLSX map destinations are absolute.
 Unsupported combinations and operation-irrelevant parameters are
 rejected explicitly. Paths and required query/output values cannot be
 empty. Writes and patches require an output distinct from the input.
-`dry_run` is supported for DOCX and PPTX patches and XLSX writes and
-patches; it still requires an output path but does not create or replace
-it.
+`dry_run` is supported for ordinary DOCX and PPTX patches and XLSX
+writes and patches; it still requires an output path but does not create
+or replace it. DOCX `tracked_replace` rejects `dry_run`, even `false`.
 
 Prompt guidance supplies the compact operation matrix needed to choose a
 valid call without retrying through invalid combinations. It names path
@@ -67,7 +67,8 @@ duplicated description.
 
 External commands run through a small local `execFile` adapter. Node.js
 provides cancellation, finite timeouts, and maximum buffered output.
-Timed-out commands are force-terminated. The adapter otherwise only
+Timed-out commands are force-terminated. Termination targets the direct
+child only, not necessarily its descendants. The adapter otherwise only
 normalizes errors and missing-executable messages.
 
 Required executables are `pandoc`, `pdftotext`, `pdftocairo`, and
@@ -197,6 +198,43 @@ Orientation-only changes keep page dimensions consistent. Untouched ZIP
 package parts remain content-identical. Edited XML parts are
 reserialized, so lexical XML details inside those parts may change.
 
+## DOCX tracked replacement
+
+A DOCX patch takes exactly one of `patches` and `tracked_replace`. The
+latter requires `path`, a distinct nonexistent `output`, and an object
+with nonempty string `old`, string `new` (empty deletes), nonempty
+string `author`, and optional `expected_sha256` (64 lowercase hex
+digits). Extra object keys, `view`, and `dry_run` are rejected.
+
+This path uses a separately installed `docx-toolkit` executable on
+`PATH`; pi-filler does not install or download it. It probes protocol v1
+for `replace_tracked` before attempting replacement. It hashes the
+input, compares an optional expected hash, and sends the computed hash
+with the request for toolkit freshness checks. The final freshness check
+is not a lock. The toolkit publishes a new output via a hard link,
+requiring filesystem support. Pi-filler verifies the returned source
+hash and independently hashes the regular output file against the
+returned output hash; success returns only the output path and both
+hashes.
+
+Requests are JSON on stdin rather than command-line arguments, with a 1
+MiB request limit, 30-second timeout, and 64 KiB output buffer. Text and
+author remain sensitive in memory and pipes; results suppress them and
+toolkit diagnostics. Protect output files as well. A replacement
+transport, subprocess, or protocol failure may leave an unknown output;
+inspect it before retrying. No automatic retry or cleanup is performed.
+A failed capability probe attempts no replacement.
+
+The literal match must be unique and contained in one run in a simple
+main-document paragraph or table. Basic existing revisions and
+unthreaded comments may survive outside the target paragraph only under
+strict structural checks and without an enclosing comment range.
+Threaded comments, complex revisions, fields, other stories, cross-run
+matches, signed packages, and other unsupported structures are rejected.
+This path does not accept or reject revisions or edit comments.
+Structural checks do not establish Word behavior or visual fidelity;
+inspect a copy in the target application.
+
 ## DOCX review inspection
 
 Review reads resolve comments and legacy extended-comment parts through
@@ -221,10 +259,11 @@ metadata, worksheets, styles when used, and all package relationships.
 Internal targets from every `.rels` part must resolve to an existing
 package part.
 
-Patches reject empty requests and incompatible line-number settings.
-Patches are validated against the requested resulting formatting. Writes
-and patches use temporary sibling files and atomic renames. Source files
-are not modified.
+Ordinary DOCX patches reject empty requests and incompatible line-number
+settings and are validated against the requested resulting formatting.
+Writes and ordinary patches use temporary sibling files and atomic
+renames. Tracked replacement follows the separate no-overwrite and hash
+checks above. Source files are not intentionally modified.
 
 ## Scope boundary
 
