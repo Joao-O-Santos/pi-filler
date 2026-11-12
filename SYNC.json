@@ -1,34 +1,34 @@
 {
   "version": 2,
-  "confirmedAt": "2026-11-12T14:32:46Z",
+  "confirmedAt": "2026-11-12T14:44:39Z",
   "artifacts": [
     {
       "path": "PROJECT.md",
-      "fingerprint": "sha256:77c765e84ae57d88d5809d24432100c079bcdfc98dab4473e5876bdb91c28ef4",
+      "fingerprint": "sha256:cd6fb1937f1de55c3b1d6ff476e59f04016f70dc7775bf2223d48c62dc8ae190",
       "status": "current",
       "role": "project",
       "dependsOn": [],
       "acknowledgement": {
-        "at": "2026-11-12T14:32:46Z",
-        "reason": "Added optional docx-toolkit tracked replacement; make verify passed with the synthetic real-backend test and 109 tests, and make site passed. No release or tag was created."
+        "at": "2026-11-12T14:44:39Z",
+        "reason": "Renamed the optional Docxquisite integration; make verify passed with the synthetic real-backend test and 110 tests, and make site passed. No release or tag was created."
       }
     },
     {
       "path": "ARCHITECTURE.md",
-      "fingerprint": "sha256:aa03aa2ae3a301a95b1f5e85e8bcb639e0f4982e10a7dccd1542cfe717d63572",
+      "fingerprint": "sha256:9f116635307367d2dd580ad1411c4fc3d607b3c1b4849878caa34a5870f6ba19",
       "status": "current",
       "role": "architecture",
       "dependsOn": [
         "PROJECT.md"
       ],
       "acknowledgement": {
-        "at": "2026-11-12T14:32:46Z",
+        "at": "2026-11-12T14:44:39Z",
         "reason": "Documented the optional subprocess integration, protocol, safety boundaries, and direct-child cancellation behavior after implementation and verification."
       }
     },
     {
       "path": "README.md",
-      "fingerprint": "sha256:62b62f8aa5cba8ef94c4618a988ea25ff92c2801e456fd202d5da811d7f43291",
+      "fingerprint": "sha256:3a23efc782ce320878c3cdea49db3eeb8c2a4d2101316b0610e6106372c0c0bf",
       "status": "current",
       "role": "documentation",
       "dependsOn": [
@@ -36,7 +36,7 @@
         "ARCHITECTURE.md"
       ],
       "acknowledgement": {
-        "at": "2026-11-12T14:32:46Z",
+        "at": "2026-11-12T14:44:39Z",
         "reason": "Updated the operation matrix, optional installation, tracked replacement usage, and limitations to reflect the verified integration."
       }
     },
@@ -68,7 +68,7 @@
     },
     {
       "path": "CHANGELOG.md",
-      "fingerprint": "sha256:68df1888c1636d10a35c34680685ea3778ba53b4e75abb372e8602616cb5be90",
+      "fingerprint": "sha256:7eefbb2340640ec08b3671c8d8332755e4704ce9c70d6329e7782d9bc909c939",
       "status": "current",
       "role": "changelog",
       "dependsOn": [
@@ -76,7 +76,7 @@
         "ARCHITECTURE.md"
       ],
       "acknowledgement": {
-        "at": "2026-11-12T14:32:46Z",
+        "at": "2026-11-12T14:44:39Z",
         "reason": "Recorded the tracked replacement integration as unreleased; no version or feature tag was created."
       }
     }

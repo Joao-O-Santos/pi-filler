@@ -206,7 +206,7 @@ with nonempty string `old`, string `new` (empty deletes), nonempty
 string `author`, and optional `expected_sha256` (64 lowercase hex
 digits). Extra object keys, `view`, and `dry_run` are rejected.
 
-This path uses a separately installed `docx-toolkit` executable on
+This path uses a separately installed `docxquisite` executable on
 `PATH`; pi-filler does not install or download it. It probes protocol v1
 for `replace_tracked` before attempting replacement. It hashes the
 input, compares an optional expected hash, and sends the computed hash

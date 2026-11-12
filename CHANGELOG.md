@@ -5,7 +5,7 @@
 ### Added
 
 - Optional DOCX tracked replacement through a separately installed
-  `docx-toolkit` executable, with a versioned stdin protocol, source and
+  `docxquisite` executable, with a versioned stdin protocol, source and
   output fingerprint checks, conservative error handling, and
   independent synthetic integration tests.
 

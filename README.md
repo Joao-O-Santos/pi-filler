@@ -172,12 +172,12 @@ one `tracked_replace` object instead of `patches`. Omit `view` and
 - `author`: nonempty string for the revision author;
 - `expected_sha256`: optional lowercase, 64-hex-digit source hash.
 
-Install `docx-toolkit` separately and make the executable available on
+Install `docxquisite` separately and make the executable available on
 `PATH`; pi-filler never installs or downloads it. For example, from an
-accessible toolkit checkout, run `uv tool install /path/to/docx-toolkit`
-and ensure the uv tool executable directory is on `PATH`. The toolkit
-repository is currently private and its own-code license is not yet
-selected. The output must differ from the input and must not already
+accessible toolkit checkout, run `uv tool install /path/to/docxquisite`
+and ensure the uv tool executable directory is on `PATH`.
+[Docxquisite](https://gitlab.com/Joao-O-Santos/docxquisite) is MIT
+licensed. The output must differ from the input and must not already
 exist. Publication requires hard-link support in the output directory.
 Pi-filler probes protocol v1 capability, computes the source SHA-256,
 checks any supplied expected hash, and passes its computed hash to the
@@ -313,7 +313,7 @@ Required for the corresponding operations:
 - `pdftotext` for PDF text extraction;
 - `pdftocairo` for PDF, DOCX, PPTX, and XLSX page rendering;
 - `pdfgrep` for page-aware PDF search; and
-- separately installed `docx-toolkit` on `PATH` for DOCX tracked
+- separately installed `docxquisite` on `PATH` for DOCX tracked
   replacement only.
 
 A missing executable produces an explicit error naming the unavailable

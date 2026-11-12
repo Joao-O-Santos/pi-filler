@@ -53,7 +53,7 @@ The current pre-1.0 source implements:
 - transactional ordinary patching with dry runs and relationship
   validation;
 - optional DOCX tracked replacement via a separately installed
-  `docx-toolkit` executable on `PATH`, without automatic installation or
+  `docxquisite` executable on `PATH`, without automatic installation or
   download;
 - deterministic regression tests for the supported surface;
 - content-free XLSX layout inspection, mapped CSV-to-template filling,
@@ -170,8 +170,8 @@ for recovery, exhausted attempts, client/rate-limit errors, and cleanup.
 ## Verification
 
 The optional tracked replacement integration passed `make verify` with
-its real toolkit executable available: 109 tests, no skips; line,
-function, and branch coverage were 97.11%, 97.32%, and 84.57%.
+its real Docxquisite executable available: 110 tests, no skips; line,
+function, and branch coverage were 97.11%, 97.32%, and 84.79%.
 `make site` also passed. The real-backend test uses a synthetic DOCX; it
 does not establish Word compatibility. No new tag or release was
 created.
