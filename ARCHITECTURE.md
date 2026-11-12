@@ -21,7 +21,7 @@ Markdown-to-DOCX writes; and narrow OOXML patches. PPTX supports text,
 formatting, and image reads; text search; GFM-to-PPTX writes; and narrow
 OOXML patches. PDF supports text and image reads plus text search. XLSX
 supports content-free structure and image reads, CSV-to-template writes,
-and formatting/layout patches.
+formatting/layout patches, and restricted single-cell formula patches.
 
 Schema construction and static input inference both use TypeBox. Enums
 remain flat string enums for provider compatibility.
@@ -96,13 +96,14 @@ page files are sorted by numeric page number.
 
 ## XLSX
 
-XLSX cell values, CSV fields, formula contents, and comments are
-tool-local and are never included in normal model-facing results or
-errors. Structural reads may report sheet names, active sheet, used
-ranges, dimensions, counts for formulas, merges, and styled cells, plus
-bounded merged-range addresses and hidden row and column ranges. This
-layout metadata can reveal limited layout and occupancy information, but
-not cell values or CSV contents.
+Existing XLSX cell values, CSV fields, formula contents, and comments
+are tool-local and are not included in normal model-facing results or
+errors. A formula supplied as tool input is visible to the agent.
+Structural reads may report sheet names, active sheet, used ranges,
+dimensions, counts for formulas, merges, and styled cells, plus bounded
+merged-range addresses and hidden row and column ranges. This layout
+metadata can reveal limited layout and occupancy information, but not
+cell values or CSV contents.
 
 `fflate` preserves package members and `fast-xml-parser` mutates only
 the selected worksheet and, for style patches, `xl/styles.xml`.
@@ -121,6 +122,26 @@ Equivalent style components and cell formats are reused. Column width
 uses Excel character-width units; row height uses points. Both apply to
 the addressed range's columns and rows. Existing cell values and
 formulas remain unchanged during formatting.
+
+A formula patch requires `path`, `sheet`, a distinct `output`, and
+`xlsx_formula: { cell, formula }` instead of `range` and `xlsx_patches`.
+The cell is one explicit unmerged A1 address. The formula starts with
+`=`, has a nonblank body, contains XML-safe characters, and is at most
+8,192 UTF-16 code units; extra object keys are rejected. Optional
+`dry_run` validates without writing. The target's old formula or value
+and cache are removed without returning their contents. Other formula
+caches remain unchanged and may be stale. The workbook requests
+automatic full recalculation on open, but no formula is evaluated and
+recalculation is not guaranteed. Formula text is not semantically
+validated and may cause unsafe behavior, including external references,
+when opened in a spreadsheet application; review untrusted input and
+output before opening.
+
+Formula editing rejects signed packages, calculation chains, shared,
+array, and data-table formulas, unsupported extension or formula
+metadata, ambiguous sheet, row, cell or relationship structures, and
+other unsupported structures. Its checks apply across the workbook, not
+just the target cell.
 
 XLSX image reads convert workbook print pages to a temporary PDF through
 LibreOffice, then use the common PDF renderer to create numbered PNG
@@ -275,9 +296,9 @@ parts.
 
 The project is not a general office suite, broad PDF toolkit, complete
 DOCX anonymizer, or spreadsheet programming environment. XLSX support
-does not extract arbitrary content, evaluate or generate formulas, or
-manipulate charts, pivots, macros, comments, named ranges, data
-validation, tables, external data, or conditional formatting. Existing
-unsupported package parts are preserved where possible. New OOXML
-features should be driven by real document fixtures rather than
+does not extract arbitrary content, evaluate or automatically generate
+formulas, or manipulate charts, pivots, macros, comments, named ranges,
+data validation, tables, external data, or conditional formatting.
+Existing unsupported package parts are preserved where possible. New
+OOXML features should be driven by real document fixtures rather than
 speculative coverage.

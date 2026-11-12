@@ -4,6 +4,11 @@
 
 ### Added
 
+- Restricted single-cell XLSX formula patches via `xlsx_formula`, with
+  dry runs, package guards, target cache removal, and recalculation
+  requests without formula evaluation. Other formula caches may be
+  stale; supplied formulas are visible to the agent and may be unsafe on
+  opening.
 - Optional DOCX tracked replacement through a separately installed
   `docxquisite` executable, with a versioned stdin protocol, source and
   output fingerprint checks, conservative error handling, and

@@ -75,7 +75,7 @@ combination and supply only its relevant fields:
 | XLSX | `read` | `structure` | none |
 | XLSX | `read` | `image` | `output`; optional `first_page`, `last_page` select resulting workbook print pages |
 | XLSX | `write` | omitted | template `path`, `source_csv`, `sheet`, A1 `start_cell`, `output`; optional `column_map` |
-| XLSX | `patch` | omitted | `sheet`, A1 `range`, `xlsx_patches`, `output` |
+| XLSX | `patch` | omitted | `sheet`, `output`, and either A1 `range` with `xlsx_patches` or `xlsx_formula`; optional `dry_run` |
 
 PDF write and patch, and XLSX search, are unsupported. Parameters
 irrelevant to the chosen operation fail explicitly instead of being
@@ -235,22 +235,25 @@ or element ordering may change.
 
 ## XLSX operations and privacy
 
-Spreadsheet cell values, CSV fields, formula contents, and comments are
-processed locally and are not returned to the model. When a
-deterministic XLSX write or patch does not require inspection, do not
-read CSV or cell contents into model context merely to perform it.
-Structural results may contain sheet names, ranges, dimensions, counts,
-merged-range addresses, hidden row and column ranges, changed package
-parts, and write status---not cell or CSV contents. Layout-range arrays
-are capped and report whether they were truncated; this metadata can
-reveal limited layout and occupancy information.
+Existing spreadsheet cell values, CSV fields, formula contents, and
+comments are processed locally and are not returned to the model. A
+formula supplied in `xlsx_formula` is tool input and visible to the
+agent. When a deterministic XLSX write or patch does not require
+inspection, do not read CSV or cell contents into model context merely
+to perform it. Structural results may contain sheet names, ranges,
+dimensions, counts, merged-range addresses, hidden row and column
+ranges, changed package parts, and write status---not cell or CSV
+contents. Layout-range arrays are capped and report whether they were
+truncated; this metadata can reveal limited layout and occupancy
+information.
 
 - `read` with `view: "structure"` reports workbook and worksheet shape.
 - `read` with `view: "image"` renders workbook print pages through
   LibreOffice to numbered PNG files; it does not select a sheet.
   `first_page` and `last_page` select resulting print pages.
 - `write` fills an existing workbook template from CSV.
-- `patch` changes formatting or layout while preserving cell contents.
+- `patch` changes formatting or layout while preserving cell contents,
+  or sets one ordinary formula.
 
 CSV writes skip the first record by default (`has_header: true`) and
 preserve fields as text by default (`value_mode: "text"`). Automatic
@@ -266,10 +269,54 @@ horizontal and vertical alignment, wrapping, Excel number-format codes,
 uniform borders, column width, and row height. Output is validated and
 atomically replaced only after successful processing.
 
+### Setting a formula
+
+Use `path` for the input workbook, `sheet` for its worksheet name,
+`output` for a distinct output path, and `xlsx_formula` instead of
+`range` and `xlsx_patches`:
+
+``` ts
+filler({
+  format: "xlsx",
+  action: "patch",
+  path: "template.xlsx",
+  sheet: "Results",
+  output: "with-formula.xlsx",
+  xlsx_formula: { cell: "B2", formula: "=SUM(B3:B10)" },
+  dry_run: true
+})
+```
+
+`cell` must be one explicit, unmerged A1 cell. `formula` must start with
+`=`, have a nonblank body, contain XML-safe characters, and be at most
+8,192 UTF-16 code units long. Only `cell` and `formula` are accepted in
+the object. The target's old value or formula and cached value are
+removed; their contents are not returned. The supplied formula is not
+evaluated or semantically validated. Other formula caches remain
+unchanged and may be stale. Workbook flags request automatic full
+recalculation on open; they do not perform or guarantee recalculation.
+In one synthetic headless LibreOffice 26.8.2.2 reopen/export, the edited
+cell recalculated but its dependent cell retained a stale cached value.
+Verify recalculation in the target application before relying on
+results.
+
+Formula editing rejects signed packages, calculation chains, shared,
+array, and data-table formulas, unsupported extension or formula
+metadata, ambiguous sheet, row, cell or relationship structures, and
+other unsupported workbook structures. It validates a temporary sibling
+package before atomic replacement of the distinct output; the input is
+not intentionally modified. `dry_run: true` validates without creating
+or replacing output.
+
+Formulas can invoke external references or other potentially unsafe
+behavior when a spreadsheet application later opens the workbook. Treat
+formula input and output as untrusted where appropriate; review them
+before opening in an application that evaluates formulas.
+
 XLSX support does not provide cell-content reads or search, formula
-calculation or generation, spreadsheet scripting, or manipulation of
-charts, pivots, macros, comments, named ranges, tables, data validation,
-conditional formatting, or external data.
+evaluation or automatic formula generation, spreadsheet scripting, or
+manipulation of charts, pivots, macros, comments, named ranges, tables,
+data validation, conditional formatting, or external data.
 
 ## PPTX operations
 
