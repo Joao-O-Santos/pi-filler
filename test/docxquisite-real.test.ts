@@ -29,7 +29,7 @@ function packageBytes() {
 async function available() {
 	for (const dir of (process.env.PATH ?? "").split(delimiter)) {
 		try {
-			await access(join(dir || ".", "docx-toolkit"), constants.X_OK);
+			await access(join(dir || ".", "docxquisite"), constants.X_OK);
 			return true;
 		} catch {
 			// Try the next PATH entry.
@@ -40,7 +40,7 @@ async function available() {
 
 test("real toolkit tracked replacement preserves independent review markup and refuses unsafe edits", async (t) => {
 	if (!(await available())) {
-		t.skip("docx-toolkit executable is not available on PATH");
+		t.skip("docxquisite executable is not available on PATH");
 		return;
 	}
 	const dir = await mkdtemp(join(tmpdir(), "filler-real-toolkit-"));

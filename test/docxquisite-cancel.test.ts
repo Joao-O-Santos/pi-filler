@@ -35,7 +35,7 @@ async function fixture(t: TestContext, hold: "capabilities" | "replace_tracked")
 	process.env.CANCEL_TEST_DIR = dir;
 	process.env.CANCEL_TEST_HOLD = hold;
 	await writeFile(
-		join(dir, "docx-toolkit"),
+		join(dir, "docxquisite"),
 		`#!${process.execPath}
 const fs = require('node:fs');
 const path = require('node:path');
@@ -60,7 +60,7 @@ process.stdin.on('end', () => {
 });
 `,
 	);
-	await chmod(join(dir, "docx-toolkit"), 0o755);
+	await chmod(join(dir, "docxquisite"), 0o755);
 	await writeFile(join(dir, "source.docx"), "source bytes");
 	const input = {
 		format: "docx",

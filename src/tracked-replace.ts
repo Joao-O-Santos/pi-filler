@@ -13,7 +13,7 @@ export interface TrackedReplacement {
 
 const hashPattern = /^[0-9a-f]{64}$/;
 const unknownOutcome =
-	"docx-toolkit transport or protocol failure; output outcome may be unknown. " +
+	"docxquisite transport or protocol failure; output outcome may be unknown. " +
 	"Inspect the output before any retry; no output was deleted.";
 const abortedBeforeReplacement = "Operation aborted; no replacement was attempted.";
 const abortedAfterReplacement =
@@ -84,7 +84,7 @@ async function protocol(
 	let code: number;
 	const probing = request.operation === "capabilities";
 	const failure = probing
-		? "docx-toolkit capability probe failed; no replacement was attempted."
+		? "docxquisite capability probe failed; no replacement was attempted."
 		: unknownOutcome;
 	checkAbort(signal, !probing);
 	try {
@@ -92,7 +92,7 @@ async function protocol(
 		if (Buffer.byteLength(stdin, "utf8") > 1024 * 1024) {
 			throw new Error("Request too large");
 		}
-		const result = await runCommand("docx-toolkit", ["protocol"], {
+		const result = await runCommand("docxquisite", ["protocol"], {
 			cwd,
 			signal,
 			stdin,
@@ -106,7 +106,7 @@ async function protocol(
 		// Neither command errors, stderr, nor returned diagnostic text are safe to forward.
 		if (probing && error instanceof MissingExecutableError) {
 			throw new Error(
-				"Optional executable docx-toolkit not found; install it and make sure it is available on PATH.",
+				"Optional executable docxquisite not found; install it and make sure it is available on PATH.",
 			);
 		}
 		throw new Error(failure);
@@ -137,7 +137,7 @@ async function protocol(
 		throw new Error(failure);
 	}
 	throw new Error(
-		`docx-toolkit rejected the operation (${response.error.code}). ` +
+		`docxquisite rejected the operation (${response.error.code}). ` +
 			(probing
 				? "No replacement was attempted."
 				: "No retry or cleanup was performed; inspect any output before retrying."),
@@ -163,7 +163,7 @@ export async function replaceTracked(
 		!strings(capabilities.replace_limitations)
 	) {
 		throw new Error(
-			"docx-toolkit does not advertise the required protocol v1 tracked replacement capability",
+			"docxquisite does not advertise the required protocol v1 tracked replacement capability",
 		);
 	}
 	let sourceHash: string;

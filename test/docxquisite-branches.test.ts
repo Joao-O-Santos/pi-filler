@@ -21,7 +21,7 @@ async function fixture(t: TestContext) {
 	});
 	await writeFile(join(dir, "source"), "source");
 	await writeFile(
-		join(dir, "docx-toolkit"),
+		join(dir, "docxquisite"),
 		`#!${process.execPath}
 const fs = require('node:fs');
 const path = require('node:path');
@@ -45,7 +45,7 @@ process.stdin.on('end', () => {
 });
 `,
 	);
-	await chmod(join(dir, "docx-toolkit"), 0o755);
+	await chmod(join(dir, "docxquisite"), 0o755);
 	return {
 		dir,
 		input: join(dir, "source"),

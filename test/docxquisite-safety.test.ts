@@ -23,7 +23,7 @@ async function fixture(t: TestContext, mode: string) {
 	process.env.PATH = dir;
 	process.env.SAFETY_MODE = mode;
 	process.env.SAFETY_DIR = dir;
-	const executable = join(dir, "docx-toolkit");
+	const executable = join(dir, "docxquisite");
 	await writeFile(
 		executable,
 		`#!${process.execPath}
@@ -102,11 +102,11 @@ for (const mode of ["missing-output", "wrong-hash"]) {
 	});
 }
 
-test("missing optional executable identifies docx-toolkit and PATH without output uncertainty", async (t) => {
+test("missing optional executable identifies docxquisite and PATH without output uncertainty", async (t) => {
 	const f = await fixture(t, "success");
 	await rm(f.executable);
 	const error = await rejected(call(f.input, f.dir));
-	assert.match(error.message, /docx-toolkit/i);
+	assert.match(error.message, /docxquisite/i);
 	assert.match(error.message, /PATH/);
 	assert.match(error.message, /optional/i);
 	assert.doesNotMatch(

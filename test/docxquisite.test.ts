@@ -23,7 +23,7 @@ async function fixture(t: TestContext, mode = "success") {
 	process.env.PATH = dir;
 	process.env.TOOLKIT_TEST_LOG = join(dir, "log");
 	process.env.TOOLKIT_TEST_MODE = mode;
-	const executable = join(dir, "docx-toolkit");
+	const executable = join(dir, "docxquisite");
 	await writeFile(
 		executable,
 		`#!${process.execPath}
@@ -194,6 +194,7 @@ test("existing output is never overwritten", async (t) => {
 test("schema and prompt expose tracked replacement", () => {
 	const schema = JSON.parse(JSON.stringify(fillerSchema));
 	assert.ok(schema.properties.tracked_replace);
+	assert.match(schema.properties.tracked_replace.description, /docxquisite on PATH/);
 	let registered: { promptSnippet?: string; promptGuidelines?: string[] } | undefined;
 	extension({
 		registerTool(tool: typeof registered) {
@@ -204,4 +205,5 @@ test("schema and prompt expose tracked replacement", () => {
 		`${registered?.promptSnippet} ${registered?.promptGuidelines?.join(" ")}`,
 		/tracked_replace/,
 	);
+	assert.match(registered?.promptGuidelines?.join(" ") ?? "", /docxquisite on PATH/);
 });
