@@ -22,7 +22,14 @@ import { readPdfText, renderPdfPages, searchPdf } from "./pdf.js";
 import { inspectPptx, type PptxPatchSet, patchPptx } from "./pptx.js";
 import { commandError, runCommand } from "./process.js";
 import { replaceTracked, validateTrackedReplacement } from "./tracked-replace.js";
-import { fillXlsxFromCsv, inspectXlsxStructure, patchXlsx, type XlsxPatchSet } from "./xlsx.js";
+import {
+	fillXlsxFromCsv,
+	inspectXlsxStructure,
+	patchXlsx,
+	patchXlsxFormula,
+	validateXlsxFormula,
+	type XlsxPatchSet,
+} from "./xlsx.js";
 
 const docxPatchesSchema = Type.Object(
 	{
@@ -363,6 +370,23 @@ export const fillerSchema = Type.Object(
 			}),
 		),
 		xlsx_patches: Type.Optional(xlsxPatchesSchema),
+		xlsx_formula: Type.Optional(
+			Type.Object(
+				{
+					cell: Type.String({ description: "Single unmerged A1 cell", minLength: 2 }),
+					formula: Type.String({
+						description: "Formula starting with = and a nonblank body; stored, never evaluated",
+						minLength: 2,
+						maxLength: 8192,
+					}),
+				},
+				{
+					additionalProperties: false,
+					description:
+						"XLSX patch alternative to range and xlsx_patches; restricted ordinary formulas only. Other cached formula values remain potentially stale",
+				},
+			),
+		),
 		dry_run: Type.Optional(
 			Type.Boolean({
 				default: false,
@@ -420,6 +444,7 @@ const controlFields: ControlField[] = [
 	"value_mode",
 	"column_map",
 	"xlsx_patches",
+	"xlsx_formula",
 	"dry_run",
 	"literal",
 	"ignore_case",
@@ -575,6 +600,13 @@ function assertSupported(input: FillerInput): void {
 			return;
 		}
 		if (input.view !== undefined) throw new Error("XLSX patch does not accept view");
+		if (input.xlsx_formula !== undefined) {
+			if (!input.output || !input.sheet)
+				throw new Error("XLSX formula patch requires output and sheet");
+			assertParameters(input, ["output", "sheet", "xlsx_formula", "dry_run"]);
+			validateXlsxFormula(input.xlsx_formula);
+			return;
+		}
 		if (!input.output || !input.sheet || !input.range || !input.xlsx_patches) {
 			throw new Error("XLSX patch requires output, sheet, range, and xlsx_patches");
 		}
@@ -832,6 +864,13 @@ export async function executeFiller(
 				details: result as unknown as Record<string, unknown>,
 			};
 		}
+		const formula = input.xlsx_formula;
+		if (formula !== undefined) {
+			const result = await withFileMutationQueue(output, () =>
+				patchXlsxFormula(path, output, input.sheet ?? "", formula, input.dry_run, signal),
+			);
+			return { text: JSON.stringify(result, null, 2), details: { ...result } };
+		}
 		const result = await withFileMutationQueue(output, () =>
 			patchXlsx(
 				path,
@@ -886,7 +925,7 @@ export default function extension(pi: ExtensionAPI): void {
 		name: "filler",
 		label: "Filler",
 		description:
-			"Work directly with local DOCX, PDF, PPTX, and XLSX files. Read, search, or render DOCX/PPTX and PDF; write DOCX/PPTX from Markdown; inspect or render XLSX, fill XLSX templates from CSV, and patch supported formatting.",
+			"Work directly with local DOCX, PDF, PPTX, and XLSX files. Read, search, or render DOCX/PPTX and PDF; write DOCX/PPTX from Markdown; inspect or render XLSX, fill XLSX templates from CSV, patch supported formatting, or set one ordinary XLSX formula without evaluation.",
 		promptSnippet:
 			"Work directly with local DOCX, PDF, PPTX, and XLSX files using supported format/action/view combinations.",
 		promptGuidelines: [
@@ -897,6 +936,7 @@ export default function extension(pi: ExtensionAPI): void {
 			"For DOCX/PPTX writes, path is Markdown and output is the new document; reference_docx/reference_pptx is optional. DOCX uses Pandoc Markdown (smart typography disabled), including native review spans; PPTX uses GFM Markdown. DOCX generation is not a lossless round trip of an existing Word layout. For XLSX writes, path is the template and source_csv, sheet, A1-style start_cell, and output are required; column_map optionally maps all CSV ordinals or all exact headers to XLSX columns.",
 			"When an XLSX write or patch can perform the requested deterministic transformation without inspecting CSV or cell contents, do not read those contents into model context merely to carry out the transformation. Processing stays local and results do not return cell or CSV contents.",
 			"For filler patches, provide a new output path plus DOCX patches, PPTX pptx_patches, or XLSX sheet, A1-style range, and xlsx_patches. PPTX text replacements target slide text paragraphs and may name a 1-based slide. dry_run: true still requires output but does not create or replace it.",
+			"XLSX patch alternatively takes sheet and xlsx_formula {cell, formula}, instead of range/xlsx_patches. cell must be one explicit unmerged A1 address; formula must start with =, have a nonblank body, use valid XML characters, and be at most 8192 characters. Requires distinct output; dry_run preserves output. Stores an ordinary formula without evaluating it, requests full automatic recalculation on open, and leaves other formula caches unchanged (possibly stale). Signed packages, calcChain, shared/array/dataTable formulas, ambiguous rows/cells, and unsupported formula metadata are rejected. Formula and workbook values stay local and are not returned.",
 			"DOCX patch alternatively accepts exactly one tracked_replace {old, new, author, expected_sha256?}, not patches. Requires independently installed docxquisite on PATH, a distinct nonexistent output, no view or dry_run (even false). old and author must be nonempty; empty new deletes. The optional source SHA-256 is lowercase 64 hex. Restricted to one unique single-run main-story match; existing revisions and complex documents may be rejected. Processing stays local; requested text/author and toolkit diagnostics are not returned. Structural checks do not prove Word rendering. Transport/protocol failure may leave an output: inspect it before retrying; no automatic cleanup or retry.",
 			"For filler DOCX text reads/searches, track_changes defaults to accept; use reject for the pre-edit text or all for insertion/deletion spans and comments. This selects an extraction view, not native Word acceptance/rejection. For filler defaults, PDF queries are regular expressions by default; use literal: true for literal text. XLSX writes skip a header and preserve text by default.",
 			"For filler results, DOCX/PPTX search may be truncated; narrow its query. PDF text or search may be truncated; narrow its page range or query.",

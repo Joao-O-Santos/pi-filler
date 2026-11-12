@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
-import { dirname, join, posix, resolve } from "node:path";
+import { mkdir, readFile, realpath, rename, rm, writeFile } from "node:fs/promises";
+import { basename, dirname, join, posix, resolve } from "node:path";
 import { parse as parseCsv } from "csv-parse/sync";
 import { XMLBuilder, XMLParser } from "fast-xml-parser";
 import { type OfficePackage, packOfficePackage, unpackOfficePackage } from "./ooxml.js";
@@ -1314,6 +1314,416 @@ function validatePatchedSheet(
 			}
 		}
 	}
+}
+
+export interface XlsxFormula {
+	cell: string;
+	formula: string;
+}
+
+export function validateXlsxFormula(value: unknown): asserts value is XlsxFormula {
+	if (
+		!isObject(value) ||
+		Object.keys(value).some((key) => key !== "cell" && key !== "formula") ||
+		typeof value.cell !== "string" ||
+		typeof value.formula !== "string" ||
+		!value.formula.startsWith("=") ||
+		!value.formula.slice(1).trim() ||
+		value.formula.includes("\r") ||
+		value.formula.length > 8192 ||
+		/[^\t\n\r\u0020-\uD7FF\uE000-\uFFFD\u{10000}-\u{10FFFF}]/u.test(value.formula)
+	) {
+		throw new Error(
+			"Invalid XLSX formula request: use a single cell and an XML-safe formula starting with = (maximum 8192 characters)",
+		);
+	}
+	parseCellAddress(value.cell);
+}
+
+// This exact Calc extension contains only an empty element and literal attributes.
+// Keep unknown extensions rejected: they may carry formula or mixed-content metadata.
+function isLibreOfficeCalcExtension(value: unknown): boolean {
+	return (
+		stable(value) ===
+		stable({
+			ext: {
+				"@_xmlns:loext": "http://schemas.libreoffice.org/",
+				"@_uri": "{7626C862-2A13-11E5-B345-FEFF819CDC9F}",
+				"loext:extCalcPr": { "@_stringRefSyntax": "CalcA1ExcelA1" },
+			},
+		})
+	);
+}
+
+// Only simple, uniformly named SpreadsheetML (plus the exact Calc extension)
+// can safely use the object builder. It loses mixed order and numeric entities.
+function assertFormulaEditableXml(bytes: Uint8Array): void {
+	let xml: string;
+	try {
+		xml = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+	} catch {
+		throw new Error("Unsupported XLSX formula XML text representation");
+	}
+	const withoutDeclaration = xml.replace(/^<\?xml(?=\s)[\s\S]*?\?>/, "");
+	if (
+		/[^\t\n\r\u0020-\uD7FF\uE000-\uFFFD\u{10000}-\u{10FFFF}]/u.test(xml) ||
+		/&#|\r|<!\[CDATA\[|<!--|<!DOCTYPE/i.test(xml) ||
+		withoutDeclaration.includes("<?")
+	) {
+		throw new Error("Unsupported XLSX formula XML text representation");
+	}
+	const document = parseXml(bytes, "");
+	const main = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+	const rootKey = Object.keys(document).find((key) => !key.startsWith("?"));
+	if (!rootKey) throw new Error("Ambiguous XLSX XML structure");
+	const prefix = rootKey.includes(":") ? rootKey.split(":")[0] : "";
+	const visit = (value: unknown, inherited: Record<string, string>): void => {
+		if (Array.isArray(value)) {
+			for (const child of value) visit(child, inherited);
+			return;
+		}
+		if (!isObject(value)) return;
+		const namespaces = { ...inherited };
+		for (const [key, child] of Object.entries(value)) {
+			if (key === "@_xmlns") namespaces[""] = String(child);
+			else if (key.startsWith("@_xmlns:")) namespaces[key.slice(8)] = String(child);
+		}
+		// Namespace rebinding and foreign defaults can misnamespace newly inserted nodes.
+		if (namespaces[prefix] !== main || (namespaces[""] && namespaces[""] !== main)) {
+			throw new Error("Unsupported XLSX formula XML namespace");
+		}
+		for (const key of Object.keys(value)) {
+			if (!key.startsWith("@_") || key.startsWith("@_xmlns")) continue;
+			const name = key.slice(2);
+			if (!name.includes(":")) continue;
+			const attributePrefix = name.split(":")[0];
+			if (
+				!(attributePrefix === "xml" && name === "xml:space") &&
+				!(
+					name.endsWith(":id") &&
+					namespaces[attributePrefix] ===
+						"http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+				)
+			) {
+				throw new Error("Unsupported XLSX formula XML attribute namespace");
+			}
+		}
+		const children = Object.keys(value).filter((key) => !key.startsWith("@_") && key !== "#text");
+		if (children.length && String(value["#text"] ?? "").trim()) {
+			throw new Error("Unsupported XLSX formula mixed XML content");
+		}
+		for (const key of children) {
+			const childPrefix = key.includes(":") ? key.split(":")[0] : "";
+			if (
+				prefix === "" &&
+				childPrefix === "" &&
+				localName(key) === "extLst" &&
+				isLibreOfficeCalcExtension(value[key])
+			) {
+				continue;
+			}
+			if (childPrefix !== prefix || localName(key) === "AlternateContent") {
+				throw new Error("Unsupported XLSX formula XML namespace");
+			}
+			visit(value[key], namespaces);
+		}
+	};
+	visit(document[rootKey], {});
+}
+
+// Resolve existing ancestors without creating directories, including during dry runs.
+async function canonicalFormulaOutput(input: string, output: string): Promise<string> {
+	const canonical = async (path: string): Promise<string> => {
+		try {
+			return await realpath(path);
+		} catch (error) {
+			if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+			return join(await canonical(dirname(path)), basename(path));
+		}
+	};
+	const source = await realpath(input);
+	const destination = join(await canonical(dirname(output)), basename(output));
+	if (source === destination || source === (await canonical(output))) {
+		throw new Error("XLSX patch output must differ from input");
+	}
+	return destination;
+}
+
+// The ordinary object parser groups repeated tags. Reject ambiguous singleton
+// elements and alternate-prefix collisions before using the existing mutation helpers.
+function assertFormulaTree(value: unknown): void {
+	if (Array.isArray(value)) {
+		for (const child of value) assertFormulaTree(child);
+		return;
+	}
+	if (!isObject(value)) return;
+	const names = new Set<string>();
+	for (const [key, child] of Object.entries(value)) {
+		const name = localName(key);
+		if (names.has(name)) throw new Error("Ambiguous XLSX XML structure");
+		names.add(name);
+		if (
+			(name === "extLst" && !isLibreOfficeCalcExtension(child)) ||
+			["metadata", "dynamicArrayProperties"].includes(name)
+		) {
+			throw new Error("Unsupported XLSX formula metadata");
+		}
+		if (
+			["sheetData", "dimension", "calcPr", "sheets", "f", "v", "is"].includes(name) &&
+			Array.isArray(child)
+		) {
+			throw new Error("Ambiguous XLSX XML structure");
+		}
+		assertFormulaTree(child);
+	}
+}
+
+function validateFormulaWorksheet(worksheet: XmlObject): void {
+	assertFormulaTree(worksheet);
+	const dataKey = directKey(worksheet, "sheetData");
+	if (!dataKey) throw new Error("XLSX formula editing requires explicit sheetData");
+	if (!isObject(worksheet[dataKey]) && worksheet[dataKey] !== "") {
+		throw new Error("Ambiguous XLSX row structure");
+	}
+	const data = sheetData(worksheet);
+	if (
+		Object.keys(data).some(
+			(key) => !key.startsWith("@_") && !["row", "#text"].includes(localName(key)),
+		)
+	) {
+		throw new Error("Ambiguous XLSX row structure");
+	}
+	const rowKey = directKey(data, "row");
+	const rawRows = rowKey ? (Array.isArray(data[rowKey]) ? data[rowKey] : [data[rowKey]]) : [];
+	if ((rawRows as unknown[]).some((row) => !isObject(row)))
+		throw new Error("Ambiguous XLSX row structure");
+	let previousRow = 0;
+	for (const row of directObjects(data, "row")) {
+		const reference = attr(row, "r") ?? "";
+		const number = Number(reference);
+		if (!/^[1-9]\d*$/.test(reference) || number <= previousRow || number > MAX_ROW) {
+			throw new Error("Ambiguous XLSX row structure");
+		}
+		previousRow = number;
+		if (
+			Object.keys(row).some(
+				(key) => !key.startsWith("@_") && !["c", "#text"].includes(localName(key)),
+			)
+		) {
+			throw new Error("Ambiguous XLSX cell structure");
+		}
+		const cellKey = directKey(row, "c");
+		const rawCells = cellKey ? (Array.isArray(row[cellKey]) ? row[cellKey] : [row[cellKey]]) : [];
+		if ((rawCells as unknown[]).some((cell) => !isObject(cell)))
+			throw new Error("Ambiguous XLSX cell structure");
+		let previousColumn = 0;
+		for (const cell of directObjects(row, "c")) {
+			const address = parseCellAddress(attr(cell, "r") ?? "");
+			if (address.row !== number || address.column <= previousColumn) {
+				throw new Error("Ambiguous XLSX cell structure");
+			}
+			previousColumn = address.column;
+			if (attr(cell, "cm") !== undefined || attr(cell, "vm") !== undefined) {
+				throw new Error("Unsupported XLSX formula metadata");
+			}
+			const key = directKey(cell, "f");
+			if (!key) continue;
+			const formula = cell[key];
+			if (isObject(formula)) {
+				for (const [name, setting] of Object.entries(formula)) {
+					// aca=false is the ordinary-formula default, emitted explicitly by Calc.
+					if (
+						name !== "#text" &&
+						!(name === "@_t" && setting === "normal") &&
+						!(name === "@_aca" && ["false", "0"].includes(String(setting)))
+					) {
+						throw new Error("XLSX formula editing supports only ordinary formulas");
+					}
+				}
+			} else if (typeof formula !== "string") {
+				throw new Error("XLSX formula editing supports only ordinary formulas");
+			}
+		}
+	}
+}
+
+function validateFormulaPackage(pkg: Package): void {
+	validatePackage(pkg);
+	const sheets = workbookSheets(pkg).sheets;
+	if (
+		new Set(sheets.map((sheet) => sheet.name)).size !== sheets.length ||
+		new Set(sheets.map((sheet) => sheet.part)).size !== sheets.length
+	) {
+		throw new Error("Ambiguous XLSX sheet structure");
+	}
+	for (const [part, bytes] of Object.entries(pkg)) {
+		if (
+			/^_xmlsignatures\//i.test(part) ||
+			/(?:^|\/)calcChain\.xml$/i.test(part) ||
+			/(?:^|\/)metadata\.xml$/i.test(part)
+		) {
+			throw new Error("Unsupported XLSX signatures, calculation chain, or formula metadata");
+		}
+		if (!part.endsWith(".xml") && !part.endsWith(".rels")) continue;
+		const document = parseXml(bytes, part);
+		if (part.endsWith(".rels")) {
+			const ids = new Set<string>();
+			for (const relationship of directObjects(
+				rootObject(document, "Relationships", part),
+				"Relationship",
+			)) {
+				const id = attr(relationship, "Id");
+				if (!id || ids.has(id)) throw new Error("Ambiguous XLSX relationship structure");
+				ids.add(id);
+				if (
+					/\/(?:calcChain|sheetMetadata)$|digital-signature/i.test(attr(relationship, "Type") ?? "")
+				) {
+					throw new Error("Unsupported XLSX signatures, calculation chain, or formula metadata");
+				}
+			}
+		}
+		if (part === "[Content_Types].xml") {
+			const types = rootObject(document, "Types", part);
+			for (const override of [
+				...directObjects(types, "Override"),
+				...directObjects(types, "Default"),
+			]) {
+				if (
+					/calcChain|digital-signature|sheetMetadata/i.test(attr(override, "ContentType") ?? "")
+				) {
+					throw new Error("Unsupported XLSX signatures, calculation chain, or formula metadata");
+				}
+			}
+		}
+		if (directKey(document, "worksheet")) {
+			validateFormulaWorksheet(rootObject(document, "worksheet", part));
+		}
+	}
+}
+
+export async function patchXlsxFormula(
+	inputPath: string,
+	outputPath: string,
+	sheetName: string,
+	request: XlsxFormula,
+	dryRun = false,
+	signal?: AbortSignal,
+) {
+	validateXlsxFormula(request);
+	const input = resolve(inputPath);
+	const output = resolve(outputPath);
+	if (input === output) throw new Error("XLSX patch output must differ from input");
+	throwIfAborted(signal);
+	const canonicalOutput = await canonicalFormulaOutput(input, output);
+	const pkg = await load(input);
+	validateFormulaPackage(pkg);
+	const sheet = resolveSheet(pkg, sheetName);
+	assertFormulaEditableXml(pkg[sheet.part]);
+	assertFormulaEditableXml(pkg["xl/workbook.xml"]);
+	const document = parseXml(pkg[sheet.part], sheet.part);
+	const worksheet = rootObject(document, "worksheet", sheet.part);
+	const prefix = xmlPrefix(document, "worksheet");
+	const address = parseCellAddress(request.cell);
+	const cellAddress = formatCell(address);
+	if (mergedRanges(worksheet).some((range) => overlaps(range, { start: address, end: address }))) {
+		throw new Error("XLSX formula target must not be merged");
+	}
+	const rows = rowsByNumber(worksheet, prefix);
+	const row = ensureRow(worksheet, rows, address.row);
+	const cells = cellsByAddress(row);
+	const cell = ensureCell(cells, cellAddress);
+	removeDirect(cell, "f", "v", "is");
+	removeAttr(cell, "t");
+	insertDirectBefore(cell, "f", request.formula.slice(1), "extLst", prefix);
+	syncCells(row, cells, prefix);
+	syncRows(worksheet, rows, prefix);
+	// Insert dimension before all schema successors, not just sheetData/cols.
+	if (!directKey(worksheet, "dimension")) {
+		const before = Object.keys(worksheet).find(
+			(key) => !key.startsWith("@_") && !["sheetPr", "#text"].includes(localName(key)),
+		);
+		insertDirectBefore(
+			worksheet,
+			"dimension",
+			{},
+			before ? localName(before) : "sheetData",
+			prefix,
+		);
+	}
+	updateDimension(worksheet, prefix);
+	pkg[sheet.part] = serializeXml(document);
+	const workbookPart = "xl/workbook.xml";
+	const workbookDocument = parseXml(pkg[workbookPart], workbookPart);
+	const workbook = rootObject(workbookDocument, "workbook", workbookPart);
+	assertFormulaTree(workbook);
+	const calc = directObject(workbook, "calcPr") ?? {};
+	const beforeCalc = JSON.stringify(workbook);
+	setAttr(calc, "calcMode", "auto");
+	setAttr(calc, "fullCalcOnLoad", "1");
+	setAttr(calc, "forceFullCalc", "1");
+	const successors = [
+		"oleSize",
+		"customWorkbookViews",
+		"pivotCaches",
+		"smartTagPr",
+		"smartTagTypes",
+		"webPublishing",
+		"fileRecoveryPr",
+		"webPublishObjects",
+		"extLst",
+	];
+	const before = Object.keys(workbook).find((key) => successors.includes(localName(key)));
+	removeDirect(workbook, "calcPr");
+	insertDirectBefore(
+		workbook,
+		"calcPr",
+		calc,
+		before ? localName(before) : "extLst",
+		xmlPrefix(workbookDocument, "workbook"),
+	);
+	const changedParts = [sheet.part];
+	if (JSON.stringify(workbook) !== beforeCalc) {
+		pkg[workbookPart] = serializeXml(workbookDocument);
+		changedParts.push(workbookPart);
+	}
+	const validate = (candidate: Package) => {
+		validateFormulaPackage(candidate);
+		const checked = rootObject(
+			parseXml(candidate[sheet.part], sheet.part),
+			"worksheet",
+			sheet.part,
+		);
+		const target = cellsByAddress(rowsByNumber(checked).get(address.row) ?? {}).get(cellAddress);
+		if (
+			!target ||
+			target[directKey(target, "f") ?? ""] !== request.formula.slice(1) ||
+			directKey(target, "v") ||
+			directKey(target, "is") ||
+			attr(target, "t") !== undefined
+		) {
+			throw new Error("XLSX formula output validation failed");
+		}
+	};
+	validate(pkg);
+	throwIfAborted(signal);
+	if (!dryRun)
+		await writePackageAtomically(
+			pkg,
+			canonicalOutput,
+			async (temporary) => validate(await load(temporary)),
+			signal,
+		);
+	return {
+		sheet: sheet.name,
+		cell: cellAddress,
+		changedParts: changedParts.sort(),
+		output,
+		wouldWrite: true,
+		written: !dryRun,
+		warnings: [
+			"Other formula cached values are unchanged; stale cache possible until recalculation. No formula evaluation was performed.",
+		],
+	};
 }
 
 export async function patchXlsx(
