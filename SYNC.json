@@ -1,34 +1,34 @@
 {
   "version": 2,
-  "confirmedAt": "2026-11-12T15:31:04Z",
+  "confirmedAt": "2026-11-12T18:51:29Z",
   "artifacts": [
     {
       "path": "PROJECT.md",
-      "fingerprint": "sha256:1790e558ce4c8d7d20addb959251c25f46071784fba4e6a84840633ca8152930",
+      "fingerprint": "sha256:4aa91348477433db568b831ec7471dec27de5e4328fb8c345dffcdc45bd564cb",
       "status": "current",
       "role": "project",
       "dependsOn": [],
       "acknowledgement": {
-        "at": "2026-11-12T15:31:04Z",
-        "reason": "Implemented narrow XLSX formula patches with independent preservation tests; make verify passed 167 tests with Docxquisite and LibreOffice, and make site passed. No release or tag was created."
+        "at": "2026-11-12T18:51:29Z",
+        "reason": "Implemented atomic explicit formula batches through the single-cell path. make verify: 169 passed, one unavailable-Docxquisite skip; independent LibreOffice batch smoke and make site passed. No installs, tags, push, or release."
       }
     },
     {
       "path": "ARCHITECTURE.md",
-      "fingerprint": "sha256:1db383a28c57b34cf6e2f8bdeae8e6e3062bfebe479a04305745cc9885dbd9a7",
+      "fingerprint": "sha256:72494bc4af81d251dc5b27670b1165528c3cc53ae4ba7dea81433abdab485af4",
       "status": "current",
       "role": "architecture",
       "dependsOn": [
         "PROJECT.md"
       ],
       "acknowledgement": {
-        "at": "2026-11-12T15:31:04Z",
-        "reason": "Documented XLSX formula editing, recalculation limits, privacy and conservative rejection after implementation and verification."
+        "at": "2026-11-12T18:51:29Z",
+        "reason": "Documented shared atomic batch mutation, 1000-target limit, all-target validation, privacy, and unchanged conservative restrictions after verification."
       }
     },
     {
       "path": "README.md",
-      "fingerprint": "sha256:d68bd5db0fb0d78514ff2ee9f229b54f04566aa55b3d1ee5f5f504de8aa69c92",
+      "fingerprint": "sha256:7e171c7bdb11b255f101b0313c4dc4e47c849cddb5a0658f4f46eb39012bb11d",
       "status": "current",
       "role": "documentation",
       "dependsOn": [
@@ -36,8 +36,8 @@
         "ARCHITECTURE.md"
       ],
       "acknowledgement": {
-        "at": "2026-11-12T15:31:04Z",
-        "reason": "Updated formula operation guidance, privacy and stale-cache limitations, including the synthetic LibreOffice observation."
+        "at": "2026-11-12T18:51:29Z",
+        "reason": "Synchronized batch operation matrix, example, input conflicts, result metadata, privacy, and recalculation caveats; rebuilt site."
       }
     },
     {
@@ -68,7 +68,7 @@
     },
     {
       "path": "CHANGELOG.md",
-      "fingerprint": "sha256:0e0258616a07af2f9e2aac3b0dfc627ea7c7271bf37fc048df08176a2c646318",
+      "fingerprint": "sha256:5d9db646e1e8ee89ce1f578b17af9e34b42363baeb892552eecbeaf2b18d5eec",
       "status": "current",
       "role": "changelog",
       "dependsOn": [
@@ -76,8 +76,8 @@
         "ARCHITECTURE.md"
       ],
       "acknowledgement": {
-        "at": "2026-11-12T15:31:04Z",
-        "reason": "Recorded the XLSX formula operation as unreleased; no version or feature tag was created."
+        "at": "2026-11-12T18:51:29Z",
+        "reason": "Recorded atomic explicit formula batches as unreleased without a version change or tag."
       }
     }
   ]

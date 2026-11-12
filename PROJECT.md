@@ -58,8 +58,9 @@ The current pre-1.0 source implements:
 - deterministic regression tests for the supported surface;
 - content-free XLSX layout inspection, mapped CSV-to-template filling,
   primitive automatic typing, formula and merged-range protection,
-  narrow style/layout patches, restricted single-cell formula patches,
-  and optional image rendering through LibreOffice;
+  narrow style/layout patches, restricted single-cell and atomic
+  explicit batch formula patches, and optional image rendering through
+  LibreOffice;
 - Pandoc-based PPTX text extraction, GFM generation, slide rendering,
   and narrow transactional OOXML patches;
 - package-owned prompt guidance that keeps deterministic XLSX processing
@@ -104,30 +105,39 @@ at the part content level. Edited XML parts are reserialized and are not
 promised to be lexically identical to their originals.
 
 Existing spreadsheet cell values, CSV fields, formula contents, and
-comments are tool-local data. A supplied `xlsx_formula` is tool input
-visible to the agent. Normal XLSX results and errors expose only
-structural or operational metadata. That metadata may include worksheet
-names, ranges, dimensions, counts, merge addresses, hidden ranges,
-changed parts, and output paths. Bounded layout metadata can reveal
-limited layout and occupancy information, but not cell values or CSV
-contents. A formula patch uses `sheet` and
-`xlsx_formula: { cell, formula }` instead of `range` and `xlsx_patches`,
-with an input `path` and distinct `output`. The target is one explicit
-unmerged A1 cell; the formula starts with `=`, has a nonblank XML-safe
-body, and is at most 8,192 UTF-16 code units. Optional `dry_run`
-validates without writing. The old target contents and cache are
-removed, not returned; other caches may be stale. Automatic full
-recalculation flags are requests, not evaluation or a guarantee. Signed
-packages, calculation chains, complex formulas, unsupported extension or
-formula metadata, and ambiguous structures are rejected. Output is
-validated and atomically replaced; input is not intentionally modified.
-Formula text is not semantically validated and may trigger unsafe
-behavior on later opening, so review untrusted input and output. XLSX
-support does not calculate formulas or provide arbitrary content
-extraction or spreadsheet programming. PPTX support does not promise
-arbitrary XML editing or automatic layout repair; it preserves
-unsupported presentation parts but does not manipulate charts, SmartArt,
-animations, transitions, notes, masters, themes, or embedded objects.
+comments are tool-local data. Supplied `xlsx_formula` or `xlsx_formulas`
+formulas are tool input visible to the agent. Normal XLSX results and
+errors expose only structural or operational metadata. That metadata may
+include worksheet names, ranges, dimensions, counts, merge addresses,
+hidden ranges, changed parts, and output paths. Bounded layout metadata
+can reveal limited layout and occupancy information, but not cell values
+or CSV contents. A formula patch uses `sheet` and exactly one of
+`xlsx_formula: { cell, formula }` (single cell) or
+`xlsx_formulas: [{ cell, formula }, ...]` (1--1,000 explicit targets on
+one sheet), instead of `range` and `xlsx_patches`, with an input `path`
+and distinct `output`. Duplicate case-normalized cells, empty or
+oversized batches, extra object keys, and conflicting patch fields are
+rejected. All targets are validated before publishing one output through
+the shared formula-edit path. Absent cells are created and existing
+values/formulas are replaced with styles preserved; there is no
+fill-down or reference translation. Batch results report normalized
+`cells` and `formulaCount`; single-cell results retain `cell`, never
+contents. Each target is one explicit unmerged A1 cell; each formula
+starts with `=`, has a nonblank XML-safe body without CR, and is at most
+8,192 UTF-16 code units. Optional `dry_run` validates without writing.
+The old target contents and cache are removed, not returned; other
+caches may be stale. Automatic full recalculation flags are requested
+once per operation, not evaluation or a guarantee. Signed packages,
+calculation chains, complex formulas, unsupported extension or formula
+metadata, and ambiguous structures are rejected. Output is validated and
+atomically replaced; input is not intentionally modified. Formula text
+is not semantically validated and may trigger unsafe behavior on later
+opening, so review untrusted input and output. XLSX support does not
+calculate formulas or provide arbitrary content extraction or
+spreadsheet programming. PPTX support does not promise arbitrary XML
+editing or automatic layout repair; it preserves unsupported
+presentation parts but does not manipulate charts, SmartArt, animations,
+transitions, notes, masters, themes, or embedded objects.
 
 Model-facing schema descriptions and prompt guidance should make a valid
 format/action/view combination possible in one call, distinguish source
@@ -183,14 +193,18 @@ for recovery, exhausted attempts, client/rate-limit errors, and cleanup.
 
 ## Verification
 
-The XLSX formula and optional tracked replacement integrations passed
-`make verify` with Docxquisite and LibreOffice available: 167 tests, no
-skips; line, function, and branch coverage were 97.24%, 97.84%, and
-87.18%. `make site` also passed. Real-backend tests use synthetic files;
-they do not establish Microsoft Office compatibility. In a separate
-LibreOffice reopen/export smoke test, a dependent formula cache remained
-stale despite the full recalculation request. No new tag or release was
-created.
+Atomic formula batches passed `make verify`: 170 tests, 169 passed, one
+skipped because `docxquisite` was unavailable on PATH. Line, function,
+and branch coverage were 97.29%, 97.86%, and 87.00%. `make site` also
+passed. The existing independent LibreOffice-produced XLSX smoke now
+covers batch formula replacement and absent-cell creation, using Python
+ElementTree to check target cache removal, unchanged non-target cells,
+and byte-identical untouched parts. Real-backend tests use synthetic
+files; they do not establish Microsoft Office compatibility. A
+previously observed LibreOffice reopen/export retained a stale dependent
+cache despite the full recalculation request; the batch path makes no
+stronger guarantee. No dependencies were installed and no tag, push, or
+release was created.
 
 ## Previous verification
 

@@ -150,17 +150,92 @@ test("rejects merged target, nonordinary formulas anywhere, calc chain, signatur
 	}
 });
 
+test("atomic formula batch creates cells, replaces formulas, and preserves nontarget data", async () => {
+	const { dir, path, output } = await setup(fixture(`<c r="B2" s="1" t="str"><f>${oldSecret}</f><v>${oldSecret}</v></c>`));
+	const original = await readFile(path);
+	const xlsx_formulas = [{ cell: 'b2', formula }, { cell: 'D2', formula: '=B2+1' }, { cell: 'A8', formula: '=D2*2' }];
+	const call = request(path, output, { xlsx_formula: undefined, xlsx_formulas });
+	const result = await executeFiller(call, dir);
+	privateCheck(result);
+	assert.deepEqual(result.details.cells, ['B2', 'D2', 'A8']);
+	assert.equal(result.details.formulaCount, 3);
+	assert.equal(result.details.cell, undefined);
+	const before = unzipSync(original);
+	const after = unzipSync(await readFile(output));
+	assert.deepEqual(Object.keys(after).sort(), Object.keys(before).sort());
+	for (const name of Object.keys(before)) if (!['xl/workbook.xml', 'xl/worksheets/sheet1.xml'].includes(name)) assert.deepEqual(after[name], before[name], name);
+	const sheet = dec(after['xl/worksheets/sheet1.xml']);
+	for (const item of xlsx_formulas) {
+		const target = cell(sheet, item.cell.toUpperCase());
+		assert.equal(target.f, item.formula.slice(1));
+		assert.equal(target.v, undefined);
+		assert.equal(target.is, undefined);
+		assert.equal(target['@_t'], undefined);
+	}
+	assert.equal(cell(sheet, 'B2')['@_s'], '1');
+	for (const address of ['A1', 'C3']) assert.deepEqual(cell(sheet, address), cell(dec(before['xl/worksheets/sheet1.xml']), address));
+	const workbook = parser.parse(dec(after['xl/workbook.xml'])).workbook;
+	assert.ok(!Array.isArray(workbook.calcPr));
+	assert.equal(workbook.calcPr['@_forceFullCalc'], '1');
+	assert.deepEqual(await readFile(path), original);
+	const published = await readFile(output);
+	const dry = await executeFiller(request(path, output, { xlsx_formula: undefined, xlsx_formulas, dry_run: true }), dir);
+	assert.equal(dry.details.written, false);
+	privateCheck(dry);
+	assert.deepEqual(await readFile(output), published);
+});
+
+test("batch errors are private and all-or-nothing including a later merged target", async () => {
+	const parts = fixture();
+	parts['xl/worksheets/sheet1.xml'] = enc(dec(parts['xl/worksheets/sheet1.xml']).replace('</worksheet>', '<mergeCells count="1"><mergeCell ref="D4:E4"/></mergeCells></worksheet>'));
+	const { dir, path, output } = await setup(parts);
+	const original = await readFile(path);
+	const first = { cell: 'B2', formula };
+	for (const extra of [
+		{ xlsx_formulas: [] }, { xlsx_formulas: null }, { xlsx_formulas: {} },
+		{ xlsx_formulas: Array.from({ length: 1001 }, () => first) },
+		{ xlsx_formulas: [first, { cell: 'b2', formula: '=1' }] },
+		{ xlsx_formulas: [first, { cell: 'D4', formula }] },
+		{ xlsx_formulas: [first, { cell: 'A0', formula }] },
+		{ xlsx_formulas: [first, { cell: 'A4', formula: '=' }] },
+		{ xlsx_formulas: [first, { cell: 'A4', formula, sheet: 'Second' }] },
+		{ xlsx_formulas: [first], xlsx_formula: first },
+		{ xlsx_formulas: [first], range: 'B2' },
+		{ xlsx_formulas: [first], xlsx_patches: { bold: true } },
+		{ xlsx_formulas: [first], action: 'read', view: 'structure' },
+	]) for (const dry_run of [false, true]) {
+		await writeFile(output, 'existing output');
+		await failure(() => executeFiller(request(path, output, { xlsx_formula: undefined, ...extra, dry_run }), dir));
+		assert.equal(await readFile(output, 'utf8'), 'existing output');
+		assert.deepEqual(await readFile(path), original);
+	}
+});
+
+test("formula batch accepts its 1000-target bound", async () => {
+	const { dir, path, output } = await setup();
+	const xlsx_formulas = Array.from({ length: 1000 }, (_, i) => ({ cell: `D${i + 1}`, formula: '=1' }));
+	const result = await executeFiller(request(path, output, { xlsx_formula: undefined, xlsx_formulas, dry_run: true }), dir);
+	assert.equal(result.details.formulaCount, 1000);
+	await assert.rejects(readFile(output), { code: 'ENOENT' });
+});
+
 test("model-facing schema and prompt describe formula patch and limitations", () => {
 	let tool: { promptGuidelines?: string[]; promptSnippet?: string; description?: string } | undefined;
 	extension({ registerTool(definition: typeof tool) { tool = definition; } } as never);
 	const props = fillerSchema.properties as unknown as Record<string, Record<string, unknown>>;
 	assert.ok(props.xlsx_formula, 'schema must expose xlsx_formula');
+	assert.equal(props.xlsx_formulas.minItems, 1);
+	assert.equal(props.xlsx_formulas.maxItems, 1000);
+	assert.match(JSON.stringify(props.xlsx_formulas), /mutually exclusive/i);
+	assert.match(JSON.stringify(props.xlsx_formulas), /never formulas or values/i);
 	const description = JSON.stringify(props.xlsx_formula);
 	assert.match(description, /cell/i);
 	assert.match(description, /formula/i);
 	assert.match(description, /=/);
 	const prompt = `${tool?.description} ${tool?.promptSnippet} ${tool?.promptGuidelines?.join(' ')}`;
-	assert.match(prompt, /xlsx_formula/);
+	assert.match(prompt, /xlsx_formulas/);
+	assert.match(prompt, /duplicate case-normalized/);
+	assert.match(prompt, /every target.*atomic/);
 	assert.match(prompt, /recalculat/i);
 	assert.match(prompt, /(?:not|no|without).*evaluat|(?:not|no|without).*calculat/i);
 });

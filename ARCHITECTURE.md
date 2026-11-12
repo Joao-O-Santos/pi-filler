@@ -21,7 +21,7 @@ Markdown-to-DOCX writes; and narrow OOXML patches. PPTX supports text,
 formatting, and image reads; text search; GFM-to-PPTX writes; and narrow
 OOXML patches. PDF supports text and image reads plus text search. XLSX
 supports content-free structure and image reads, CSV-to-template writes,
-formatting/layout patches, and restricted single-cell formula patches.
+formatting/layout patches, and restricted explicit formula patches.
 
 Schema construction and static input inference both use TypeBox. Enums
 remain flat string enums for provider compatibility.
@@ -124,18 +124,29 @@ the addressed range's columns and rows. Existing cell values and
 formulas remain unchanged during formatting.
 
 A formula patch requires `path`, `sheet`, a distinct `output`, and
-`xlsx_formula: { cell, formula }` instead of `range` and `xlsx_patches`.
-The cell is one explicit unmerged A1 address. The formula starts with
-`=`, has a nonblank body, contains XML-safe characters, and is at most
-8,192 UTF-16 code units; extra object keys are rejected. Optional
-`dry_run` validates without writing. The target's old formula or value
-and cache are removed without returning their contents. Other formula
-caches remain unchanged and may be stale. The workbook requests
-automatic full recalculation on open, but no formula is evaluated and
-recalculation is not guaranteed. Formula text is not semantically
-validated and may cause unsafe behavior, including external references,
-when opened in a spreadsheet application; review untrusted input and
-output before opening.
+exactly one of `xlsx_formula: { cell, formula }` and
+`xlsx_formulas: [{ cell, formula }, ...]`, instead of `range` and
+`xlsx_patches`. Both use the same mutation path, not sequential file
+writes. Batches accept 1--1,000 explicit targets on one sheet; duplicate
+case-normalized cells, empty or oversized arrays, extra object keys, and
+conflicting patch fields are rejected. All targets are checked before
+publication. Absent cells are created and existing values or formulas
+are replaced while preserving styles; there is no formula generation,
+fill-down, or relative-reference translation. Batch results return
+normalized `cells` in request order and `formulaCount`; single-cell
+results retain `cell`. Neither returns values or formulas.
+
+Each cell is one explicit unmerged A1 address. The formula starts with
+`=`, has a nonblank body, contains XML-safe characters without CR, and
+is at most 8,192 UTF-16 code units; extra object keys are rejected.
+Optional `dry_run` validates without writing. The target's old formula
+or value and cache are removed without returning their contents. Other
+formula caches remain unchanged and may be stale. The workbook requests
+automatic full recalculation on open once per operation, but no formula
+is evaluated and recalculation is not guaranteed. Formula text is not
+semantically validated and may cause unsafe behavior, including external
+references, when opened in a spreadsheet application; review untrusted
+input and output before opening.
 
 Formula editing rejects signed packages, calculation chains, shared,
 array, and data-table formulas, unsupported extension or formula
@@ -148,6 +159,14 @@ LibreOffice, then use the common PDF renderer to create numbered PNG
 files. They do not select a sheet; `first_page` and `last_page` may
 select resulting print pages. The temporary PDF is removed and is not an
 exported artifact.
+
+Formula batches remove every target cache and validate every resulting
+formula and cache removal in memory and in the temporary package before
+one atomic publication. Only the selected worksheet and, when its
+recalculation flags change, the workbook part are reserialized; every
+other part is preserved byte-for-byte at the content level. Non-target
+cells in the selected worksheet retain their content under the same
+conservative XML restrictions as single-cell edits.
 
 XLSX writes and patches require a distinct output path. They run through
 the file mutation queue, build and validate a temporary sibling package,

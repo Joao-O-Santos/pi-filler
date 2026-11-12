@@ -4,6 +4,12 @@
 
 ### Added
 
+- Atomic explicit XLSX formula batches via `xlsx_formulas`, sharing the
+  single-cell path. Supports 1--1,000 unique case-normalized targets on
+  one sheet, creates absent cells, replaces values/formulas, removes
+  target caches, and requests recalculation once. All targets validate
+  before publication; dry runs preserve output. Existing conservative
+  workbook restrictions and privacy boundaries remain.
 - Restricted single-cell XLSX formula patches via `xlsx_formula`, with
   dry runs, package guards, target cache removal, and recalculation
   requests without formula evaluation. Other formula caches may be

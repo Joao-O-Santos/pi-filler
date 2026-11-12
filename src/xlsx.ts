@@ -1340,6 +1340,19 @@ export function validateXlsxFormula(value: unknown): asserts value is XlsxFormul
 	parseCellAddress(value.cell);
 }
 
+export function validateXlsxFormulas(value: unknown): asserts value is XlsxFormula[] {
+	if (!Array.isArray(value) || value.length === 0 || value.length > 1000) {
+		throw new Error("XLSX formula batch must contain 1 to 1000 targets");
+	}
+	const seen = new Set<string>();
+	for (const request of value) {
+		validateXlsxFormula(request);
+		const cell = formatCell(parseCellAddress(request.cell));
+		if (seen.has(cell)) throw new Error("XLSX formula batch contains duplicate cells");
+		seen.add(cell);
+	}
+}
+
 // This exact Calc extension contains only an empty element and literal attributes.
 // Keep unknown extensions rejected: they may carry formula or mixed-content metadata.
 function isLibreOfficeCalcExtension(value: unknown): boolean {
@@ -1605,11 +1618,13 @@ export async function patchXlsxFormula(
 	inputPath: string,
 	outputPath: string,
 	sheetName: string,
-	request: XlsxFormula,
+	request: XlsxFormula | XlsxFormula[],
 	dryRun = false,
 	signal?: AbortSignal,
 ) {
-	validateXlsxFormula(request);
+	const batch = Array.isArray(request);
+	const requests = batch ? request : [request];
+	validateXlsxFormulas(requests);
 	const input = resolve(inputPath);
 	const output = resolve(outputPath);
 	if (input === output) throw new Error("XLSX patch output must differ from input");
@@ -1623,19 +1638,26 @@ export async function patchXlsxFormula(
 	const document = parseXml(pkg[sheet.part], sheet.part);
 	const worksheet = rootObject(document, "worksheet", sheet.part);
 	const prefix = xmlPrefix(document, "worksheet");
-	const address = parseCellAddress(request.cell);
-	const cellAddress = formatCell(address);
-	if (mergedRanges(worksheet).some((range) => overlaps(range, { start: address, end: address }))) {
-		throw new Error("XLSX formula target must not be merged");
+	const targets = requests.map((item) => {
+		const address = parseCellAddress(item.cell);
+		return { address, cellAddress: formatCell(address), formula: item.formula.slice(1) };
+	});
+	const merges = mergedRanges(worksheet);
+	for (const { address } of targets) {
+		if (merges.some((range) => overlaps(range, { start: address, end: address }))) {
+			throw new Error("XLSX formula target must not be merged");
+		}
 	}
 	const rows = rowsByNumber(worksheet, prefix);
-	const row = ensureRow(worksheet, rows, address.row);
-	const cells = cellsByAddress(row);
-	const cell = ensureCell(cells, cellAddress);
-	removeDirect(cell, "f", "v", "is");
-	removeAttr(cell, "t");
-	insertDirectBefore(cell, "f", request.formula.slice(1), "extLst", prefix);
-	syncCells(row, cells, prefix);
+	for (const { address, cellAddress, formula } of targets) {
+		const row = ensureRow(worksheet, rows, address.row);
+		const cells = cellsByAddress(row);
+		const cell = ensureCell(cells, cellAddress);
+		removeDirect(cell, "f", "v", "is");
+		removeAttr(cell, "t");
+		insertDirectBefore(cell, "f", formula, "extLst", prefix);
+		syncCells(row, cells, prefix);
+	}
 	syncRows(worksheet, rows, prefix);
 	// Insert dimension before all schema successors, not just sheetData/cols.
 	if (!directKey(worksheet, "dimension")) {
@@ -1693,15 +1715,18 @@ export async function patchXlsxFormula(
 			"worksheet",
 			sheet.part,
 		);
-		const target = cellsByAddress(rowsByNumber(checked).get(address.row) ?? {}).get(cellAddress);
-		if (
-			!target ||
-			target[directKey(target, "f") ?? ""] !== request.formula.slice(1) ||
-			directKey(target, "v") ||
-			directKey(target, "is") ||
-			attr(target, "t") !== undefined
-		) {
-			throw new Error("XLSX formula output validation failed");
+		const checkedRows = rowsByNumber(checked);
+		for (const { address, cellAddress, formula } of targets) {
+			const target = cellsByAddress(checkedRows.get(address.row) ?? {}).get(cellAddress);
+			if (
+				!target ||
+				target[directKey(target, "f") ?? ""] !== formula ||
+				directKey(target, "v") ||
+				directKey(target, "is") ||
+				attr(target, "t") !== undefined
+			) {
+				throw new Error("XLSX formula output validation failed");
+			}
 		}
 	};
 	validate(pkg);
@@ -1715,7 +1740,9 @@ export async function patchXlsxFormula(
 		);
 	return {
 		sheet: sheet.name,
-		cell: cellAddress,
+		...(batch
+			? { cells: targets.map((target) => target.cellAddress), formulaCount: targets.length }
+			: { cell: targets[0].cellAddress }),
 		changedParts: changedParts.sort(),
 		output,
 		wouldWrite: true,

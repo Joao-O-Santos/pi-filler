@@ -75,7 +75,7 @@ combination and supply only its relevant fields:
 | XLSX | `read` | `structure` | none |
 | XLSX | `read` | `image` | `output`; optional `first_page`, `last_page` select resulting workbook print pages |
 | XLSX | `write` | omitted | template `path`, `source_csv`, `sheet`, A1 `start_cell`, `output`; optional `column_map` |
-| XLSX | `patch` | omitted | `sheet`, `output`, and either A1 `range` with `xlsx_patches` or `xlsx_formula`; optional `dry_run` |
+| XLSX | `patch` | omitted | `sheet`, `output`, and either A1 `range` with `xlsx_patches` or exactly one of `xlsx_formula` / `xlsx_formulas`; optional `dry_run` |
 
 PDF write and patch, and XLSX search, are unsupported. Parameters
 irrelevant to the chosen operation fail explicitly instead of being
@@ -237,12 +237,12 @@ or element ordering may change.
 
 Existing spreadsheet cell values, CSV fields, formula contents, and
 comments are processed locally and are not returned to the model. A
-formula supplied in `xlsx_formula` is tool input and visible to the
-agent. When a deterministic XLSX write or patch does not require
-inspection, do not read CSV or cell contents into model context merely
-to perform it. Structural results may contain sheet names, ranges,
-dimensions, counts, merged-range addresses, hidden row and column
-ranges, changed package parts, and write status---not cell or CSV
+formula supplied in `xlsx_formula` or `xlsx_formulas` is tool input and
+visible to the agent. When a deterministic XLSX write or patch does not
+require inspection, do not read CSV or cell contents into model context
+merely to perform it. Structural results may contain sheet names,
+ranges, dimensions, counts, merged-range addresses, hidden row and
+column ranges, changed package parts, and write status---not cell or CSV
 contents. Layout-range arrays are capped and report whether they were
 truncated; this metadata can reveal limited layout and occupancy
 information.
@@ -253,7 +253,7 @@ information.
   `first_page` and `last_page` select resulting print pages.
 - `write` fills an existing workbook template from CSV.
 - `patch` changes formatting or layout while preserving cell contents,
-  or sets one ordinary formula.
+  or sets explicit ordinary formulas atomically.
 
 CSV writes skip the first record by default (`has_header: true`) and
 preserve fields as text by default (`value_mode: "text"`). Automatic
@@ -269,11 +269,12 @@ horizontal and vertical alignment, wrapping, Excel number-format codes,
 uniform borders, column width, and row height. Output is validated and
 atomically replaced only after successful processing.
 
-### Setting a formula
+### Adding or editing formulas
 
 Use `path` for the input workbook, `sheet` for its worksheet name,
-`output` for a distinct output path, and `xlsx_formula` instead of
-`range` and `xlsx_patches`:
+`output` for a distinct output path, and exactly one of `xlsx_formula`
+(single cell) or `xlsx_formulas` (atomic batch), instead of `range` and
+`xlsx_patches`:
 
 ``` ts
 filler({
@@ -282,23 +283,36 @@ filler({
   path: "template.xlsx",
   sheet: "Results",
   output: "with-formula.xlsx",
-  xlsx_formula: { cell: "B2", formula: "=SUM(B3:B10)" },
+  xlsx_formulas: [
+    { cell: "B2", formula: "=SUM(B3:B10)" },
+    { cell: "C2", formula: "=B2*2" }
+  ],
   dry_run: true
 })
 ```
 
+A batch accepts 1--1,000 explicit targets on one sheet. Duplicate
+case-normalized cells (such as `b2` and `B2`), empty or oversized
+batches, and conflicting patch fields are rejected. All targets are
+validated before publishing one output; a failure leaves existing output
+unchanged. Absent cells are created; existing values or formulas are
+replaced, preserving cell styles. There is no fill-down or
+relative-reference translation: supply each formula explicitly. Batch
+results include normalized `cells` in request order and `formulaCount`;
+single-cell results retain `cell`. Neither returns formulas or values.
+
 `cell` must be one explicit, unmerged A1 cell. `formula` must start with
-`=`, have a nonblank body, contain XML-safe characters, and be at most
-8,192 UTF-16 code units long. Only `cell` and `formula` are accepted in
-the object. The target's old value or formula and cached value are
-removed; their contents are not returned. The supplied formula is not
-evaluated or semantically validated. Other formula caches remain
-unchanged and may be stale. Workbook flags request automatic full
-recalculation on open; they do not perform or guarantee recalculation.
-In one synthetic headless LibreOffice 26.8.2.2 reopen/export, the edited
-cell recalculated but its dependent cell retained a stale cached value.
-Verify recalculation in the target application before relying on
-results.
+`=`, have a nonblank body, contain XML-safe characters without carriage
+returns (CR), and be at most 8,192 UTF-16 code units long. Only `cell`
+and `formula` are accepted in the object. The target's old value or
+formula and cached value are removed; their contents are not returned.
+The supplied formula is not evaluated or semantically validated. Other
+formula caches remain unchanged and may be stale. Workbook flags request
+automatic full recalculation on open once per operation; they do not
+perform or guarantee recalculation. In one synthetic headless
+LibreOffice 26.8.2.2 reopen/export, the edited cell recalculated but its
+dependent cell retained a stale cached value. Verify recalculation in
+the target application before relying on results.
 
 Formula editing rejects signed packages, calculation chains, shared,
 array, and data-table formulas, unsupported extension or formula

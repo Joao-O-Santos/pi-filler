@@ -88,4 +88,29 @@ test("LibreOffice-produced XLSX formula edit removes only the target cache", asy
 	assert.deepEqual(edited.B1, { formula: "A1*4", value: null, hasValue: false });
 	// This cache remains stale; the patch does not calculate dependent formulas.
 	assert.deepEqual(edited.C1, original.C1);
+	const batchOutput = join(dir, "batch.xlsx");
+	const before = unzipSync(await readFile(workbook));
+	await executeFiller(
+		{
+			format: "xlsx",
+			action: "patch",
+			path: workbook,
+			output: batchOutput,
+			sheet: "Data",
+			xlsx_formulas: [
+				{ cell: "B1", formula: "=A1*5" },
+				{ cell: "D4", formula: "=B1+2" },
+			],
+		},
+		dir,
+	);
+	const after = unzipSync(await readFile(batchOutput));
+	const batchCells = cells(after[sheet]);
+	assert.deepEqual(batchCells.B1, { formula: "A1*5", value: null, hasValue: false });
+	assert.deepEqual(batchCells.D4, { formula: "B1+2", value: null, hasValue: false });
+	assert.deepEqual(batchCells.C1, original.C1);
+	assert.deepEqual(batchCells.A1, original.A1);
+	for (const name of Object.keys(before)) {
+		if (![sheet, "xl/workbook.xml"].includes(name)) assert.deepEqual(after[name], before[name]);
+	}
 });
