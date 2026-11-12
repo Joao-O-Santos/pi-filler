@@ -21,6 +21,7 @@ import {
 import { readPdfText, renderPdfPages, searchPdf } from "./pdf.js";
 import { inspectPptx, type PptxPatchSet, patchPptx } from "./pptx.js";
 import { commandError, runCommand } from "./process.js";
+import { replaceTracked, validateTrackedReplacement } from "./tracked-replace.js";
 import { fillXlsxFromCsv, inspectXlsxStructure, patchXlsx, type XlsxPatchSet } from "./xlsx.js";
 
 const docxPatchesSchema = Type.Object(
@@ -303,6 +304,24 @@ export const fillerSchema = Type.Object(
 			Type.String({ description: "Reference DOCX for writes", minLength: 1 }),
 		),
 		patches: Type.Optional(docxPatchesSchema),
+		tracked_replace: Type.Optional(
+			Type.Object(
+				{
+					old: Type.String({
+						minLength: 1,
+						description: "Unique single-run main-story text to replace",
+					}),
+					new: Type.String({ description: "Replacement text; empty deletes" }),
+					author: Type.String({ minLength: 1, description: "Tracked revision author" }),
+					expected_sha256: Type.Optional(Type.String({ pattern: "^[0-9a-f]{64}$" })),
+				},
+				{
+					additionalProperties: false,
+					description:
+						"DOCX patch alternative to patches; requires optional docx-toolkit on PATH and a nonexistent output. No dry_run; restricted documents only, not general Word editing",
+				},
+			),
+		),
 		pptx_patches: Type.Optional(pptxPatchesSchema),
 		reference_pptx: Type.Optional(
 			Type.String({ description: "Reference PPTX for writes", minLength: 1 }),
@@ -348,7 +367,7 @@ export const fillerSchema = Type.Object(
 			Type.Boolean({
 				default: false,
 				description:
-					"Validate and report without creating or replacing output; output remains required for DOCX/PPTX patch or XLSX write/patch",
+					"Validate and report without creating or replacing output; output remains required for DOCX/PPTX patch or XLSX write/patch. Not supported with tracked_replace",
 			}),
 		),
 		literal: Type.Optional(
@@ -392,6 +411,7 @@ const controlFields: ControlField[] = [
 	"pptx_patches",
 	"reference_pptx",
 	"patches",
+	"tracked_replace",
 	"source_csv",
 	"sheet",
 	"start_cell",
@@ -476,8 +496,15 @@ function assertSupported(input: FillerInput): void {
 		if (input.view !== undefined || !input.output) {
 			throw new Error("DOCX patch requires output and does not accept view");
 		}
-		if (input.patches === undefined) throw new Error("DOCX patch requires patches");
-		assertParameters(input, ["output", "patches", "dry_run"]);
+		if ((input.patches === undefined) === (input.tracked_replace === undefined)) {
+			throw new Error("DOCX patch requires exactly one of patches or tracked_replace");
+		}
+		if (input.tracked_replace !== undefined) {
+			assertParameters(input, ["output", "tracked_replace"]);
+			validateTrackedReplacement(input.tracked_replace);
+		} else {
+			assertParameters(input, ["output", "patches", "dry_run"]);
+		}
 		return;
 	}
 
@@ -655,8 +682,10 @@ export async function executeFiller(
 		}
 		if (input.action === "patch") {
 			const output = normalizePath(input.output ?? "", cwd);
-			const result = await withFileMutationQueue(output, () =>
-				patchDocx(path, output, input.patches as DocxPatchSet, input.dry_run),
+			const result = await withFileMutationQueue(output, async () =>
+				input.tracked_replace !== undefined
+					? replaceTracked(path, output, input.tracked_replace, cwd, signal)
+					: patchDocx(path, output, input.patches as DocxPatchSet, input.dry_run),
 			);
 			return {
 				text: JSON.stringify(result, null, 2),
@@ -868,6 +897,7 @@ export default function extension(pi: ExtensionAPI): void {
 			"For DOCX/PPTX writes, path is Markdown and output is the new document; reference_docx/reference_pptx is optional. DOCX uses Pandoc Markdown (smart typography disabled), including native review spans; PPTX uses GFM Markdown. DOCX generation is not a lossless round trip of an existing Word layout. For XLSX writes, path is the template and source_csv, sheet, A1-style start_cell, and output are required; column_map optionally maps all CSV ordinals or all exact headers to XLSX columns.",
 			"When an XLSX write or patch can perform the requested deterministic transformation without inspecting CSV or cell contents, do not read those contents into model context merely to carry out the transformation. Processing stays local and results do not return cell or CSV contents.",
 			"For filler patches, provide a new output path plus DOCX patches, PPTX pptx_patches, or XLSX sheet, A1-style range, and xlsx_patches. PPTX text replacements target slide text paragraphs and may name a 1-based slide. dry_run: true still requires output but does not create or replace it.",
+			"DOCX patch alternatively accepts exactly one tracked_replace {old, new, author, expected_sha256?}, not patches. Requires independently installed docx-toolkit on PATH, a distinct nonexistent output, no view or dry_run (even false). old and author must be nonempty; empty new deletes. The optional source SHA-256 is lowercase 64 hex. Restricted to one unique single-run main-story match; existing revisions and complex documents may be rejected. Processing stays local; requested text/author and toolkit diagnostics are not returned. Structural checks do not prove Word rendering. Transport/protocol failure may leave an output: inspect it before retrying; no automatic cleanup or retry.",
 			"For filler DOCX text reads/searches, track_changes defaults to accept; use reject for the pre-edit text or all for insertion/deletion spans and comments. This selects an extraction view, not native Word acceptance/rejection. For filler defaults, PDF queries are regular expressions by default; use literal: true for literal text. XLSX writes skip a header and preserve text by default.",
 			"For filler results, DOCX/PPTX search may be truncated; narrow its query. PDF text or search may be truncated; narrow its page range or query.",
 		],

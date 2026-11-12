@@ -25,6 +25,7 @@ export interface RunCommandOptions {
 	signal?: AbortSignal;
 	timeoutMs?: number;
 	maxBufferBytes?: number;
+	stdin?: string;
 }
 
 type ExecFailure = Error & {
@@ -38,7 +39,8 @@ export function runCommand(
 	options: RunCommandOptions = {},
 ): Promise<CommandResult> {
 	return new Promise((resolve, reject) => {
-		execFile(
+		let stdinFailed = false;
+		const child = execFile(
 			executable,
 			[...args],
 			{
@@ -51,6 +53,10 @@ export function runCommand(
 				encoding: null,
 			},
 			(error, stdout, stderr) => {
+				if (stdinFailed && (!error || typeof (error as ExecFailure).code === "number")) {
+					reject(new Error(`Failed to write stdin to ${executable}`));
+					return;
+				}
 				if (!error) {
 					resolve({ stdout, stderr, code: 0 });
 					return;
@@ -88,6 +94,13 @@ export function runCommand(
 				reject(new Error(`Failed to run ${executable}: ${failure.message}`));
 			},
 		);
+		if (options.stdin !== undefined) {
+			// Never expose pipe errors or input.
+			child.stdin?.on("error", () => {
+				stdinFailed = true;
+			});
+			child.stdin?.end(options.stdin, "utf8");
+		}
 	});
 }
 
