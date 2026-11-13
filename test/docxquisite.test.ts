@@ -44,8 +44,11 @@ process.stdin.on('end', () => {
   }
   if (mode === 'replace-malformed') { console.log('not json'); return; }
   if (mode === 'replace-error') { console.error('PRIVATE old sentence 7c9 PRIVATE new sentence 8d0 PRIVATE author 9e1'); console.log(JSON.stringify({version:1,ok:false,error:{code:'document_error',message:'PRIVATE old sentence 7c9 PRIVATE new sentence 8d0 PRIVATE author 9e1'}})); process.exitCode = 1; return; }
-  fs.writeFileSync(request.output, 'tracked output', {flag:'wx'});
-  console.log(JSON.stringify({version:1,ok:true,result:{output:request.output,source_sha256:require('node:crypto').createHash('sha256').update(fs.readFileSync(request.input)).digest('hex'),output_sha256:require('node:crypto').createHash('sha256').update('tracked output').digest('hex'),checks:[],limitations:[]}}));
+  // docxquisite replaces an existing distinct output and, with overwrite_original, the source.
+  // It hashes the source it read before publishing, so the hash is taken first.
+  const sourceSha = require('node:crypto').createHash('sha256').update(fs.readFileSync(request.input)).digest('hex');
+  fs.writeFileSync(request.output, 'tracked output');
+  console.log(JSON.stringify({version:1,ok:true,result:{output:request.output,source_sha256:sourceSha,output_sha256:require('node:crypto').createHash('sha256').update('tracked output').digest('hex'),checks:[],limitations:[]}}));
 });
 `,
 	);
@@ -183,11 +186,11 @@ for (const mode of [
 	});
 }
 
-test("existing output is never overwritten", async (t) => {
+test("existing distinct output is replaced and the source stays unchanged", async (t) => {
 	const f = await fixture(t);
 	await writeFile(f.output, "existing output");
-	await assert.rejects(call(f.input, f.dir));
-	assert.equal(await readFile(f.output, "utf8"), "existing output");
+	await call(f.input, f.dir);
+	assert.equal(await readFile(f.output, "utf8"), "tracked output");
 	assert.equal(await readFile(f.source, "utf8"), "source bytes");
 });
 
@@ -206,4 +209,24 @@ test("schema and prompt expose tracked replacement", () => {
 		/tracked_replace/,
 	);
 	assert.match(registered?.promptGuidelines?.join(" ") ?? "", /docxquisite on PATH/);
+});
+
+test("tracked replacement replaces an existing output and forwards overwrite_original only when requested", async (t) => {
+	const f = await fixture(t);
+	await writeFile(f.output, "previous output");
+	await call(f.input, f.dir);
+	assert.equal(await readFile(f.output, "utf8"), "tracked output");
+	assert.deepEqual((await log(f.dir))[1].request.overwrite_original, undefined);
+});
+
+test("tracked replacement can replace the source in place only with overwrite_original", async (t) => {
+	const f = await fixture(t);
+	const inPlace = { ...f.input, output: "@source.docx" };
+	await assert.rejects(call(inPlace, f.dir), /overwrite_original/);
+	assert.equal(await readFile(f.source, "utf8"), "source bytes");
+	assert.equal((await log(f.dir)).length, 0);
+	await call({ ...inPlace, overwrite_original: true }, f.dir);
+	assert.equal(await readFile(f.source, "utf8"), "tracked output");
+	const calls = await log(f.dir);
+	assert.equal(calls[calls.length - 1].request.overwrite_original, true);
 });

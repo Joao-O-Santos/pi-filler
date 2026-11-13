@@ -693,10 +693,15 @@ export async function patchDocx(
 	outputPath: string,
 	patch: DocxPatchSet,
 	dryRun = false,
+	overwriteOriginal = false,
 ): Promise<DocxPatchResult> {
 	const input = resolve(inputPath);
 	const output = resolve(outputPath);
-	if (input === output) throw new Error("DOCX patch output must differ from input");
+	if (input === output && !overwriteOriginal) {
+		throw new Error(
+			"DOCX patch output must differ from input; set overwrite_original to replace the source",
+		);
+	}
 	validatePatch(patch);
 	const pkg = await load(input);
 	validatePackage(pkg);

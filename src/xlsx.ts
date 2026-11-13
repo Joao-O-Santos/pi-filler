@@ -60,6 +60,7 @@ export interface FillOptions {
 	columnMap?: Record<string, string>;
 	dryRun?: boolean;
 	signal?: AbortSignal;
+	overwriteOriginal?: boolean;
 }
 
 export interface XlsxWriteResult {
@@ -898,7 +899,11 @@ export async function fillXlsxFromCsv(
 ): Promise<XlsxWriteResult> {
 	const template = resolve(templatePath);
 	const output = resolve(outputPath);
-	if (template === output) throw new Error("XLSX write output must differ from input");
+	if (template === output && options.overwriteOriginal !== true) {
+		throw new Error(
+			"XLSX write output must differ from input; set overwrite_original to replace the template",
+		);
+	}
 	const start = parseCellAddress(options.startCell);
 	throwIfAborted(options.signal);
 	const pkg = await load(template);
@@ -1487,7 +1492,11 @@ function assertFormulaEditableXml(bytes: Uint8Array): void {
 }
 
 // Resolve existing ancestors without creating directories, including during dry runs.
-async function canonicalFormulaOutput(input: string, output: string): Promise<string> {
+async function canonicalFormulaOutput(
+	input: string,
+	output: string,
+	overwriteOriginal = false,
+): Promise<string> {
 	const canonical = async (path: string): Promise<string> => {
 		try {
 			return await realpath(path);
@@ -1499,7 +1508,13 @@ async function canonicalFormulaOutput(input: string, output: string): Promise<st
 	const source = await realpath(input);
 	const destination = join(await canonical(dirname(output)), basename(output));
 	if (source === destination || source === (await canonical(output))) {
-		throw new Error("XLSX patch output must differ from input");
+		if (!overwriteOriginal) {
+			throw new Error(
+				"XLSX patch output must differ from input; set overwrite_original to replace the source",
+			);
+		}
+		// Publish to the real source file, so a symlink alias never replaces the original with a regular file.
+		return source;
 	}
 	return destination;
 }
@@ -1811,6 +1826,7 @@ export async function patchXlsxFormula(
 	request: XlsxFormula | XlsxFormula[],
 	dryRun = false,
 	signal?: AbortSignal,
+	overwriteOriginal = false,
 ) {
 	const batch = Array.isArray(request);
 	const result = await patchXlsxFormulaSheets(
@@ -1819,6 +1835,7 @@ export async function patchXlsxFormula(
 		[{ sheet: sheetName, formulas: batch ? request : [request] }],
 		dryRun,
 		signal,
+		overwriteOriginal,
 	);
 	const { sheets, formulaCount, ...metadata } = result;
 	return {
@@ -1834,13 +1851,18 @@ export async function patchXlsxFormulaSheets(
 	requests: XlsxFormulaSheet[],
 	dryRun = false,
 	signal?: AbortSignal,
+	overwriteOriginal = false,
 ) {
 	validateXlsxFormulaSheets(requests);
 	const input = resolve(inputPath);
 	const output = resolve(outputPath);
-	if (input === output) throw new Error("XLSX patch output must differ from input");
+	if (input === output && !overwriteOriginal) {
+		throw new Error(
+			"XLSX patch output must differ from input; set overwrite_original to replace the source",
+		);
+	}
 	throwIfAborted(signal);
-	const canonicalOutput = await canonicalFormulaOutput(input, output);
+	const canonicalOutput = await canonicalFormulaOutput(input, output, overwriteOriginal);
 	const pkg = await load(input);
 	validateFormulaPackage(pkg, true);
 	const chainChanges = discardCalculationChain(pkg);
@@ -2056,12 +2078,17 @@ export async function recalculateXlsx(
 	outputPath: string,
 	dryRun = false,
 	signal?: AbortSignal,
+	overwriteOriginal = false,
 ) {
 	const input = resolve(inputPath);
 	const output = resolve(outputPath);
-	if (input === output) throw new Error("XLSX patch output must differ from input");
+	if (input === output && !overwriteOriginal) {
+		throw new Error(
+			"XLSX patch output must differ from input; set overwrite_original to replace the source",
+		);
+	}
 	throwIfAborted(signal);
-	const canonicalOutput = await canonicalFormulaOutput(input, output);
+	const canonicalOutput = await canonicalFormulaOutput(input, output, overwriteOriginal);
 	const pkg = await load(input);
 	validateFormulaPackage(pkg);
 	if (Object.keys(pkg).some((part) => /(?:^|\/)externalLinks\//i.test(part))) {
@@ -2164,10 +2191,15 @@ export async function patchXlsx(
 	patch: XlsxPatch,
 	dryRun = false,
 	signal?: AbortSignal,
+	overwriteOriginal = false,
 ): Promise<XlsxPatchResult> {
 	const input = resolve(inputPath);
 	const output = resolve(outputPath);
-	if (input === output) throw new Error("XLSX patch output must differ from input");
+	if (input === output && !overwriteOriginal) {
+		throw new Error(
+			"XLSX patch output must differ from input; set overwrite_original to replace the source",
+		);
+	}
 	validatePatch(patch.patches);
 	const range = parseRange(patch.range);
 	if (

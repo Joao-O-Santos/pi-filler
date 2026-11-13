@@ -150,10 +150,15 @@ export async function replaceTracked(
 	replacement: TrackedReplacement,
 	cwd: string,
 	signal?: AbortSignal,
+	overwriteOriginal = false,
 ): Promise<{ output: string; source_sha256: string; output_sha256: string }> {
 	checkAbort(signal, false);
 	validateTrackedReplacement(replacement);
-	if (input === output) throw new Error("DOCX tracked replacement output must differ from input");
+	if (input === output && !overwriteOriginal) {
+		throw new Error(
+			"DOCX tracked replacement output must differ from input; set overwrite_original to replace the source",
+		);
+	}
 	const capabilities = await protocol({ operation: "capabilities" }, cwd, signal);
 	if (
 		!exactKeys(capabilities, ["protocol_version", "operations", "replace_limitations"]) ||
@@ -179,7 +184,15 @@ export async function replaceTracked(
 	}
 	checkAbort(signal, false);
 	const result = await protocol(
-		{ operation: "replace_tracked", input, output, ...replacement, expected_sha256: sourceHash },
+		{
+			operation: "replace_tracked",
+			input,
+			output,
+			...replacement,
+			expected_sha256: sourceHash,
+			// Sent only when requested, so docxquisite builds without this field keep working.
+			...(overwriteOriginal ? { overwrite_original: true } : {}),
+		},
 		cwd,
 		signal,
 	);

@@ -357,7 +357,7 @@ export const fillerSchema = Type.Object(
 				{
 					additionalProperties: false,
 					description:
-						"DOCX patch alternative to patches; requires optional docxquisite on PATH and a nonexistent output. No dry_run; restricted documents only, not general Word editing",
+						"DOCX patch alternative to patches; requires optional docxquisite on PATH and a distinct output (an existing output is replaced on success; overwrite_original replaces the source). No dry_run; restricted documents only, not general Word editing",
 				},
 			),
 		),
@@ -453,6 +453,13 @@ export const fillerSchema = Type.Object(
 					"Validate and report without creating or replacing output; output remains required for DOCX/PPTX patch or XLSX write/patch. Not supported with tracked_replace",
 			}),
 		),
+		overwrite_original: Type.Optional(
+			Type.Boolean({
+				default: false,
+				description:
+					"Allow the output to be the input path, replacing the source file on successful publication (DOCX patch with patches or tracked_replace, PPTX patch, XLSX patch, XLSX write, XLSX recalculation). Without it the output must differ from the input. An existing distinct output is always replaced on success; a dry run never writes. Not accepted for DOCX/PPTX Markdown writes.",
+			}),
+		),
 		literal: Type.Optional(
 			Type.Boolean({
 				default: false,
@@ -509,6 +516,7 @@ const controlFields: ControlField[] = [
 	"xlsx_formula_sheets",
 	"xlsx_recalculate",
 	"dry_run",
+	"overwrite_original",
 	"literal",
 	"ignore_case",
 	"first_page",
@@ -588,10 +596,10 @@ function assertSupported(input: FillerInput): void {
 			throw new Error("DOCX patch requires exactly one of patches or tracked_replace");
 		}
 		if (input.tracked_replace !== undefined) {
-			assertParameters(input, ["output", "tracked_replace"]);
+			assertParameters(input, ["output", "tracked_replace", "overwrite_original"]);
 			validateTrackedReplacement(input.tracked_replace);
 		} else {
-			assertParameters(input, ["output", "patches", "dry_run"]);
+			assertParameters(input, ["output", "patches", "dry_run", "overwrite_original"]);
 		}
 		return;
 	}
@@ -628,7 +636,7 @@ function assertSupported(input: FillerInput): void {
 			throw new Error("PPTX patch requires output and does not accept view");
 		}
 		if (input.pptx_patches === undefined) throw new Error("PPTX patch requires pptx_patches");
-		assertParameters(input, ["output", "pptx_patches", "dry_run"]);
+		assertParameters(input, ["output", "pptx_patches", "dry_run", "overwrite_original"]);
 		return;
 	}
 
@@ -659,6 +667,7 @@ function assertSupported(input: FillerInput): void {
 				"value_mode",
 				"column_map",
 				"dry_run",
+				"overwrite_original",
 			]);
 			return;
 		}
@@ -666,12 +675,12 @@ function assertSupported(input: FillerInput): void {
 		if (input.xlsx_recalculate !== undefined) {
 			if (!input.output) throw new Error("XLSX recalculation requires output");
 			if (input.xlsx_recalculate !== true) throw new Error("xlsx_recalculate must be true");
-			assertParameters(input, ["output", "xlsx_recalculate", "dry_run"]);
+			assertParameters(input, ["output", "xlsx_recalculate", "dry_run", "overwrite_original"]);
 			return;
 		}
 		if (input.xlsx_formula_sheets !== undefined) {
 			if (!input.output) throw new Error("XLSX formula patch requires output");
-			assertParameters(input, ["output", "xlsx_formula_sheets", "dry_run"]);
+			assertParameters(input, ["output", "xlsx_formula_sheets", "dry_run", "overwrite_original"]);
 			validateXlsxFormulaSheets(input.xlsx_formula_sheets);
 			return;
 		}
@@ -680,7 +689,14 @@ function assertSupported(input: FillerInput): void {
 				throw new Error("XLSX formula patch requires output and sheet");
 			if (input.xlsx_formula !== undefined && input.xlsx_formulas !== undefined)
 				throw new Error("Use exactly one of xlsx_formula and xlsx_formulas");
-			assertParameters(input, ["output", "sheet", "xlsx_formula", "xlsx_formulas", "dry_run"]);
+			assertParameters(input, [
+				"output",
+				"sheet",
+				"xlsx_formula",
+				"xlsx_formulas",
+				"dry_run",
+				"overwrite_original",
+			]);
 			if (input.xlsx_formulas !== undefined) validateXlsxFormulas(input.xlsx_formulas);
 			else validateXlsxFormula(input.xlsx_formula);
 			return;
@@ -688,7 +704,14 @@ function assertSupported(input: FillerInput): void {
 		if (!input.output || !input.sheet || !input.range || !input.xlsx_patches) {
 			throw new Error("XLSX patch requires output, sheet, range, and xlsx_patches");
 		}
-		assertParameters(input, ["output", "sheet", "range", "xlsx_patches", "dry_run"]);
+		assertParameters(input, [
+			"output",
+			"sheet",
+			"range",
+			"xlsx_patches",
+			"dry_run",
+			"overwrite_original",
+		]);
 		return;
 	}
 
@@ -800,8 +823,21 @@ export async function executeFiller(
 			const output = normalizePath(input.output ?? "", cwd);
 			const result = await withFileMutationQueue(output, async () =>
 				input.tracked_replace !== undefined
-					? replaceTracked(path, output, input.tracked_replace, cwd, signal)
-					: patchDocx(path, output, input.patches as DocxPatchSet, input.dry_run),
+					? replaceTracked(
+							path,
+							output,
+							input.tracked_replace,
+							cwd,
+							signal,
+							input.overwrite_original === true,
+						)
+					: patchDocx(
+							path,
+							output,
+							input.patches as DocxPatchSet,
+							input.dry_run,
+							input.overwrite_original === true,
+						),
 			);
 			return {
 				text: JSON.stringify(result, null, 2),
@@ -872,7 +908,13 @@ export async function executeFiller(
 		if (input.action === "patch") {
 			const output = normalizePath(input.output ?? "", cwd);
 			const result = await withFileMutationQueue(output, () =>
-				patchPptx(path, output, input.pptx_patches as PptxPatchSet, input.dry_run),
+				patchPptx(
+					path,
+					output,
+					input.pptx_patches as PptxPatchSet,
+					input.dry_run,
+					input.overwrite_original === true,
+				),
 			);
 			return {
 				text: JSON.stringify(result, null, 2),
@@ -941,6 +983,7 @@ export async function executeFiller(
 					columnMap: input.column_map,
 					dryRun: input.dry_run,
 					signal,
+					overwriteOriginal: input.overwrite_original === true,
 				}),
 			);
 			return {
@@ -950,7 +993,7 @@ export async function executeFiller(
 		}
 		if (input.xlsx_recalculate !== undefined) {
 			const result = await withFileMutationQueue(output, () =>
-				recalculateXlsx(path, output, input.dry_run, signal),
+				recalculateXlsx(path, output, input.dry_run, signal, input.overwrite_original === true),
 			);
 			return { text: JSON.stringify(result, null, 2), details: { ...result } };
 		}
@@ -962,6 +1005,7 @@ export async function executeFiller(
 					input.xlsx_formula_sheets ?? [],
 					input.dry_run,
 					signal,
+					input.overwrite_original === true,
 				),
 			);
 			return { text: JSON.stringify(result, null, 2), details: { ...result } };
@@ -969,7 +1013,15 @@ export async function executeFiller(
 		const formula = input.xlsx_formulas ?? input.xlsx_formula;
 		if (formula !== undefined) {
 			const result = await withFileMutationQueue(output, () =>
-				patchXlsxFormula(path, output, input.sheet ?? "", formula, input.dry_run, signal),
+				patchXlsxFormula(
+					path,
+					output,
+					input.sheet ?? "",
+					formula,
+					input.dry_run,
+					signal,
+					input.overwrite_original === true,
+				),
 			);
 			return { text: JSON.stringify(result, null, 2), details: { ...result } };
 		}
@@ -984,6 +1036,7 @@ export async function executeFiller(
 				},
 				input.dry_run,
 				signal,
+				input.overwrite_original === true,
 			),
 		);
 		return {
@@ -1048,13 +1101,14 @@ export default function extension(pi: ExtensionAPI): void {
 			"For filler reads, use DOCX text, formatting, review, or image; PPTX text, formatting, or image; PDF text or image; or XLSX structure or image. DOCX review returns bounded comment text, authors, main-document anchor excerpts, and supported legacy reply/resolution metadata; review_offset defaults to 0 and review_limit to 20 (max 50). Follow nextOffset; text/excerpts may be truncated and modern thread metadata may be unsupported.",
 			"For filler searches, use DOCX, PPTX, or PDF text (or omit view); XLSX search is unsupported.",
 			"For filler PDF comments, use format pdf, action patch, path (input), output (new distinct file), and pdf_comments [{page, text, comment, author}, ...] (1–100 items, 1-based page). text is the exact case-sensitive phrase to highlight and must match exactly once on that page; comment and author are stored in the highlight annotation. Only unrotated, unsigned, unencrypted PDFs are supported; results return counts and pages, never comment or highlighted text. dry_run validates without writing. PDF write is unsupported.",
+			"Existing distinct outputs are replaced on success. Set overwrite_original: true only when the operator or agent intends to replace the source file itself (DOCX patch, PPTX patch, XLSX patch, XLSX write, XLSX recalculation); a dry run never writes. Without it the output must differ from the input.",
 			"For filler image output, use an existing directory or PNG prefix; the operation creates numbered page/slide images, not one final PNG. DOCX, PPTX, and XLSX images convert through LibreOffice; XLSX images render workbook print pages and do not accept sheet. first_page and last_page select resulting pages.",
 			"For DOCX/PPTX writes, path is Markdown and output is the new document; reference_docx/reference_pptx is optional. DOCX uses Pandoc Markdown (smart typography disabled), including native review spans; PPTX uses GFM Markdown. DOCX generation is not a lossless round trip of an existing Word layout. For XLSX writes, path is the template and source_csv, sheet, A1-style start_cell, and output are required; column_map optionally maps all CSV ordinals or all exact headers to XLSX columns.",
 			"When an XLSX write or patch can perform the requested deterministic transformation without inspecting CSV or cell contents, do not read those contents into model context merely to carry out the transformation. Processing stays local and results do not return cell or CSV contents.",
 			"For filler patches, provide a new output path plus DOCX patches, PPTX pptx_patches, or XLSX sheet, A1-style range, and xlsx_patches. PPTX text replacements target slide text paragraphs and may name a 1-based slide. dry_run: true still requires output but does not create or replace it.",
 			"Use filler XLSX patch with output and xlsx_recalculate: true alone to recompute all formula cached values with headless LibreOffice (requires libreoffice on PATH); it writes only cached values, never formulas or results, and refuses external links. Its results are LibreOffice results, not Excel results.",
 			"Use filler XLSX patch with sheet and either xlsx_formula {cell, formula} or xlsx_formulas [{cell, formula}, ...], mutually exclusive with each other and range/xlsx_patches. Alternatively use xlsx_formula_sheets [{sheet, formulas:[{cell, formula}, ...]}, ...] without sheet/xlsx_formula/xlsx_formulas/range/xlsx_patches for one atomic multi-worksheet edit: 1–1000 total targets, unique case-insensitive resolved worksheets; returns sheets with normalized cells and per-sheet formulaCount plus total formulaCount. Batches contain 1–1000 explicit cells on one sheet, with no duplicate case-normalized addresses; every target is validated before atomic publication. Creates absent cells or replaces existing values/formulas, preserving styles. cell must be one explicit unmerged A1 address; formula must start with =, have a nonblank body, use valid XML characters without CR, and be at most 8192 UTF-16 code units. Batch results contain normalized cells and formulaCount, never values/formulas. Requires distinct output; dry_run preserves output. Stores an ordinary formula without evaluating it, requests full automatic recalculation on open, and leaves other formula caches unchanged (possibly stale). Conventional xl/calcChain.xml calculation order caches are discarded with their relationship/content type (included in changedParts); nonstandard or ambiguous chains are rejected. This does not calculate dependent caches. Signed packages, shared/array/dataTable formulas, ambiguous rows/cells, and unsupported formula metadata are rejected. Formula and workbook values stay local and are not returned.",
-			"DOCX patch alternatively accepts exactly one tracked_replace {old, new, author, expected_sha256?}, not patches. Requires independently installed docxquisite on PATH, a distinct nonexistent output, no view or dry_run (even false). old and author must be nonempty; empty new deletes. The optional source SHA-256 is lowercase 64 hex. Restricted to one unique single-run main-story match; existing revisions and complex documents may be rejected. Processing stays local; requested text/author and toolkit diagnostics are not returned. Structural checks do not prove Word rendering. Transport/protocol failure may leave an output: inspect it before retrying; no automatic cleanup or retry.",
+			"DOCX patch alternatively accepts exactly one tracked_replace {old, new, author, expected_sha256?}, not patches. Requires independently installed docxquisite on PATH and a distinct output (an existing output is replaced on success), no view or dry_run (even false). old and author must be nonempty; empty new deletes. The optional source SHA-256 is lowercase 64 hex. Restricted to one unique single-run main-story match; existing revisions and complex documents may be rejected. Processing stays local; requested text/author and toolkit diagnostics are not returned. Structural checks do not prove Word rendering. Transport/protocol failure may leave an output: inspect it before retrying; no automatic cleanup or retry.",
 			"For filler DOCX text reads/searches, track_changes defaults to accept; use reject for the pre-edit text or all for insertion/deletion spans and comments. This selects an extraction view, not native Word acceptance/rejection. For filler defaults, PDF queries are regular expressions by default; use literal: true for literal text. XLSX writes skip a header and preserve text by default.",
 			"For filler results, DOCX/PPTX search may be truncated; narrow its query. PDF text or search may be truncated; narrow its page range or query.",
 		],

@@ -477,10 +477,15 @@ export async function patchPptx(
 	outputPath: string,
 	patch: PptxPatchSet,
 	dryRun = false,
+	overwriteOriginal = false,
 ): Promise<PptxPatchResult> {
 	const input = resolve(inputPath);
 	const output = resolve(outputPath);
-	if (input === output) throw new Error("PPTX patch output must differ from input");
+	if (input === output && !overwriteOriginal) {
+		throw new Error(
+			"PPTX patch output must differ from input; set overwrite_original to replace the source",
+		);
+	}
 	validatePatch(patch);
 	const pkg = await load(input);
 	validatePackage(pkg);
