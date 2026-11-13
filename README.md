@@ -83,9 +83,12 @@ chosen operation fail explicitly instead of being ignored.
 
 Paths resolve relative to Pi's current working directory; absolute paths
 and Pi-style paths prefixed with `@` are also accepted. A write or patch
-output must differ from its input. For image reads, `output` is an
-existing directory or PNG prefix; the operation creates page images
-rather than one final PNG file.
+output must differ from its input unless `overwrite_original: true` is
+set; an existing distinct output is replaced on success. Overwriting the
+original is available for DOCX patches, PPTX patches, XLSX patches and
+XLSX writes (the template), and not for Markdown-to-DOCX or PPTX writes.
+For image reads, `output` is an existing directory or PNG prefix; the
+operation creates page images rather than one final PNG file.
 
 `first_page` and `last_page` select 1-based inclusive pages. Both must
 be positive, and `first_page` cannot exceed `last_page`. Use
@@ -184,12 +187,13 @@ Install `docxquisite` separately and make the executable available on
 accessible toolkit checkout, run `uv tool install /path/to/docxquisite`
 and ensure the uv tool executable directory is on `PATH`.
 [Docxquisite](https://gitlab.com/Joao-O-Santos/docxquisite) is MIT
-licensed. The output must differ from the input and must not already
-exist. Publication requires hard-link support in the output directory.
-Pi-filler probes protocol v1 capability, computes the source SHA-256,
-checks any supplied expected hash, and passes its computed hash to the
-toolkit for freshness checks. The final check is not a lock against
-concurrent changes. On success, the result contains `output`,
+licensed. The output must differ from the input unless
+`overwrite_original: true` is set; an existing distinct output is
+replaced on success, and the source is replaced only in that explicit
+case. Pi-filler probes protocol v1 capability, computes the source
+SHA-256, checks any supplied expected hash, and passes its computed hash
+to the toolkit for freshness checks. The final check is not a lock
+against concurrent changes. On success, the result contains `output`,
 `source_sha256`, and `output_sha256`; pi-filler independently hashes the
 output and checks it against the toolkit's result.
 
@@ -415,10 +419,17 @@ render numbered PNG files; `first_page` and `last_page` select slides.
 
 DOCX, PPTX, and XLSX writes and ordinary patches use temporary sibling
 files, validate the result, and rename it into place only after success.
-Tracked replacement instead requires a nonexistent output and uses the
-separate toolkit's publication mechanism described above. Source files
-are not intentionally modified. PDF and office image rendering similarly
+Tracked replacement instead uses the separate toolkit's publication
+mechanism described above. PDF and office image rendering similarly
 protects prior output until the new render succeeds.
+
+An existing distinct output is replaced when an operation publishes.
+Source files are not modified unless `overwrite_original: true` is set
+on a DOCX patch (`patches` or `tracked_replace`), PPTX patch, XLSX
+patch, or XLSX write (template). With it, the source is replaced
+atomically on success and left unchanged on failure. Without it, an
+output equal to the input is refused. Symlink aliases are resolved, so
+the real original is the file replaced.
 
 Where supported, `dry_run` validates the requested operation and inputs
 without creating or replacing output; its required `output` path is

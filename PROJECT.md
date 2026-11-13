@@ -82,7 +82,8 @@ possible author or identity trace.
 DOCX tracked replacement accepts `tracked_replace` instead of `patches`
 with nonempty string `old`, string `new` (empty deletes), nonempty
 string `author`, and optional lowercase 64-hex `expected_sha256`. It
-requires a separate nonexistent output, rejects `view` and `dry_run`
+requires a separate output (an existing one is replaced on success; the
+source only with `overwrite_original`), rejects `view` and `dry_run`
 even when false, and probes protocol capability before use. It computes
 a source hash, checks the optional expected hash, passes the computed
 hash for freshness checks, and verifies the output hash. Freshness

@@ -287,10 +287,11 @@ reserialized, so lexical XML details inside those parts may change.
 ## DOCX tracked replacement
 
 A DOCX patch takes exactly one of `patches` and `tracked_replace`. The
-latter requires `path`, a distinct nonexistent `output`, and an object
-with nonempty string `old`, string `new` (empty deletes), nonempty
-string `author`, and optional `expected_sha256` (64 lowercase hex
-digits). Extra object keys, `view`, and `dry_run` are rejected.
+latter requires `path`, a distinct `output` (an existing one is replaced
+on success), and an object with nonempty string `old`, string `new`
+(empty deletes), nonempty string `author`, and optional
+`expected_sha256` (64 lowercase hex digits). Extra object keys, `view`,
+and `dry_run` are rejected.
 
 This path uses a separately installed `docxquisite` executable on
 `PATH`; pi-filler does not install or download it. It probes protocol v1
@@ -348,7 +349,7 @@ package part.
 Ordinary DOCX patches reject empty requests and incompatible line-number
 settings and are validated against the requested resulting formatting.
 Writes and ordinary patches use temporary sibling files and atomic
-renames. Tracked replacement follows the separate no-overwrite and hash
+renames. Tracked replacement follows the separate output-policy and hash
 checks above. Source files are not intentionally modified.
 
 ## Scope boundary

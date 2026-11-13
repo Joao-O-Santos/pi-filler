@@ -4,6 +4,13 @@
 
 ### Added
 
+- `overwrite_original: true` lets DOCX patches (`patches` or
+  `tracked_replace`), PPTX patches, XLSX patches, XLSX writes and XLSX
+  recalculation replace the source file itself on successful
+  publication. Without it, an output equal to the input is still
+  refused. Existing distinct outputs are now replaced on success for
+  every operation; tracked replacement forwards the choice to
+  docxquisite, which no longer refuses an existing output.
 - `pdf_comments` adds 1--100 highlight comments to existing PDF text via
   `format: pdf, action: patch`. Each item names a page, an exact phrase
   that must match once, a comment, and an author; all items validate
