@@ -26,5 +26,17 @@ jobs:
       - name: Install current Pandoc
         run: sudo node scripts/install-latest-pandoc.mjs
 
+      - name: Install test tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libreoffice-calc libreoffice-writer libreoffice-impress pdfgrep poppler-utils python3-venv
+          sudo python3 -m venv /opt/docxquisite
+          sudo /opt/docxquisite/bin/pip install --quiet git+https://gitlab.com/Joao-O-Santos/docxquisite.git
+          sudo ln -sf /opt/docxquisite/bin/docxquisite /usr/local/bin/docxquisite
+          command -v docxquisite pdftotext pdfgrep libreoffice
+          pdftotext -v
+          pdfgrep --version
+          libreoffice --version
+
       - name: Verify
         run: make verify
