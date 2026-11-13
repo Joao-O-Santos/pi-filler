@@ -1,34 +1,34 @@
 {
   "version": 2,
-  "confirmedAt": "2026-11-12T22:14:57Z",
+  "confirmedAt": "2026-11-13T08:20:27Z",
   "artifacts": [
     {
       "path": "PROJECT.md",
-      "fingerprint": "sha256:7a6ce4309b4bcb8a4bc4151d112c22a1ee707bc6641740620cd583f531cd775e",
+      "fingerprint": "sha256:48ff55b19d1484640257513f378173e6bdf7d62371a705bb3deb8a38c4b95651",
       "status": "current",
       "role": "project",
       "dependsOn": [],
       "acknowledgement": {
-        "at": "2026-11-12T22:14:57Z",
-        "reason": "Implemented shared atomic multi-worksheet formula batches. make verify: 172 passed, one unavailable-Docxquisite skip; coverage 97.45% lines, 97.92% functions, 87.21% branches. make site passed. No dependencies, commits, tags, push, or release."
+        "at": "2026-11-13T08:20:27Z",
+        "reason": "Implemented conventional calculation-chain invalidation for existing formula edit APIs. make verify: 175 passed, one unavailable-Docxquisite skip; coverage 97.56% lines, 97.98% functions, 87.10% branches. make site passed. No dependencies or commits."
       }
     },
     {
       "path": "ARCHITECTURE.md",
-      "fingerprint": "sha256:dec456193a65b0dea15c2e90ca7af7ea67ff7fb4670d4baa448f580c0ac6518f",
+      "fingerprint": "sha256:8fed657f89b33e796b9b47f1dad314e34eee829a52042fe8522a8d8df78e22c9",
       "status": "current",
       "role": "architecture",
       "dependsOn": [
         "PROJECT.md"
       ],
       "acknowledgement": {
-        "at": "2026-11-12T22:14:57Z",
-        "reason": "Documented one-load multi-worksheet mutation, total 1000-target limit, case-insensitive resolved-part uniqueness, counts, privacy, and unchanged guards after verification."
+        "at": "2026-11-13T08:20:27Z",
+        "reason": "Documented conservative calculation-chain removal, metadata validation, changedParts semantics, and unchanged dependent-cache and recalculation limits after verification."
       }
     },
     {
       "path": "README.md",
-      "fingerprint": "sha256:27649634d0289c74ef7783049ad6f3b86698350133472a9e483e17996f8ff434",
+      "fingerprint": "sha256:e2681f5477db4dab9f34e48cab6749a11ff9d4f859878085c6895a5fa76695f1",
       "status": "current",
       "role": "documentation",
       "dependsOn": [
@@ -36,8 +36,8 @@
         "ARCHITECTURE.md"
       ],
       "acknowledgement": {
-        "at": "2026-11-12T22:14:57Z",
-        "reason": "Synchronized multi-worksheet operation matrix, example, conflicts, result counts, privacy, and preservation; rebuilt site."
+        "at": "2026-11-13T08:20:27Z",
+        "reason": "Synchronized calculation-chain handling and refusal limits with the formula prompt and implementation; rebuilt site."
       }
     },
     {

@@ -163,11 +163,19 @@ semantically validated and may cause unsafe behavior, including external
 references, when opened in a spreadsheet application; review untrusted
 input and output before opening.
 
-Formula editing rejects signed packages, calculation chains, shared,
-array, and data-table formulas, unsupported extension or formula
-metadata, ambiguous sheet, row, cell or relationship structures, and
-other unsupported structures. Its checks apply across the workbook, not
-just the target cell.
+Formula edits discard the conventional `xl/calcChain.xml` calculation
+order cache, its unique workbook relationship, and its content-type
+override before mutation. The chain XML must parse; metadata must be
+flat, default-namespace package XML. Orphaned, nonstandard, ambiguously
+linked chains and chain relationships are rejected. Removal runs in
+memory during dry runs too; `changedParts` includes the deleted chain
+and reserialized metadata. No dependent cell caches are cleared and
+chain removal does not perform calculation.
+
+Formula editing rejects signed packages, shared, array, and data-table
+formulas, unsupported extension or formula metadata, ambiguous sheet,
+row, cell or relationship structures, and other unsupported structures.
+Its checks apply across the workbook, not just the target cell.
 
 XLSX image reads convert workbook print pages to a temporary PDF through
 LibreOffice, then use the common PDF renderer to create numbered PNG
@@ -179,7 +187,8 @@ Formula batches remove every target cache and validate every resulting
 formula and cache removal in memory and in the temporary package before
 one atomic publication after one source load. Only the selected
 worksheets and, when its recalculation flags change, the workbook part
-are reserialized; every other part is preserved byte-for-byte at the
+are reserialized, plus package metadata when removing a calculation
+chain; every other retained part is preserved byte-for-byte at the
 content level. Non-target cells in selected worksheets retain their
 content under the same conservative XML restrictions as single-cell
 edits.

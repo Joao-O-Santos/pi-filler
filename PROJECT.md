@@ -139,16 +139,20 @@ at most 8,192 UTF-16 code units. Optional `dry_run` validates without
 writing. The old target contents and cache are removed, not returned;
 other caches may be stale. Automatic full recalculation flags are
 requested once per operation, not evaluation or a guarantee. Signed
-packages, calculation chains, complex formulas, unsupported extension or
-formula metadata, and ambiguous structures are rejected. Output is
-validated and atomically replaced; input is not intentionally modified.
-Formula text is not semantically validated and may trigger unsafe
-behavior on later opening, so review untrusted input and output. XLSX
-support does not calculate formulas or provide arbitrary content
-extraction or spreadsheet programming. PPTX support does not promise
-arbitrary XML editing or automatic layout repair; it preserves
-unsupported presentation parts but does not manipulate charts, SmartArt,
-animations, transitions, notes, masters, themes, or embedded objects.
+packages, complex formulas, unsupported extension or formula metadata,
+and ambiguous structures are rejected. Conventional calculation chains
+are discarded with their unique workbook relationship and content-type
+override; nonstandard or ambiguous chains are rejected. `changedParts`
+includes the removed chain and edited metadata. This does not calculate
+formulas or clear dependent caches. Output is validated and atomically
+replaced; input is not intentionally modified. Formula text is not
+semantically validated and may trigger unsafe behavior on later opening,
+so review untrusted input and output. XLSX support does not calculate
+formulas or provide arbitrary content extraction or spreadsheet
+programming. PPTX support does not promise arbitrary XML editing or
+automatic layout repair; it preserves unsupported presentation parts but
+does not manipulate charts, SmartArt, animations, transitions, notes,
+masters, themes, or embedded objects.
 
 Model-facing schema descriptions and prompt guidance should make a valid
 format/action/view combination possible in one call, distinguish source
@@ -204,21 +208,18 @@ for recovery, exhausted attempts, client/rate-limit errors, and cleanup.
 
 ## Verification
 
-Multi-worksheet formula batches passed `make verify`: 173 tests, 172
+Calculation-chain invalidation passed `make verify`: 176 tests, 175
 passed, one skipped because `docxquisite` was unavailable on PATH. Line,
-function, and branch coverage were 97.45%, 97.92%, and 87.21%. The lint
+function, and branch coverage were 97.56%, 97.98%, and 87.10%. The lint
 step retained five pre-existing explicit-any warnings in formula safety
-tests. `make site` passed. New deterministic tests cover mixed
-existing/new cells on two sheets, canonical names, per-sheet and total
-counts, later-sheet/merge failures, aliases, duplicates, conflicts,
-aggregate bounds, dry runs, privacy, and unaffected parts. The existing
-independent LibreOffice-produced XLSX single-sheet batch smoke also
-passed; multi-sheet coverage uses synthetic OOXML and does not establish
-Microsoft Office compatibility. A previously observed LibreOffice
-reopen/export retained a stale dependent cache despite the full
-recalculation request; the multi-sheet path makes no stronger guarantee.
-No dependencies were installed and no commit, tag, push, or release was
-created.
+tests. New deterministic tests cover chain removal for single, batch,
+and multi-sheet requests, dry runs, cache limits, unchanged parts,
+privacy, and transactional refusal of malformed or ambiguous packaging.
+These chain fixtures are synthetic, not Microsoft Excel compatibility
+certification. Existing LibreOffice tests also ran; reopening can retain
+stale dependent caches despite recalculation flags. No dependencies were
+installed and no commit, tag, push, or release was created. `make site`
+and `git diff --check` also passed.
 
 ## Previous verification
 

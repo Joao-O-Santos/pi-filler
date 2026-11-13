@@ -125,7 +125,7 @@ test("invalid parameters reject privately without changing output or input", asy
 	assert.deepEqual(await readFile(path), original);
 });
 
-test("rejects merged target, nonordinary formulas anywhere, calc chain, signatures and invalid XML", async () => {
+test("rejects merged target, nonordinary formulas, orphaned chain, signatures and invalid XML", async () => {
 	const cases: Record<string, Uint8Array>[] = [];
 	const merged = fixture();
 	merged['xl/worksheets/sheet1.xml'] = enc(dec(merged['xl/worksheets/sheet1.xml']).replace('</worksheet>', '<mergeCells count="1"><mergeCell ref="B2:C2"/></mergeCells></worksheet>'));
@@ -139,6 +139,68 @@ test("rejects merged target, nonordinary formulas anywhere, calc chain, signatur
 	const signed = fixture(); signed['_xmlsignatures/sig1.xml'] = enc('<Signature xmlns="http://www.w3.org/2000/09/xmldsig#"/>'); cases.push(signed);
 	const malformed = fixture(); malformed['xl/worksheets/sheet2.xml'] = enc(`<worksheet>${oldSecret}<broken></worksheet>`); cases.push(malformed);
 	for (const parts of cases) {
+		const { dir, path, output } = await setup(parts);
+		const original = await readFile(path);
+		for (const dry_run of [false, true]) {
+			await writeFile(output, 'existing output');
+			await failure(() => executeFiller(request(path, output, { dry_run }), dir));
+			assert.equal(await readFile(output, 'utf8'), 'existing output');
+			assert.deepEqual(await readFile(path), original);
+		}
+	}
+});
+
+function withCalculationChain() {
+	const parts = fixture();
+	parts['xl/calcChain.xml'] = enc(`<calcChain ${ns}><c r="C3" i="1"/></calcChain>`);
+	parts['xl/_rels/workbook.xml.rels'] = enc(dec(parts['xl/_rels/workbook.xml.rels']).replace('</Relationships>', '<Relationship Id="chain" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/calcChain" Target="calcChain.xml"/></Relationships>'));
+	parts['[Content_Types].xml'] = enc(dec(parts['[Content_Types].xml']).replace('</Types>', '<Override PartName="/xl/calcChain.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.calcChain+xml"/></Types>'));
+	return parts;
+}
+
+test("formula edits discard a conventional calculation chain without calculating caches", async () => {
+	for (const mode of ['single', 'batch', 'sheets']) {
+		const parts = withCalculationChain();
+		const { dir, path, output } = await setup(parts);
+		const original = await readFile(path);
+		const extra = mode === 'batch' ? { xlsx_formula: undefined, xlsx_formulas: [{ cell: 'B2', formula }] } : mode === 'sheets' ? { sheet: undefined, xlsx_formula: undefined, xlsx_formula_sheets: [{ sheet: 'First', formulas: [{ cell: 'B2', formula }] }, { sheet: 'Second', formulas: [{ cell: 'A1', formula }] }] } : {};
+		await writeFile(output, 'existing output');
+		const dry = await executeFiller(request(path, output, { ...extra, dry_run: true }), dir);
+		assert.equal(await readFile(output, 'utf8'), 'existing output');
+		assert.ok((dry.details.changedParts as string[]).includes('xl/calcChain.xml'));
+		const result = await executeFiller(request(path, output, extra), dir);
+		privateCheck(result);
+		assert.match(JSON.stringify(result.details.warnings), /stale cache/);
+		const after = unzipSync(await readFile(output));
+		assert.equal(after['xl/calcChain.xml'], undefined);
+		assert.ok(!dec(after['xl/_rels/workbook.xml.rels']).includes('calcChain'));
+		assert.ok(!dec(after['[Content_Types].xml']).includes('calcChain'));
+		assert.equal(parser.parse(dec(after['xl/_rels/workbook.xml.rels'])).Relationships.Relationship.length, 3);
+		assert.equal(cell(dec(after['xl/worksheets/sheet1.xml']), 'B2').v, undefined);
+		assert.equal(cell(dec(after['xl/worksheets/sheet1.xml']), 'C3').v, '7');
+		assert.equal(parser.parse(dec(after['xl/workbook.xml'])).workbook.calcPr['@_forceFullCalc'], '1');
+		for (const [part, bytes] of Object.entries(parts)) if (!(result.details.changedParts as string[]).includes(part)) assert.deepEqual(after[part], bytes, part);
+		assert.deepEqual(await readFile(path), original);
+	}
+});
+
+test("ambiguous or unsupported chain packaging refuses transactionally", async () => {
+	const mutations = [
+		(p: Record<string, Uint8Array>) => { delete p['xl/calcChain.xml']; },
+		(p: Record<string, Uint8Array>) => { p['xl/alias.xml'] = p['xl/calcChain.xml']; p['xl/_rels/workbook.xml.rels'] = enc(dec(p['xl/_rels/workbook.xml.rels']).replace('Target="calcChain.xml"', 'Target="alias.xml"')); },
+		(p: Record<string, Uint8Array>) => { p['xl/_rels/workbook.xml.rels'] = enc(dec(p['xl/_rels/workbook.xml.rels']).replace('Id="chain"', 'Id="one"')); },
+		(p: Record<string, Uint8Array>) => { p['xl/_rels/workbook.xml.rels'] = enc(dec(p['xl/_rels/workbook.xml.rels']).replace('Id="chain"', 'Id="chain" TargetMode="External"')); },
+		(p: Record<string, Uint8Array>) => { p['[Content_Types].xml'] = enc(dec(p['[Content_Types].xml']).replace('PartName="/xl/calcChain.xml"', 'PartName="/xl/alias.xml"')); },
+		(p: Record<string, Uint8Array>) => { p['xl/_rels/calcChain.xml.rels'] = enc('<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"/>'); },
+		(p: Record<string, Uint8Array>) => { p['[Content_Types].xml'] = enc(dec(p['[Content_Types].xml']).replace('<Types ', '<Types xmlns:x="urn:foreign" ')); },
+		(p: Record<string, Uint8Array>) => { p['xl/_rels/workbook.xml.rels'] = enc(dec(p['xl/_rels/workbook.xml.rels']).replace('</Relationships>', '<Relationship Id="extra" Type="urn:unknown" Target="calcChain.xml"/></Relationships>')); },
+		(p: Record<string, Uint8Array>) => { p['[Content_Types].xml'] = enc(dec(p['[Content_Types].xml']).replace('</Types>', '<!--preserve me--></Types>')); },
+		(p: Record<string, Uint8Array>) => { p['[Content_Types].xml'] = enc(dec(p['[Content_Types].xml']).replace('</Types>', 'PRIVATE_MIXED_CONTENT</Types>')); },
+		(p: Record<string, Uint8Array>) => { p['xl/calcChain.xml'] = enc('<broken>'); },
+		(p: Record<string, Uint8Array>) => { p['_xmlsignatures/sig.xml'] = enc('<Signature/>'); },
+	];
+	for (const mutate of mutations) {
+		const parts = withCalculationChain(); mutate(parts);
 		const { dir, path, output } = await setup(parts);
 		const original = await readFile(path);
 		for (const dry_run of [false, true]) {
@@ -325,6 +387,8 @@ test("model-facing schema and prompt describe formula patch and limitations", ()
 	const prompt = `${tool?.description} ${tool?.promptSnippet} ${tool?.promptGuidelines?.join(' ')}`;
 	assert.match(prompt, /xlsx_formulas/);
 	assert.match(prompt, /xlsx_formula_sheets/);
+	assert.match(prompt, /calcChain\.xml calculation order caches are discarded/);
+	assert.match(prompt, /does not calculate dependent caches/);
 	assert.match(prompt, /multi-worksheet/);
 	assert.match(prompt, /duplicate case-normalized/);
 	assert.match(prompt, /every target.*atomic/);

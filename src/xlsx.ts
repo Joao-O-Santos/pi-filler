@@ -233,7 +233,11 @@ function rootObject(value: XmlObject, name: string, _part: string): XmlObject {
 function parseXml(bytes: Uint8Array | undefined, _part: string): XmlObject {
 	if (!bytes) throw new Error("XLSX package is missing a required part");
 	try {
-		return parser.parse(new TextDecoder().decode(bytes), true) as XmlObject;
+		const xml = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+		if (/[^\t\n\r\u0020-\uD7FF\uE000-\uFFFD\u{10000}-\u{10FFFF}]/u.test(xml)) {
+			throw new Error("Invalid XML characters");
+		}
+		return parser.parse(xml, true) as XmlObject;
 	} catch {
 		throw new Error("Invalid XML in XLSX package part");
 	}
@@ -1586,7 +1590,37 @@ function validateFormulaWorksheet(worksheet: XmlObject): void {
 	}
 }
 
-function validateFormulaPackage(pkg: Package): void {
+// The object helpers select one spelling per local name. Require a uniform
+// element prefix and resolve every flat metadata child's namespace before use.
+function assertFormulaMetadata(
+	document: XmlObject,
+	name: string,
+	namespace: string,
+	children: string[],
+): void {
+	const fail = (): never => {
+		throw new Error("Unsupported XLSX package metadata namespace structure");
+	};
+	const roots = Object.keys(document).filter((key) => key !== "?xml");
+	if (roots.length !== 1 || localName(roots[0]) !== name) fail();
+	const root = document[roots[0]];
+	if (!isObject(root)) {
+		throw new Error("Unsupported XLSX package metadata namespace structure");
+	}
+	const prefix = roots[0].includes(":") ? roots[0].split(":")[0] : "";
+	const declaration = prefix ? `@_xmlns:${prefix}` : "@_xmlns";
+	if (root[declaration] !== namespace) fail();
+	for (const [key, value] of Object.entries(root)) {
+		if (key.startsWith("@_") || (key === "#text" && !String(value).trim())) continue;
+		const childPrefix = key.includes(":") ? key.split(":")[0] : "";
+		if (childPrefix !== prefix || !children.includes(localName(key))) fail();
+		for (const child of Array.isArray(value) ? value : [value]) {
+			if (!isObject(child) || (child[declaration] ?? root[declaration]) !== namespace) fail();
+		}
+	}
+}
+
+function validateFormulaPackage(pkg: Package, allowCalculationChain = false): void {
 	validatePackage(pkg);
 	const sheets = workbookSheets(pkg).sheets;
 	if (
@@ -1598,7 +1632,7 @@ function validateFormulaPackage(pkg: Package): void {
 	for (const [part, bytes] of Object.entries(pkg)) {
 		if (
 			/^_xmlsignatures\//i.test(part) ||
-			/(?:^|\/)calcChain\.xml$/i.test(part) ||
+			(!allowCalculationChain && /(?:^|\/)calcChain\.xml$/i.test(part)) ||
 			/(?:^|\/)metadata\.xml$/i.test(part)
 		) {
 			throw new Error("Unsupported XLSX signatures, calculation chain, or formula metadata");
@@ -1606,6 +1640,12 @@ function validateFormulaPackage(pkg: Package): void {
 		if (!part.endsWith(".xml") && !part.endsWith(".rels")) continue;
 		const document = parseXml(bytes, part);
 		if (part.endsWith(".rels")) {
+			assertFormulaMetadata(
+				document,
+				"Relationships",
+				"http://schemas.openxmlformats.org/package/2006/relationships",
+				["Relationship"],
+			);
 			const ids = new Set<string>();
 			for (const relationship of directObjects(
 				rootObject(document, "Relationships", part),
@@ -1615,20 +1655,28 @@ function validateFormulaPackage(pkg: Package): void {
 				if (!id || ids.has(id)) throw new Error("Ambiguous XLSX relationship structure");
 				ids.add(id);
 				if (
-					/\/(?:calcChain|sheetMetadata)$|digital-signature/i.test(attr(relationship, "Type") ?? "")
+					/\/sheetMetadata$|digital-signature/i.test(attr(relationship, "Type") ?? "") ||
+					(!allowCalculationChain && /\/calcChain$/i.test(attr(relationship, "Type") ?? ""))
 				) {
 					throw new Error("Unsupported XLSX signatures, calculation chain, or formula metadata");
 				}
 			}
 		}
 		if (part === "[Content_Types].xml") {
+			assertFormulaMetadata(
+				document,
+				"Types",
+				"http://schemas.openxmlformats.org/package/2006/content-types",
+				["Default", "Override"],
+			);
 			const types = rootObject(document, "Types", part);
 			for (const override of [
 				...directObjects(types, "Override"),
 				...directObjects(types, "Default"),
 			]) {
 				if (
-					/calcChain|digital-signature|sheetMetadata/i.test(attr(override, "ContentType") ?? "")
+					/digital-signature|sheetMetadata/i.test(attr(override, "ContentType") ?? "") ||
+					(!allowCalculationChain && /calcChain/i.test(attr(override, "ContentType") ?? ""))
 				) {
 					throw new Error("Unsupported XLSX signatures, calculation chain, or formula metadata");
 				}
@@ -1638,6 +1686,110 @@ function validateFormulaPackage(pkg: Package): void {
 			validateFormulaWorksheet(rootObject(document, "worksheet", part));
 		}
 	}
+}
+
+// A calculation chain is disposable calculation order, not formula content.
+// Support only the conventional, uniquely linked part; never guess at aliases.
+function discardCalculationChain(pkg: Package): string[] {
+	const chain = "xl/calcChain.xml";
+	const relsPart = "xl/_rels/workbook.xml.rels";
+	const typesPart = "[Content_Types].xml";
+	const chainType = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/calcChain";
+	const contentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.calcChain+xml";
+	const fail = (): never => {
+		throw new Error("Unsupported XLSX calculation chain structure");
+	};
+	const incoming: { part: string; relationship: XmlObject }[] = [];
+	for (const part of Object.keys(pkg).filter((name) => name.endsWith(".rels"))) {
+		const root = rootObject(parseXml(pkg[part], part), "Relationships", part);
+		for (const relationship of directObjects(root, "Relationship")) {
+			const type = attr(relationship, "Type") ?? "";
+			const target = relationshipTarget(part, attr(relationship, "Target") ?? "");
+			if (
+				/\/calcChain$/i.test(type) ||
+				(attr(relationship, "TargetMode") !== "External" && target === chain)
+			)
+				incoming.push({ part, relationship });
+		}
+	}
+	const typesDocument = parseXml(pkg[typesPart], typesPart);
+	const types = rootObject(typesDocument, "Types", typesPart);
+	const overrides = directObjects(types, "Override").filter(
+		(item) =>
+			/calcChain/i.test(attr(item, "ContentType") ?? "") || attr(item, "PartName") === `/${chain}`,
+	);
+	const hasChain = Object.keys(pkg).some((part) => /(?:^|\/)calcChain\.xml$/i.test(part));
+	if (!hasChain && !incoming.length && !overrides.length) return [];
+	if (
+		!pkg[chain] ||
+		incoming.length !== 1 ||
+		overrides.length !== 1 ||
+		incoming[0].part !== relsPart ||
+		attr(incoming[0].relationship, "Type") !== chainType ||
+		attr(incoming[0].relationship, "TargetMode") !== undefined ||
+		relationshipTarget(relsPart, attr(incoming[0].relationship, "Target") ?? "") !== chain ||
+		attr(overrides[0], "PartName") !== `/${chain}` ||
+		attr(overrides[0], "ContentType") !== contentType ||
+		pkg["xl/_rels/calcChain.xml.rels"]
+	)
+		fail();
+	// Reserialize only flat, default-namespace package metadata. Reject mixed
+	// content and namespace tricks rather than weakening formula XML guards.
+	const metadata = (part: string, name: string, namespace: string, children: string[]) => {
+		const text = new TextDecoder("utf-8", { fatal: true }).decode(pkg[part]);
+		if (/&#|<!|\r|<\?(?!xml\s)/.test(text)) fail();
+		const document = parseXml(pkg[part], part);
+		if (Object.keys(document).some((key) => key !== name && key !== "?xml")) fail();
+		const root = rootObject(document, name, part);
+		if (root["@_xmlns"] !== namespace) fail();
+		for (const [key, value] of Object.entries(root)) {
+			if (key === "@_xmlns" || (key === "#text" && !String(value).trim())) continue;
+			if (!children.includes(key)) fail();
+			for (const item of Array.isArray(value) ? value : [value]) {
+				if (
+					!isObject(item) ||
+					Object.entries(item).some(
+						([attribute, setting]) =>
+							attribute === "@_xmlns" ||
+							!/^@_[A-Za-z]+$/.test(attribute) ||
+							typeof setting !== "string",
+					)
+				)
+					fail();
+			}
+		}
+		return { document, root };
+	};
+	const rels = metadata(
+		relsPart,
+		"Relationships",
+		"http://schemas.openxmlformats.org/package/2006/relationships",
+		["Relationship"],
+	);
+	const checkedTypes = metadata(
+		typesPart,
+		"Types",
+		"http://schemas.openxmlformats.org/package/2006/content-types",
+		["Default", "Override"],
+	);
+	setDirectObjects(
+		rels.root,
+		"Relationship",
+		directObjects(rels.root, "Relationship").filter(
+			(item) => attr(item, "Id") !== attr(incoming[0].relationship, "Id"),
+		),
+	);
+	setDirectObjects(
+		checkedTypes.root,
+		"Override",
+		directObjects(checkedTypes.root, "Override").filter(
+			(item) => attr(item, "PartName") !== `/${chain}`,
+		),
+	);
+	pkg[relsPart] = serializeXml(rels.document);
+	pkg[typesPart] = serializeXml(checkedTypes.document);
+	delete pkg[chain];
+	return [chain, relsPart, typesPart];
 }
 
 export async function patchXlsxFormula(
@@ -1678,6 +1830,8 @@ export async function patchXlsxFormulaSheets(
 	throwIfAborted(signal);
 	const canonicalOutput = await canonicalFormulaOutput(input, output);
 	const pkg = await load(input);
+	validateFormulaPackage(pkg, true);
+	const chainChanges = discardCalculationChain(pkg);
 	validateFormulaPackage(pkg);
 	assertFormulaEditableXml(pkg["xl/workbook.xml"]);
 	const seenParts = new Set<string>();
@@ -1762,7 +1916,7 @@ export async function patchXlsxFormulaSheets(
 		before ? localName(before) : "extLst",
 		xmlPrefix(workbookDocument, "workbook"),
 	);
-	const changedParts = plans.map(({ sheet }) => sheet.part);
+	const changedParts = [...chainChanges, ...plans.map(({ sheet }) => sheet.part)];
 	if (JSON.stringify(workbook) !== beforeCalc) {
 		pkg[workbookPart] = serializeXml(workbookDocument);
 		changedParts.push(workbookPart);

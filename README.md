@@ -346,13 +346,20 @@ LibreOffice 26.8.2.2 reopen/export, the edited cell recalculated but its
 dependent cell retained a stale cached value. Verify recalculation in
 the target application before relying on results.
 
-Formula editing rejects signed packages, calculation chains, shared,
-array, and data-table formulas, unsupported extension or formula
-metadata, ambiguous sheet, row, cell or relationship structures, and
-other unsupported workbook structures. It validates a temporary sibling
-package before atomic replacement of the distinct output; the input is
-not intentionally modified. `dry_run: true` validates without creating
-or replacing output.
+Formula edits discard a conventional `xl/calcChain.xml` calculation
+order cache and its workbook relationship and content-type override.
+`changedParts` includes the removed part and edited metadata. This also
+happens during validation for a dry run, without writing any files.
+Nonstandard, orphaned, or ambiguously linked chains are rejected. Chain
+removal does not calculate formulas or clear dependent cell caches.
+
+Formula editing rejects signed packages, shared, array, and data-table
+formulas, unsupported extension or formula metadata, ambiguous sheet,
+row, cell or relationship structures, and other unsupported workbook
+structures. It validates a temporary sibling package before atomic
+replacement of the distinct output; the input is not intentionally
+modified. `dry_run: true` validates without creating or replacing
+output.
 
 Formulas can invoke external references or other potentially unsafe
 behavior when a spreadsheet application later opens the workbook. Treat
