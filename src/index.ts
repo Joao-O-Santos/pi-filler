@@ -19,7 +19,7 @@ import {
 	writePptx,
 } from "./pandoc.js";
 import { readPdfText, renderPdfPages, searchPdf } from "./pdf.js";
-import { annotatePdf, type PdfComment } from "./pdf-annotate.js";
+import { annotatePdf, listPdfComments, type PdfComment } from "./pdf-annotate.js";
 import { inspectPptx, type PptxPatchSet, patchPptx } from "./pptx.js";
 import { commandError, runCommand } from "./process.js";
 import { replaceTracked, validateTrackedReplacement } from "./tracked-replace.js";
@@ -297,7 +297,7 @@ export const fillerSchema = Type.Object(
 			description: "Operation; supported combinations depend on format and view",
 		}),
 		view: Type.Optional(
-			Type.Enum(["text", "formatting", "image", "structure", "review"], {
+			Type.Enum(["text", "formatting", "image", "structure", "review", "comments"], {
 				type: "string",
 				description: "Read/search representation; omit for write and patch",
 			}),
@@ -406,8 +406,25 @@ export const fillerSchema = Type.Object(
 				minItems: 1,
 				maxItems: 100,
 				description:
-					"PDF patch: 1–100 highlight comments on existing text, validated before one atomic output. Each text must match exactly once on its page; rotated pages and signed PDFs are rejected. Results report counts and pages, never comment or highlighted text",
+					"PDF patch: 1–100 highlight comments on existing text, validated before one atomic output. Each text must match exactly once on its page; rotated pages and signed PDFs are rejected. Results return new comment ids and counts, never comment or highlighted text",
 			}),
+		),
+		pdf_comment_edits: Type.Optional(
+			Type.Array(
+				Type.Object(
+					{
+						id: Type.String({ description: "Comment id from a prior result", minLength: 1 }),
+						comment: Type.String({ description: "Replacement comment text", minLength: 1 }),
+					},
+					{ additionalProperties: false },
+				),
+				{
+					minItems: 1,
+					maxItems: 100,
+					description:
+						"PDF patch: replace the text of 1–100 comments this tool created (ids from pdf_comments results or view=comments); unknown or foreign ids fail the whole call. Can be combined with pdf_comments in one atomic output",
+				},
+			),
 		),
 		xlsx_patches: Type.Optional(xlsxPatchesSchema),
 		xlsx_formula: Type.Optional({
@@ -510,6 +527,7 @@ const controlFields: ControlField[] = [
 	"value_mode",
 	"column_map",
 	"pdf_comments",
+	"pdf_comment_edits",
 	"xlsx_patches",
 	"xlsx_formula",
 	"xlsx_formulas",
@@ -720,8 +738,10 @@ function assertSupported(input: FillerInput): void {
 		if (input.view !== undefined || !input.output) {
 			throw new Error("PDF patch requires output and does not accept view");
 		}
-		if (input.pdf_comments === undefined) throw new Error("PDF patch requires pdf_comments");
-		assertParameters(input, ["output", "pdf_comments", "dry_run"]);
+		if (input.pdf_comments === undefined && input.pdf_comment_edits === undefined) {
+			throw new Error("PDF patch requires pdf_comments or pdf_comment_edits");
+		}
+		assertParameters(input, ["output", "pdf_comments", "pdf_comment_edits", "dry_run"]);
 		return;
 	}
 	if (input.action === "search") {
@@ -732,8 +752,12 @@ function assertSupported(input: FillerInput): void {
 		assertParameters(input, ["query", "literal", "ignore_case", "first_page", "last_page"]);
 		return;
 	}
+	if (input.view === "comments") {
+		assertParameters(input, []);
+		return;
+	}
 	if (input.view !== "text" && input.view !== "image") {
-		throw new Error("PDF read requires view=text or view=image");
+		throw new Error("PDF read requires view=text, view=image, or view=comments");
 	}
 	if (input.view === "image") {
 		if (!input.output) throw new Error("PDF image reads require output");
@@ -1049,9 +1073,16 @@ export async function executeFiller(
 		const output = normalizePath(input.output ?? "", cwd);
 		if (output === path) throw new Error("PDF patch output must differ from input");
 		const result = await withFileMutationQueue(output, () =>
-			annotatePdf(path, output, input.pdf_comments as PdfComment[], input.dry_run === true, {
-				signal,
-			}),
+			annotatePdf(
+				path,
+				output,
+				{
+					comments: input.pdf_comments as PdfComment[] | undefined,
+					edits: input.pdf_comment_edits,
+				},
+				input.dry_run === true,
+				{ signal },
+			),
 		);
 		return {
 			text: JSON.stringify(result, null, 2),
@@ -1071,6 +1102,13 @@ export async function executeFiller(
 				? `${truncation.content}\n\n[Search output truncated at ${DEFAULT_MAX_BYTES} bytes]`
 				: truncation.content || "No matches found",
 			details: { matchCount: result.matchCount, truncation },
+		};
+	}
+	if (input.view === "comments") {
+		const comments = await listPdfComments(path);
+		return {
+			text: JSON.stringify(comments, null, 2),
+			details: { commentCount: comments.length },
 		};
 	}
 	if (input.view === "text") {
@@ -1100,7 +1138,7 @@ export default function extension(pi: ExtensionAPI): void {
 			"Use filler when a supported deterministic local DOCX, PDF, PPTX, or XLSX operation satisfies the task; choose a supported format/action/view combination and provide only that operation's fields.",
 			"For filler reads, use DOCX text, formatting, review, or image; PPTX text, formatting, or image; PDF text or image; or XLSX structure or image. DOCX review returns bounded comment text, authors, main-document anchor excerpts, and supported legacy reply/resolution metadata; review_offset defaults to 0 and review_limit to 20 (max 50). Follow nextOffset; text/excerpts may be truncated and modern thread metadata may be unsupported.",
 			"For filler searches, use DOCX, PPTX, or PDF text (or omit view); XLSX search is unsupported.",
-			"For filler PDF comments, use format pdf, action patch, path (input), output (new distinct file), and pdf_comments [{page, text, comment, author}, ...] (1–100 items, 1-based page). text is the exact case-sensitive phrase to highlight and must match exactly once on that page; comment and author are stored in the highlight annotation. Only unrotated, unsigned, unencrypted PDFs are supported; results return counts and pages, never comment or highlighted text. dry_run validates without writing. PDF write is unsupported.",
+			"For filler PDF comments, use format pdf, action patch, path (input), output (new distinct file), and pdf_comments [{page, text, comment, author}, ...] (1–100 items, 1-based page). text is the exact case-sensitive phrase to highlight and must match exactly once on that page; comment and author are stored in the highlight annotation. Results return new comment ids. To revise comments this tool created, use pdf_comment_edits [{id, comment}, ...] (ids from results or view=comments); it can be combined with pdf_comments in one call. Use format pdf, action read, view comments to list only this tool's comments with ids, pages, author, comment, anchor, and modified date. Only unrotated, unsigned, unencrypted PDFs are supported; comments are not deletable and replies are unsupported. Results return counts, pages, and ids, but never highlighted or comment text in patch results. dry_run validates without writing. PDF write is unsupported.",
 			"Existing distinct outputs are replaced on success. Set overwrite_original: true only when the operator or agent intends to replace the source file itself (DOCX patch, PPTX patch, XLSX patch, XLSX write, XLSX recalculation); a dry run never writes. Without it the output must differ from the input.",
 			"For filler image output, use an existing directory or PNG prefix; the operation creates numbered page/slide images, not one final PNG. DOCX, PPTX, and XLSX images convert through LibreOffice; XLSX images render workbook print pages and do not accept sheet. first_page and last_page select resulting pages.",
 			"For DOCX/PPTX writes, path is Markdown and output is the new document; reference_docx/reference_pptx is optional. DOCX uses Pandoc Markdown (smart typography disabled), including native review spans; PPTX uses GFM Markdown. DOCX generation is not a lossless round trip of an existing Word layout. For XLSX writes, path is the template and source_csv, sheet, A1-style start_cell, and output are required; column_map optionally maps all CSV ordinals or all exact headers to XLSX columns.",

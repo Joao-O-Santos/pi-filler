@@ -72,7 +72,8 @@ combination and supply only its relevant fields:
 | PDF | `read` | `text` | optional `first_page`, `last_page` |
 | PDF | `read` | `image` | `output`; optional `first_page`, `last_page` |
 | PDF | `search` | `text` or omitted | `query`; optional `first_page`, `last_page`, `literal`, `ignore_case` |
-| PDF | `patch` | omitted | `output`, `pdf_comments`; optional `dry_run` |
+| PDF | `read` | `comments` | none |
+| PDF | `patch` | omitted | `output` and `pdf_comments` and/or `pdf_comment_edits`; optional `dry_run` |
 | XLSX | `read` | `structure` | none |
 | XLSX | `read` | `image` | `output`; optional `first_page`, `last_page` select resulting workbook print pages |
 | XLSX | `write` | omitted | template `path`, `source_csv`, `sheet`, A1 `start_cell`, `output`; optional `column_map` |
@@ -137,8 +138,17 @@ inputs.
   `page`, an exact case-sensitive `text` phrase that must match exactly
   once on that page, a `comment`, and an `author`. One call accepts 1 to
   100 items, validates all of them, and publishes one new output.
-  Rotated pages and signed PDFs are rejected. Results report counts and
-  pages, never comment or highlighted text. Input is not modified.
+  Results return the new comment ids and counts, never comment or
+  highlighted text. Rotated pages and signed PDFs are rejected. Input is
+  not modified.
+- Edits (`patch`, `pdf_comment_edits`) replace the text of comments this
+  tool created, identified by `id` (1 to 100 items). Unknown or foreign
+  ids fail the whole call. Edits may be combined with `pdf_comments` in
+  one atomic output. Edits do not change the highlight or author.
+- Listing (`read`, `view: comments`) returns only this tool's comments
+  as JSON: `id`, `page`, `author`, `comment`, `anchor` (the highlighted
+  phrase), and `modified`. Other annotations are never listed. Comments
+  cannot be deleted or replied to.
 - Search returns page-aware matches and supports 1-based inclusive page
   ranges, case-insensitive matching, and literal rather than
   regular-expression queries.

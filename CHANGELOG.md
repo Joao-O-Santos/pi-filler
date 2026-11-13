@@ -17,6 +17,9 @@
   before one atomic output. Uses `@cantoo/pdf-lib` (MIT). Dry runs
   validate without writing; rotated pages and signature fields are
   refused.
+- `pdf_comment_edits` replaces the text of comments this tool created,
+  identified by the ids returned from `pdf_comments`; unknown or foreign
+  ids fail the call. `view: comments` lists only this tool's comments.
 - `xlsx_recalculate: true` recomputes cached formula results with
   headless LibreOffice (forced recalculation on load via a temporary
   profile) and writes only those cached values, preserving formulas,

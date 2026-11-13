@@ -430,7 +430,7 @@ test("rejects invalid packages and unsupported combinations", async () => {
 	);
 	await assert.rejects(
 		() => executeFiller({ format: "pdf", action: "read", path: pdf }, directory),
-		/PDF read requires view=text or view=image/,
+		/PDF read requires view=text, view=image, or view=comments/,
 	);
 });
 

@@ -18,12 +18,38 @@ export interface PdfComment {
 	author: string;
 }
 
+export interface PdfCommentEdit {
+	id: string;
+	comment: string;
+}
+
+export interface PdfCommentRef {
+	id: string;
+	page: number;
+}
+
 export interface PdfCommentResult {
 	output?: string;
 	dryRun: boolean;
 	commentCount: number;
+	editCount: number;
 	pages: number[];
+	comments?: PdfCommentRef[];
 }
+
+export interface PdfOwnComment {
+	id: string;
+	page: number;
+	author: string;
+	comment: string;
+	anchor: string;
+	modified?: string;
+}
+
+// Annotations created by this tool carry this /NM prefix; only they can be
+// edited or listed. The anchored phrase lives in a private /PiFillerAnchor key.
+const NAME_PREFIX = "pi-filler:";
+const ANCHOR = PDFName.of("PiFillerAnchor");
 
 interface Word {
 	text: string;
@@ -131,6 +157,47 @@ function highlightAppearance(doc: PDFDocument, rect: number[], quads: number[][]
 	);
 }
 
+function textOf(value: unknown): string | undefined {
+	return value instanceof PDFHexString || value instanceof PDFString
+		? value.decodeText()
+		: undefined;
+}
+
+interface OwnAnnotation {
+	id: string;
+	page: number;
+	dict: PDFDict;
+}
+
+// Lists this tool's annotations as (id, page, dictionary) without touching others.
+function ownAnnotations(doc: PDFDocument): OwnAnnotation[] {
+	const found: OwnAnnotation[] = [];
+	const pages = doc.getPages();
+	for (const [index, page] of pages.entries()) {
+		const annots = page.node.Annots();
+		for (let position = 0; position < (annots?.size() ?? 0); position++) {
+			const dict = doc.context.lookup(annots?.get(position), PDFDict);
+			const id = textOf(dict?.get(PDFName.of("NM")));
+			if (dict && id?.startsWith(NAME_PREFIX)) {
+				found.push({ id, page: index + 1, dict });
+			}
+		}
+	}
+	return found;
+}
+
+export async function listPdfComments(path: string): Promise<PdfOwnComment[]> {
+	const doc = await PDFDocument.load(await readFile(resolve(path)), { updateMetadata: false });
+	return ownAnnotations(doc).map(({ id, page, dict }) => ({
+		id,
+		page,
+		author: textOf(dict.get(PDFName.of("T"))) ?? "",
+		comment: textOf(dict.get(PDFName.of("Contents"))) ?? "",
+		anchor: textOf(dict.get(ANCHOR)) ?? "",
+		modified: textOf(dict.get(PDFName.of("M"))),
+	}));
+}
+
 function assertSupportedDocument(doc: PDFDocument, pageCount: number, comments: PdfComment[]) {
 	const acroForm = doc.catalog.lookup(PDFName.of("AcroForm"));
 	if (acroForm instanceof PDFDict && acroForm.get(SIG_FLAGS) !== undefined) {
@@ -147,26 +214,47 @@ function assertSupportedDocument(doc: PDFDocument, pageCount: number, comments: 
 	}
 }
 
-// Adds Highlight annotations with comment text to a copy of `path`. Each
-// comment must match exactly one phrase occurrence on its page. Output is
-// published atomically; dry runs validate without writing.
+export interface PdfCommentChanges {
+	comments?: PdfComment[];
+	edits?: PdfCommentEdit[];
+}
+
+// Adds Highlight annotations and edits this tool's own comments in a copy of
+// `path`. Each new comment must match exactly one phrase occurrence on its page.
+// Output is published atomically; dry runs validate without writing or
+// returning new ids.
 export async function annotatePdf(
 	path: string,
 	output: string | undefined,
-	comments: PdfComment[],
+	changes: PdfCommentChanges,
 	dryRun: boolean,
 	options: RunCommandOptions = {},
 ): Promise<PdfCommentResult> {
+	const comments = changes.comments ?? [];
+	const edits = changes.edits ?? [];
 	const source = resolve(path);
 	const bytes = await readFile(source);
 	const doc = await PDFDocument.load(bytes, { updateMetadata: false });
-	const pageCount = doc.getPageCount();
-	assertSupportedDocument(doc, pageCount, comments);
+	assertSupportedDocument(doc, doc.getPageCount(), comments);
+
+	const owned = new Map(ownAnnotations(doc).map((entry) => [entry.id, entry]));
+	const seen = new Set<string>();
+	for (const edit of edits) {
+		if (seen.has(edit.id)) throw new Error(`comment id ${edit.id} is edited more than once`);
+		seen.add(edit.id);
+		if (!owned.has(edit.id)) throw new Error(`comment id ${edit.id} was not found`);
+	}
+
+	const date = pdfDate(new Date());
+	for (const edit of edits) {
+		const target = owned.get(edit.id)?.dict;
+		target?.set(PDFName.of("Contents"), PDFHexString.fromText(edit.comment));
+		target?.set(PDFName.of("M"), PDFString.of(date));
+	}
 
 	const wordsByPage = new Map<number, Word[]>();
-	const date = pdfDate(new Date());
 	const pages = new Set<number>();
-
+	const refs: PdfCommentRef[] = [];
 	for (const [index, comment] of comments.entries()) {
 		const label = `comment ${index + 1} (page ${comment.page})`;
 		const page = doc.getPage(comment.page - 1);
@@ -194,6 +282,7 @@ export async function annotatePdf(
 		const rect = [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
 
 		const ctx = doc.context;
+		const id = `${NAME_PREFIX}${randomUUID()}`;
 		const annotation = ctx.register(
 			ctx.obj({
 				Type: "Annot",
@@ -203,19 +292,23 @@ export async function annotatePdf(
 				C: [1, 1, 0],
 				CA: 1,
 				F: 4,
+				NM: PDFHexString.fromText(id),
 				T: PDFHexString.fromText(comment.author),
 				Contents: PDFHexString.fromText(comment.comment),
+				PiFillerAnchor: PDFHexString.fromText(comment.text),
 				M: PDFString.of(date),
 				AP: { N: highlightAppearance(doc, rect, quads) },
 			}),
 		);
 		page.node.addAnnot(annotation);
 		pages.add(comment.page);
+		refs.push({ id, page: comment.page });
 	}
 
 	const result: PdfCommentResult = {
 		dryRun,
 		commentCount: comments.length,
+		editCount: edits.length,
 		pages: [...pages].sort((a, b) => a - b),
 	};
 	if (dryRun) return result;
@@ -229,5 +322,5 @@ export async function annotatePdf(
 	} finally {
 		await rm(temporary, { force: true });
 	}
-	return { ...result, output: target };
+	return { ...result, output: target, comments: refs };
 }

@@ -9,7 +9,10 @@ export type SchemaTypeChecks = [
 	Assert<Equal<FillerInput["format"], "docx" | "pdf" | "pptx" | "xlsx">>,
 	Assert<Equal<FillerInput["action"], "read" | "search" | "write" | "patch">>,
 	Assert<
-		Equal<FillerInput["view"], "text" | "formatting" | "image" | "structure" | "review" | undefined>
+		Equal<
+			FillerInput["view"],
+			"text" | "formatting" | "image" | "structure" | "review" | "comments" | undefined
+		>
 	>,
 	Assert<Equal<FillerInput["track_changes"], "accept" | "reject" | "all" | undefined>>,
 	Assert<Equal<FillerInput["value_mode"], "text" | "auto" | undefined>>,

@@ -20,9 +20,9 @@ DOCX supports text, formatting, review, and image reads; text search;
 Markdown-to-DOCX writes; and narrow OOXML patches. PPTX supports text,
 formatting, and image reads; text search; GFM-to-PPTX writes; and narrow
 OOXML patches. PDF supports text and image reads, text search, and
-highlight comments on existing text. XLSX supports content-free
-structure and image reads, CSV-to-template writes, formatting/layout
-patches, and restricted explicit formula patches.
+highlight comments on existing text, their edits, and listing. XLSX
+supports content-free structure and image reads, CSV-to-template writes,
+formatting/layout patches, and restricted explicit formula patches.
 
 Schema construction and static input inference both use TypeBox. Enums
 remain flat string enums for provider compatibility.
@@ -99,6 +99,15 @@ signature fields are refused. Editing uses `@cantoo/pdf-lib` (MIT, a
 maintained fork of pdf-lib) with metadata updates disabled, validates
 every item before writing, and publishes one atomic output. Dry runs
 validate without writing. Results contain counts and page numbers only.
+
+Edits and listing use the same ownership marker. Each created annotation
+has `/NM` set to `pi-filler:<uuid>`, which is returned as its `id`, and
+a private `/PiFillerAnchor` key holding the anchored phrase. Edits and
+`view: comments` read only annotations whose `/NM` carries that prefix;
+other annotations, including ones with identical text, are never changed
+or listed. An edit replaces `/Contents` and `/M`, keeping the highlight
+geometry, author, and appearance. Ids are checked for presence and
+duplicates before any write. Deletion and replies are not supported.
 
 Image reads render selected pages through `pdftocairo -png`. Rendering
 happens under a temporary sibling directory. Existing outputs for the
