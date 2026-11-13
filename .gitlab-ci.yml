@@ -6,9 +6,16 @@ stages:
   - release
 
 before_script:
+  - apt-get update
+  - apt-get install -y --no-install-recommends git poppler-utils python3-venv
   - npm install
   - node scripts/install-latest-pandoc.mjs
   - pandoc --version
+  - pdftotext -v
+  - python3 -m venv /opt/docxquisite
+  - /opt/docxquisite/bin/pip install --quiet git+https://gitlab.com/Joao-O-Santos/docxquisite.git
+  - ln -sf /opt/docxquisite/bin/docxquisite /usr/local/bin/docxquisite
+  - command -v docxquisite
 
 verify:
   stage: verify
