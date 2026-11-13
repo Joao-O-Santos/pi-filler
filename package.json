@@ -71,6 +71,7 @@
 		"typescript": "latest"
 	},
 	"dependencies": {
+		"@cantoo/pdf-lib": "latest",
 		"csv-parse": "latest",
 		"fast-xml-parser": "latest",
 		"fflate": "latest"

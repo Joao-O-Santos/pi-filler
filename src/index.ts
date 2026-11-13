@@ -19,6 +19,7 @@ import {
 	writePptx,
 } from "./pandoc.js";
 import { readPdfText, renderPdfPages, searchPdf } from "./pdf.js";
+import { annotatePdf, type PdfComment } from "./pdf-annotate.js";
 import { inspectPptx, type PptxPatchSet, patchPptx } from "./pptx.js";
 import { commandError, runCommand } from "./process.js";
 import { replaceTracked, validateTrackedReplacement } from "./tracked-replace.js";
@@ -271,6 +272,20 @@ const xlsxFormulaSchema = Type.Object(
 	{ additionalProperties: false },
 );
 
+const pdfCommentSchema = Type.Object(
+	{
+		page: Type.Integer({ description: "1-based page containing the text", minimum: 1 }),
+		text: Type.String({
+			description:
+				"Exact text to highlight; words separated by spaces, case-sensitive, matching exactly once on the page",
+			minLength: 1,
+		}),
+		comment: Type.String({ description: "Comment text stored in the annotation", minLength: 1 }),
+		author: Type.String({ description: "Comment author name", minLength: 1 }),
+	},
+	{ additionalProperties: false },
+);
+
 export const fillerSchema = Type.Object(
 	{
 		format: Type.Enum(["docx", "pdf", "pptx", "xlsx"], {
@@ -386,6 +401,14 @@ export const fillerSchema = Type.Object(
 				minProperties: 1,
 			}),
 		),
+		pdf_comments: Type.Optional(
+			Type.Array(pdfCommentSchema, {
+				minItems: 1,
+				maxItems: 100,
+				description:
+					"PDF patch: 1–100 highlight comments on existing text, validated before one atomic output. Each text must match exactly once on its page; rotated pages and signed PDFs are rejected. Results report counts and pages, never comment or highlighted text",
+			}),
+		),
 		xlsx_patches: Type.Optional(xlsxPatchesSchema),
 		xlsx_formula: Type.Optional({
 			...xlsxFormulaSchema,
@@ -479,6 +502,7 @@ const controlFields: ControlField[] = [
 	"has_header",
 	"value_mode",
 	"column_map",
+	"pdf_comments",
 	"xlsx_patches",
 	"xlsx_formula",
 	"xlsx_formulas",
@@ -668,8 +692,14 @@ function assertSupported(input: FillerInput): void {
 		return;
 	}
 
-	if (input.action === "write" || input.action === "patch") {
-		throw new Error("PDF write and patch operations are not supported");
+	if (input.action === "write") throw new Error("PDF write operations are not supported");
+	if (input.action === "patch") {
+		if (input.view !== undefined || !input.output) {
+			throw new Error("PDF patch requires output and does not accept view");
+		}
+		if (input.pdf_comments === undefined) throw new Error("PDF patch requires pdf_comments");
+		assertParameters(input, ["output", "pdf_comments", "dry_run"]);
+		return;
 	}
 	if (input.action === "search") {
 		if (input.view !== undefined && input.view !== "text") {
@@ -962,6 +992,19 @@ export async function executeFiller(
 		};
 	}
 
+	if (input.action === "patch") {
+		const output = normalizePath(input.output ?? "", cwd);
+		if (output === path) throw new Error("PDF patch output must differ from input");
+		const result = await withFileMutationQueue(output, () =>
+			annotatePdf(path, output, input.pdf_comments as PdfComment[], input.dry_run === true, {
+				signal,
+			}),
+		);
+		return {
+			text: JSON.stringify(result, null, 2),
+			details: result as unknown as Record<string, unknown>,
+		};
+	}
 	if (input.action === "search") {
 		const result = await searchPdf(path, input.query ?? "", {
 			...range,
@@ -997,13 +1040,14 @@ export default function extension(pi: ExtensionAPI): void {
 		name: "filler",
 		label: "Filler",
 		description:
-			"Work directly with local DOCX, PDF, PPTX, and XLSX files. Read, search, or render DOCX/PPTX and PDF; write DOCX/PPTX from Markdown; inspect or render XLSX, fill XLSX templates from CSV, patch supported formatting, set ordinary XLSX formulas atomically without evaluation, or recalculate cached XLSX formula values with LibreOffice (xlsx_recalculate).",
+			"Work directly with local DOCX, PDF, PPTX, and XLSX files. Read, search, or render DOCX/PPTX and PDF; write DOCX/PPTX from Markdown; add PDF highlight comments to existing text (pdf_comments); inspect or render XLSX, fill XLSX templates from CSV, patch supported formatting, set ordinary XLSX formulas atomically without evaluation, or recalculate cached XLSX formula values with LibreOffice (xlsx_recalculate).",
 		promptSnippet:
 			"Work directly with local DOCX, PDF, PPTX, and XLSX files using supported format/action/view combinations.",
 		promptGuidelines: [
 			"Use filler when a supported deterministic local DOCX, PDF, PPTX, or XLSX operation satisfies the task; choose a supported format/action/view combination and provide only that operation's fields.",
 			"For filler reads, use DOCX text, formatting, review, or image; PPTX text, formatting, or image; PDF text or image; or XLSX structure or image. DOCX review returns bounded comment text, authors, main-document anchor excerpts, and supported legacy reply/resolution metadata; review_offset defaults to 0 and review_limit to 20 (max 50). Follow nextOffset; text/excerpts may be truncated and modern thread metadata may be unsupported.",
 			"For filler searches, use DOCX, PPTX, or PDF text (or omit view); XLSX search is unsupported.",
+			"For filler PDF comments, use format pdf, action patch, path (input), output (new distinct file), and pdf_comments [{page, text, comment, author}, ...] (1–100 items, 1-based page). text is the exact case-sensitive phrase to highlight and must match exactly once on that page; comment and author are stored in the highlight annotation. Only unrotated, unsigned, unencrypted PDFs are supported; results return counts and pages, never comment or highlighted text. dry_run validates without writing. PDF write is unsupported.",
 			"For filler image output, use an existing directory or PNG prefix; the operation creates numbered page/slide images, not one final PNG. DOCX, PPTX, and XLSX images convert through LibreOffice; XLSX images render workbook print pages and do not accept sheet. first_page and last_page select resulting pages.",
 			"For DOCX/PPTX writes, path is Markdown and output is the new document; reference_docx/reference_pptx is optional. DOCX uses Pandoc Markdown (smart typography disabled), including native review spans; PPTX uses GFM Markdown. DOCX generation is not a lossless round trip of an existing Word layout. For XLSX writes, path is the template and source_csv, sheet, A1-style start_cell, and output are required; column_map optionally maps all CSV ordinals or all exact headers to XLSX columns.",
 			"When an XLSX write or patch can perform the requested deterministic transformation without inspecting CSV or cell contents, do not read those contents into model context merely to carry out the transformation. Processing stays local and results do not return cell or CSV contents.",

@@ -426,7 +426,7 @@ test("rejects invalid packages and unsupported combinations", async () => {
 	await writeFile(pdf, "not a real PDF");
 	await assert.rejects(
 		() => executeFiller({ format: "pdf", action: "write", path: pdf }, directory),
-		/PDF write and patch operations are not supported/,
+		/PDF write operations are not supported/,
 	);
 	await assert.rejects(
 		() => executeFiller({ format: "pdf", action: "read", path: pdf }, directory),
