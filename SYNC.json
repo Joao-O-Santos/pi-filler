@@ -1,34 +1,34 @@
 {
   "version": 2,
-  "confirmedAt": "2026-11-13T11:18:22.689Z",
+  "confirmedAt": "2026-11-13T12:06:15.769Z",
   "artifacts": [
     {
       "path": "PROJECT.md",
-      "fingerprint": "sha256:8263018f728af2a323e8ef2dc78e5cf578dba668b5797da330c5276f5975078f",
+      "fingerprint": "sha256:c2ad059802449e251c8ef19ffab3ff9c0f185dc9fc5bd92f5bf6e5aae0790113",
       "status": "current",
       "role": "project",
       "dependsOn": [],
       "acknowledgement": {
-        "at": "2026-11-13T11:18:22.689Z",
-        "reason": "Added PDF highlight comments (format pdf, action patch, pdf_comments). make verify: 200 tests, 199 passed, 1 skipped (docxquisite); make site passed; code verified in commit 7a77835."
+        "at": "2026-11-13T12:06:15.769Z",
+        "reason": "Documented PDF comment editing and listing (pdf_comment_edits, view=comments), CI installation of Poppler, pdfgrep, and docxquisite, and the pending GitLab pipeline run. Checked against src/index.ts and src/pdf-annotate.ts. make verify with docxquisite and pdfgrep on PATH: 209 tests, 209 passed, 0 skipped; make site passed. AGENTS.md needed no change."
       }
     },
     {
       "path": "ARCHITECTURE.md",
-      "fingerprint": "sha256:47faccf5f4d814329ad1e3c1d82a91eaf2e4cda4818700a35603e528b1bd3d1f",
+      "fingerprint": "sha256:861bfde843722a794d9ebefec6d6a201280104863563c1f5aaebd51a9c03c6c1",
       "status": "current",
       "role": "architecture",
       "dependsOn": [
         "PROJECT.md"
       ],
       "acknowledgement": {
-        "at": "2026-11-13T11:18:22.689Z",
-        "reason": "Added PDF highlight comments (format pdf, action patch, pdf_comments). make verify: 200 tests, 199 passed, 1 skipped (docxquisite); make site passed; code verified in commit 7a77835."
+        "at": "2026-11-13T12:06:15.769Z",
+        "reason": "Documented PDF comment editing and listing (pdf_comment_edits, view=comments), CI installation of Poppler, pdfgrep, and docxquisite, and the pending GitLab pipeline run. Checked against src/index.ts and src/pdf-annotate.ts. make verify with docxquisite and pdfgrep on PATH: 209 tests, 209 passed, 0 skipped; make site passed. AGENTS.md needed no change."
       }
     },
     {
       "path": "README.md",
-      "fingerprint": "sha256:4275452995fa7e5069071d50020ee38181addb1967b0ec255c81c01629c8a3de",
+      "fingerprint": "sha256:dbd44689bba43907995d733ad591a8a06f705791435c7577a011ee00c312169c",
       "status": "current",
       "role": "documentation",
       "dependsOn": [
@@ -36,8 +36,8 @@
         "ARCHITECTURE.md"
       ],
       "acknowledgement": {
-        "at": "2026-11-13T11:18:22.689Z",
-        "reason": "Added PDF highlight comments (format pdf, action patch, pdf_comments). make verify: 200 tests, 199 passed, 1 skipped (docxquisite); make site passed; code verified in commit 7a77835."
+        "at": "2026-11-13T12:06:15.769Z",
+        "reason": "Documented PDF comment editing and listing (pdf_comment_edits, view=comments), CI installation of Poppler, pdfgrep, and docxquisite, and the pending GitLab pipeline run. Checked against src/index.ts and src/pdf-annotate.ts. make verify with docxquisite and pdfgrep on PATH: 209 tests, 209 passed, 0 skipped; make site passed. AGENTS.md needed no change."
       }
     },
     {
@@ -62,13 +62,13 @@
         "STYLE.md"
       ],
       "acknowledgement": {
-        "at": "2026-11-13T11:18:22.689Z",
-        "reason": "Added PDF highlight comments (format pdf, action patch, pdf_comments). make verify: 200 tests, 199 passed, 1 skipped (docxquisite); make site passed; code verified in commit 7a77835."
+        "at": "2026-11-13T12:06:15.769Z",
+        "reason": "Documented PDF comment editing and listing (pdf_comment_edits, view=comments), CI installation of Poppler, pdfgrep, and docxquisite, and the pending GitLab pipeline run. Checked against src/index.ts and src/pdf-annotate.ts. make verify with docxquisite and pdfgrep on PATH: 209 tests, 209 passed, 0 skipped; make site passed. AGENTS.md needed no change."
       }
     },
     {
       "path": "CHANGELOG.md",
-      "fingerprint": "sha256:509d2a4c58156ba4ab491c19aa0c885a6da9b62cd3c0c78a32ba94e0d6ca4798",
+      "fingerprint": "sha256:5224c6fd8a12c7337bb40e55d7679ae8d35ca5727e64585baae543a90cb54f31",
       "status": "current",
       "role": "changelog",
       "dependsOn": [
@@ -76,8 +76,8 @@
         "ARCHITECTURE.md"
       ],
       "acknowledgement": {
-        "at": "2026-11-13T11:18:22.689Z",
-        "reason": "Added PDF highlight comments (format pdf, action patch, pdf_comments). make verify: 200 tests, 199 passed, 1 skipped (docxquisite); make site passed; code verified in commit 7a77835."
+        "at": "2026-11-13T12:06:15.769Z",
+        "reason": "Documented PDF comment editing and listing (pdf_comment_edits, view=comments), CI installation of Poppler, pdfgrep, and docxquisite, and the pending GitLab pipeline run. Checked against src/index.ts and src/pdf-annotate.ts. make verify with docxquisite and pdfgrep on PATH: 209 tests, 209 passed, 0 skipped; make site passed. AGENTS.md needed no change."
       }
     }
   ]
