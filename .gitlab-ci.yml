@@ -5,21 +5,25 @@ stages:
   - pages
   - release
 
-before_script:
-  - apt-get update
-  - apt-get install -y --no-install-recommends git libreoffice-calc libreoffice-writer libreoffice-impress pdfgrep poppler-utils python3-venv
-  - npm install
-  - node scripts/install-latest-pandoc.mjs
-  - pandoc --version
-  - pdftotext -v
-  - pdfgrep --version
-  - libreoffice --version
-  - python3 -m venv /opt/docxquisite
-  - /opt/docxquisite/bin/pip install --quiet git+https://gitlab.com/Joao-O-Santos/docxquisite.git
-  - ln -sf /opt/docxquisite/bin/docxquisite /usr/local/bin/docxquisite
-  - command -v docxquisite
+# Test tooling needed by `make verify`: LibreOffice, Poppler, pdfgrep, and
+# docxquisite. Only jobs that run the test suite extend this.
+.verify-tools:
+  before_script:
+    - apt-get update
+    - apt-get install -y --no-install-recommends git libreoffice-calc libreoffice-writer libreoffice-impress pdfgrep poppler-utils python3-venv
+    - npm install
+    - node scripts/install-latest-pandoc.mjs
+    - pandoc --version
+    - pdftotext -v
+    - pdfgrep --version
+    - libreoffice --version
+    - python3 -m venv /opt/docxquisite
+    - /opt/docxquisite/bin/pip install --quiet git+https://gitlab.com/Joao-O-Santos/docxquisite.git
+    - ln -sf /opt/docxquisite/bin/docxquisite /usr/local/bin/docxquisite
+    - command -v docxquisite
 
 verify:
+  extends: .verify-tools
   stage: verify
   script:
     - make verify
@@ -29,6 +33,9 @@ pages:
   needs: [verify]
   rules:
     - if: '$CI_COMMIT_BRANCH == "main"'
+  before_script:
+    - node scripts/install-latest-pandoc.mjs
+    - pandoc --version
   script:
     - make site
   artifacts:
@@ -36,6 +43,7 @@ pages:
       - public
 
 publish-npm:
+  extends: .verify-tools
   stage: release
   needs: [verify]
   rules:
