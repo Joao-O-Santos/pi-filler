@@ -72,14 +72,14 @@ combination and supply only its relevant fields:
 | PDF | `read` | `text` | optional `first_page`, `last_page` |
 | PDF | `read` | `image` | `output`; optional `first_page`, `last_page` |
 | PDF | `search` | `text` or omitted | `query`; optional `first_page`, `last_page`, `literal`, `ignore_case` |
+| PDF | `patch` | omitted | `output`, `pdf_comments`; optional `dry_run` |
 | XLSX | `read` | `structure` | none |
 | XLSX | `read` | `image` | `output`; optional `first_page`, `last_page` select resulting workbook print pages |
 | XLSX | `write` | omitted | template `path`, `source_csv`, `sheet`, A1 `start_cell`, `output`; optional `column_map` |
 | XLSX | `patch` | omitted | `output` and either `sheet` with A1 `range`/`xlsx_patches`, `sheet` with `xlsx_formula` / `xlsx_formulas`, `xlsx_formula_sheets` without `sheet`, or `xlsx_recalculate: true` alone; optional `dry_run` |
 
-PDF write and patch, and XLSX search, are unsupported. Parameters
-irrelevant to the chosen operation fail explicitly instead of being
-ignored.
+PDF write and XLSX search are unsupported. Parameters irrelevant to the
+chosen operation fail explicitly instead of being ignored.
 
 Paths resolve relative to Pi's current working directory; absolute paths
 and Pi-style paths prefixed with `@` are also accepted. A write or patch
@@ -129,6 +129,13 @@ inputs.
 ## PDF operations
 
 - Text reads use layout-preserving extraction and optional page ranges.
+- Comments (`patch`, `pdf_comments`) add highlight annotations with
+  comment text and an author to existing text. Each item names a 1-based
+  `page`, an exact case-sensitive `text` phrase that must match exactly
+  once on that page, a `comment`, and an `author`. One call accepts 1 to
+  100 items, validates all of them, and publishes one new output.
+  Rotated pages and signed PDFs are rejected. Results report counts and
+  pages, never comment or highlighted text. Input is not modified.
 - Search returns page-aware matches and supports 1-based inclusive page
   ranges, case-insensitive matching, and literal rather than
   regular-expression queries.
@@ -424,7 +431,7 @@ Required for the corresponding operations:
 - `pandoc` for DOCX/PPTX text conversion, search, and generation;
 - `libreoffice` for DOCX, PPTX, and XLSX image rendering (each
   conversion uses a private temporary profile, removed on completion);
-- `pdftotext` for PDF text extraction;
+- `pdftotext` for PDF text extraction and comment anchoring;
 - `pdftocairo` for PDF, DOCX, PPTX, and XLSX page rendering;
 - `pdfgrep` for page-aware PDF search; and
 - separately installed `docxquisite` on `PATH` for DOCX tracked

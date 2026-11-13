@@ -19,9 +19,10 @@ view: text | formatting | image | structure | review
 DOCX supports text, formatting, review, and image reads; text search;
 Markdown-to-DOCX writes; and narrow OOXML patches. PPTX supports text,
 formatting, and image reads; text search; GFM-to-PPTX writes; and narrow
-OOXML patches. PDF supports text and image reads plus text search. XLSX
-supports content-free structure and image reads, CSV-to-template writes,
-formatting/layout patches, and restricted explicit formula patches.
+OOXML patches. PDF supports text and image reads, text search, and
+highlight comments on existing text. XLSX supports content-free
+structure and image reads, CSV-to-template writes, formatting/layout
+patches, and restricted explicit formula patches.
 
 Schema construction and static input inference both use TypeBox. Enums
 remain flat string enums for provider compatibility.
@@ -87,6 +88,17 @@ rejected rather than converted into synthetic page numbers.
 
 Search text is bounded before it reaches the model, and tool details
 retain only the match count and truncation metadata.
+
+PDF comments (`action: patch` with `pdf_comments`) anchor each phrase
+with `pdftotext -bbox-layout` on its page: the phrase must equal a
+single run of words, and exactly one occurrence is allowed. Word boxes
+become per-word `QuadPoints`, with `Rect` covering them. Each item adds
+a Highlight annotation with `/Contents` (comment), `/T` (author), and a
+multiply-blended appearance stream. Only unrotated pages are supported;
+signature fields are refused. Editing uses `@cantoo/pdf-lib` (MIT, a
+maintained fork of pdf-lib) with metadata updates disabled, validates
+every item before writing, and publishes one atomic output. Dry runs
+validate without writing. Results contain counts and page numbers only.
 
 Image reads render selected pages through `pdftocairo -png`. Rendering
 happens under a temporary sibling directory. Existing outputs for the

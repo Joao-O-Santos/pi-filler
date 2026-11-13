@@ -4,6 +4,12 @@
 
 ### Added
 
+- `pdf_comments` adds 1--100 highlight comments to existing PDF text via
+  `format: pdf, action: patch`. Each item names a page, an exact phrase
+  that must match once, a comment, and an author; all items validate
+  before one atomic output. Uses `@cantoo/pdf-lib` (MIT). Dry runs
+  validate without writing; rotated pages and signature fields are
+  refused.
 - `xlsx_recalculate: true` recomputes cached formula results with
   headless LibreOffice (forced recalculation on load via a temporary
   profile) and writes only those cached values, preserving formulas,
