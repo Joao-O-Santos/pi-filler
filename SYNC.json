@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "confirmedAt": "2026-11-13T12:32:23.172Z",
+  "confirmedAt": "2026-11-13T13:05:26.351Z",
   "artifacts": [
     {
       "path": "PROJECT.md",
@@ -68,16 +68,16 @@
     },
     {
       "path": "CHANGELOG.md",
-      "fingerprint": "sha256:5224c6fd8a12c7337bb40e55d7679ae8d35ca5727e64585baae543a90cb54f31",
-      "status": "needs-review",
+      "fingerprint": "sha256:ef3cc724f9f3f7554700ec38f49df3880b26e46d6a799fe93eb79bc6ec13eca9",
+      "status": "current",
       "role": "changelog",
       "dependsOn": [
         "PROJECT.md",
         "ARCHITECTURE.md"
       ],
       "acknowledgement": {
-        "at": "2026-11-13T12:06:15.769Z",
-        "reason": "Documented PDF comment editing and listing (pdf_comment_edits, view=comments), CI installation of Poppler, pdfgrep, and docxquisite, and the pending GitLab pipeline run. Checked against src/index.ts and src/pdf-annotate.ts. make verify with docxquisite and pdfgrep on PATH: 209 tests, 209 passed, 0 skipped; make site passed. AGENTS.md needed no change."
+        "at": "2026-11-13T13:05:26.351Z",
+        "reason": "Recorded patch release 0.5.1 and removal of explicit any types from XLSX safety tests; make verify passed 209 tests, and make site passed."
       }
     }
   ]

@@ -1,6 +1,6 @@
 {
 	"name": "pi-filler",
-	"version": "0.5.0",
+	"version": "0.5.1",
 	"description": "Deterministic DOCX, PDF, and XLSX tooling for Pi",
 	"keywords": [
 		"pi-package",

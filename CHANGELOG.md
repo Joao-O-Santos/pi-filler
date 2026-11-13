@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.1 --- 2026-11-13
+
+### Changed
+
+- Remove explicit `any` types from XLSX formula safety tests.
+
 ## 0.5.0 --- 2026-11-13
 
 ### Added

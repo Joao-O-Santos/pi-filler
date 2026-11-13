@@ -12,6 +12,8 @@ const ns = 'xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"';
 const enc = (s: string) => new TextEncoder().encode(s);
 const dec = (s: Uint8Array) => new TextDecoder().decode(s);
 const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "@_", parseTagValue: false, trimValues: false });
+type Cell = { "@_r": string; "@_s"?: string; "@_t"?: string; f?: string | { "#text": string }; is?: unknown; v?: unknown };
+type Row = { "@_r": string; c: Cell | Cell[] };
 const secret = "PRIVATE_雪_4937";
 const formula = `=  IF(A1<2,"${secret} & < > ' """,A1&"é")  `;
 
@@ -55,8 +57,9 @@ test("literal replacement round-trips XML-sensitive Unicode and whitespace witho
 	noSecrets(result);
 	assert.deepEqual(await readFile(path), before);
 	const parts = unzipSync(await readFile(output));
-	const rows = list<any>(parsed(parts["xl/worksheets/sheet1.xml"]).worksheet.sheetData.row);
-	const target = list<any>(rows[1].c).find((c) => c["@_r"] === "B3");
+	const rows = list<Row>(parsed(parts["xl/worksheets/sheet1.xml"]).worksheet.sheetData.row);
+	const target = list(rows[1].c).find((c) => c["@_r"] === "B3");
+	assert.ok(target);
 	assert.equal(typeof target.f === "object" ? target.f["#text"] : target.f, formula.slice(1));
 	assert.equal(target["@_s"], "2");
 	assert.equal(target["@_t"], undefined);
@@ -76,9 +79,11 @@ test("new cells and rows remain in numeric worksheet order", async () => {
 	] as const) {
 		const { dir, path, output } = await setup();
 		noSecrets(await executeFiller(request(path, output, address), dir));
-		const rows = list<any>(parsed(unzipSync(await readFile(output))["xl/worksheets/sheet1.xml"]).worksheet.sheetData.row);
+		const rows = list<Row>(parsed(unzipSync(await readFile(output))["xl/worksheets/sheet1.xml"]).worksheet.sheetData.row);
 		assert.deepEqual(rows.map((r) => r["@_r"]), expectedRows);
-		assert.deepEqual(list<any>(rows.find((r) => r["@_r"] === rowNumber).c).map((c) => c["@_r"]), expectedCells);
+		const row = rows.find((r) => r["@_r"] === rowNumber);
+		assert.ok(row);
+		assert.deepEqual(list(row.c).map((c) => c["@_r"]), expectedCells);
 	}
 });
 
