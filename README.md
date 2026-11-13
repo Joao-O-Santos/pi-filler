@@ -75,7 +75,7 @@ combination and supply only its relevant fields:
 | XLSX | `read` | `structure` | none |
 | XLSX | `read` | `image` | `output`; optional `first_page`, `last_page` select resulting workbook print pages |
 | XLSX | `write` | omitted | template `path`, `source_csv`, `sheet`, A1 `start_cell`, `output`; optional `column_map` |
-| XLSX | `patch` | omitted | `sheet`, `output`, and either A1 `range` with `xlsx_patches` or exactly one of `xlsx_formula` / `xlsx_formulas`; optional `dry_run` |
+| XLSX | `patch` | omitted | `output` and either `sheet` with A1 `range`/`xlsx_patches`, `sheet` with `xlsx_formula` / `xlsx_formulas`, or `xlsx_formula_sheets` without `sheet`; optional `dry_run` |
 
 PDF write and patch, and XLSX search, are unsupported. Parameters
 irrelevant to the chosen operation fail explicitly instead of being
@@ -237,15 +237,15 @@ or element ordering may change.
 
 Existing spreadsheet cell values, CSV fields, formula contents, and
 comments are processed locally and are not returned to the model. A
-formula supplied in `xlsx_formula` or `xlsx_formulas` is tool input and
-visible to the agent. When a deterministic XLSX write or patch does not
-require inspection, do not read CSV or cell contents into model context
-merely to perform it. Structural results may contain sheet names,
-ranges, dimensions, counts, merged-range addresses, hidden row and
-column ranges, changed package parts, and write status---not cell or CSV
-contents. Layout-range arrays are capped and report whether they were
-truncated; this metadata can reveal limited layout and occupancy
-information.
+formula supplied in `xlsx_formula`, `xlsx_formulas`, or
+`xlsx_formula_sheets` is tool input and visible to the agent. When a
+deterministic XLSX write or patch does not require inspection, do not
+read CSV or cell contents into model context merely to perform it.
+Structural results may contain sheet names, ranges, dimensions, counts,
+merged-range addresses, hidden row and column ranges, changed package
+parts, and write status---not cell or CSV contents. Layout-range arrays
+are capped and report whether they were truncated; this metadata can
+reveal limited layout and occupancy information.
 
 - `read` with `view: "structure"` reports workbook and worksheet shape.
 - `read` with `view: "image"` renders workbook print pages through
@@ -300,6 +300,38 @@ replaced, preserving cell styles. There is no fill-down or
 relative-reference translation: supply each formula explicitly. Batch
 results include normalized `cells` in request order and `formulaCount`;
 single-cell results retain `cell`. Neither returns formulas or values.
+
+For an atomic edit across worksheets, use `xlsx_formula_sheets` instead
+of `sheet`, `xlsx_formula`, `xlsx_formulas`, `range`, and
+`xlsx_patches`:
+
+``` ts
+filler({
+  format: "xlsx",
+  action: "patch",
+  path: "template.xlsx",
+  output: "with-formulas.xlsx",
+  xlsx_formula_sheets: [
+    { sheet: "Results", formulas: [{ cell: "B2", formula: "=SUM(B3:B10)" }] },
+    { sheet: "Summary", formulas: [{ cell: "A1", formula: "=Results!B2" }] }
+  ]
+})
+```
+
+Each group requires exactly `sheet` and nonempty `formulas`. There must
+be 1--1,000 targets total, with unique normalized cells per sheet and no
+repeated worksheet targets. Formula worksheet names resolve
+case-insensitively; aliases resolving to the same worksheet part are
+rejected, as are ambiguous workbook names or part mappings. Every sheet
+and target is checked before mutation, using one source load and one
+atomic output publication, not sequential file edits. Dry runs validate
+all sheets without writing. Results contain `sheets` in request order,
+each with the workbook's `sheet` name, normalized `cells`, and
+`formulaCount`, plus a total `formulaCount` and shared output metadata.
+No formula or value contents are returned. Unrelated package parts
+remain byte-identical at the part content level; edited worksheet XML is
+reserialized. Existing single-sheet request and result shapes remain
+supported.
 
 `cell` must be one explicit, unmerged A1 cell. `formula` must start with
 `=`, have a nonblank body, contain XML-safe characters without carriage

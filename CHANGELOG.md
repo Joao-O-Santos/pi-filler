@@ -4,6 +4,12 @@
 
 ### Added
 
+- Atomic multi-worksheet formula batches via `xlsx_formula_sheets`,
+  using the existing formula engine with one source load and one output
+  publication. Supports 1--1,000 total targets, case-insensitive formula
+  worksheet resolution, duplicate resolved-part rejection, per-sheet
+  counts, and dry runs. Existing single-sheet calls, privacy, package
+  guards, and untouched-part preservation remain supported.
 - Atomic explicit XLSX formula batches via `xlsx_formulas`, sharing the
   single-cell path. Supports 1--1,000 unique case-normalized targets on
   one sheet, creates absent cells, replaces values/formulas, removes

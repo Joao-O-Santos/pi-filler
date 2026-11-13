@@ -219,11 +219,101 @@ test("formula batch accepts its 1000-target bound", async () => {
 	await assert.rejects(readFile(output), { code: 'ENOENT' });
 });
 
+test("multi-worksheet formulas publish once with private structural counts and preserve unrelated parts", async () => {
+	const { dir, path, output } = await setup();
+	const original = await readFile(path);
+	const groups = [
+		{ sheet: 'first', formulas: [{ cell: 'b2', formula }, { cell: 'D5', formula }] },
+		{ sheet: 'SECOND', formulas: [{ cell: 'a1', formula }, { cell: 'D5', formula }] },
+	];
+	const call = { sheet: undefined, xlsx_formula: undefined, xlsx_formula_sheets: groups };
+	const dry = await executeFiller(request(path, output, { ...call, dry_run: true }), dir);
+	privateCheck(dry);
+	assert.equal(dry.details.written, false);
+	await assert.rejects(readFile(output), { code: 'ENOENT' });
+	const result = await executeFiller(request(path, output, call), dir);
+	privateCheck(result);
+	assert.equal(result.details.written, true);
+	assert.equal(result.details.formulaCount, 4);
+	assert.equal(result.details.sheet, undefined);
+	assert.deepEqual(result.details.sheets, [
+		{ sheet: 'First', cells: ['B2', 'D5'], formulaCount: 2 },
+		{ sheet: 'Second', cells: ['A1', 'D5'], formulaCount: 2 },
+	]);
+	assert.deepEqual(result.details.changedParts, ['xl/workbook.xml', 'xl/worksheets/sheet1.xml', 'xl/worksheets/sheet2.xml']);
+	const after = unzipSync(await readFile(output));
+	const before = unzipSync(original);
+	for (const part of Object.keys(before)) if (!['xl/workbook.xml', 'xl/worksheets/sheet1.xml', 'xl/worksheets/sheet2.xml'].includes(part)) assert.deepEqual(after[part], before[part]);
+	for (const [index, group] of groups.entries()) for (const item of group.formulas) {
+		const target = cell(dec(after[`xl/worksheets/sheet${index + 1}.xml`]), item.cell.toUpperCase());
+		assert.equal(target.f, formula.slice(1));
+		assert.equal(target.v, undefined);
+		assert.equal(target.is, undefined);
+		assert.equal(target['@_t'], undefined);
+	}
+	assert.equal(cell(dec(after['xl/worksheets/sheet1.xml']), 'B2')['@_s'], '1');
+	for (const address of ['A1', 'C3']) assert.deepEqual(cell(dec(after['xl/worksheets/sheet1.xml']), address), cell(dec(before['xl/worksheets/sheet1.xml']), address));
+	const calc = parser.parse(dec(after['xl/workbook.xml'])).workbook.calcPr;
+	assert.ok(!Array.isArray(calc));
+	assert.equal(calc['@_forceFullCalc'], '1');
+	assert.equal(calc['@_fullCalcOnLoad'], '1');
+	assert.equal(calc['@_calcMode'], 'auto');
+	const published = await readFile(output);
+	await executeFiller(request(path, output, { ...call, dry_run: true }), dir);
+	assert.deepEqual(await readFile(output), published);
+	assert.deepEqual(await readFile(path), original);
+});
+
+test("multi-worksheet failures never write, including later merges, aliases, and aggregate bounds", async () => {
+	const parts = fixture();
+	parts['xl/worksheets/sheet2.xml'] = enc(dec(parts['xl/worksheets/sheet2.xml']).replace('</worksheet>', '<mergeCells><mergeCell ref="D4:E4"/></mergeCells></worksheet>'));
+	const { dir, path, output } = await setup(parts);
+	const original = await readFile(path);
+	const first = { sheet: 'First', formulas: [{ cell: 'B2', formula }] };
+	const second = { sheet: 'Second', formulas: [{ cell: 'A1', formula }] };
+	for (const groups of [
+		[], null, {}, [first, { ...second, sheet: 'missing' }],
+		[first, { ...second, formulas: [{ cell: 'D4', formula }] }],
+		[first, first], [first, { ...second, sheet: 'fIRST' }],
+		[first, { ...second, formulas: [{ cell: 'a1', formula }, { cell: 'A1', formula }] }],
+		[first, { ...second, extra: formula }],
+		[first, { ...second, formulas: [{ cell: 'A1', formula: '=' }] }],
+		[first, { ...second, formulas: Array.from({ length: 1000 }, (_, i) => ({ cell: `F${i + 1}`, formula })) }],
+	]) for (const dry_run of [false, true]) {
+		await writeFile(output, 'existing output');
+		await failure(() => executeFiller(request(path, output, { sheet: undefined, xlsx_formula: undefined, xlsx_formula_sheets: groups, dry_run }), dir));
+		assert.equal(await readFile(output, 'utf8'), 'existing output');
+		assert.deepEqual(await readFile(path), original);
+	}
+	for (const extra of [{ sheet: 'First' }, { xlsx_formula: first.formulas[0] }, { xlsx_formulas: first.formulas }, { range: 'A1' }, { xlsx_patches: { bold: true } }, { action: 'read', view: 'structure' }]) {
+		await failure(() => executeFiller(request(path, output, { sheet: undefined, xlsx_formula: undefined, xlsx_formula_sheets: [first, second], ...extra }), dir));
+		assert.equal(await readFile(output, 'utf8'), 'existing output');
+	}
+	const bounded = [first, { ...second, formulas: Array.from({ length: 999 }, (_, i) => ({ cell: `F${i + 1}`, formula: '=1' })) }];
+	const dry = await executeFiller(request(path, output, { sheet: undefined, xlsx_formula: undefined, xlsx_formula_sheets: bounded, dry_run: true }), dir);
+	assert.equal(dry.details.formulaCount, 1000);
+});
+
+test("multi-worksheet rejects worksheet part aliases and ambiguous case-insensitive workbook names", async () => {
+	for (const mode of ['part', 'name']) {
+		const parts = fixture();
+		if (mode === 'part') parts['xl/_rels/workbook.xml.rels'] = enc(dec(parts['xl/_rels/workbook.xml.rels']).replace('Target="worksheets/sheet2.xml"', 'Target="worksheets/sheet1.xml"'));
+		else parts['xl/workbook.xml'] = enc(dec(parts['xl/workbook.xml']).replace('name="Second"', 'name="FIRST"'));
+		const { dir, path, output } = await setup(parts);
+		await failure(() => executeFiller(request(path, output, { sheet: undefined, xlsx_formula: undefined, xlsx_formula_sheets: [{ sheet: 'First', formulas: [{ cell: 'B2', formula }] }, { sheet: 'Second', formulas: [{ cell: 'A1', formula }] }] }), dir));
+		await assert.rejects(readFile(output), { code: 'ENOENT' });
+	}
+});
+
 test("model-facing schema and prompt describe formula patch and limitations", () => {
 	let tool: { promptGuidelines?: string[]; promptSnippet?: string; description?: string } | undefined;
 	extension({ registerTool(definition: typeof tool) { tool = definition; } } as never);
 	const props = fillerSchema.properties as unknown as Record<string, Record<string, unknown>>;
 	assert.ok(props.xlsx_formula, 'schema must expose xlsx_formula');
+	assert.equal(props.xlsx_formula_sheets.minItems, 1);
+	assert.equal(props.xlsx_formula_sheets.maxItems, 1000);
+	assert.match(JSON.stringify(props.xlsx_formula_sheets), /1000 total|1–1000 total/);
+	assert.match(JSON.stringify(props.xlsx_formula_sheets), /mutually exclusive/i);
 	assert.equal(props.xlsx_formulas.minItems, 1);
 	assert.equal(props.xlsx_formulas.maxItems, 1000);
 	assert.match(JSON.stringify(props.xlsx_formulas), /mutually exclusive/i);
@@ -234,6 +324,8 @@ test("model-facing schema and prompt describe formula patch and limitations", ()
 	assert.match(description, /=/);
 	const prompt = `${tool?.description} ${tool?.promptSnippet} ${tool?.promptGuidelines?.join(' ')}`;
 	assert.match(prompt, /xlsx_formulas/);
+	assert.match(prompt, /xlsx_formula_sheets/);
+	assert.match(prompt, /multi-worksheet/);
 	assert.match(prompt, /duplicate case-normalized/);
 	assert.match(prompt, /every target.*atomic/);
 	assert.match(prompt, /recalculat/i);

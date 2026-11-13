@@ -59,8 +59,8 @@ The current pre-1.0 source implements:
 - content-free XLSX layout inspection, mapped CSV-to-template filling,
   primitive automatic typing, formula and merged-range protection,
   narrow style/layout patches, restricted single-cell and atomic
-  explicit batch formula patches, and optional image rendering through
-  LibreOffice;
+  explicit single- and multi-worksheet batch formula patches, and
+  optional image rendering through LibreOffice;
 - Pandoc-based PPTX text extraction, GFM generation, slide rendering,
   and narrow transactional OOXML patches;
 - package-owned prompt guidance that keeps deterministic XLSX processing
@@ -105,39 +105,50 @@ at the part content level. Edited XML parts are reserialized and are not
 promised to be lexically identical to their originals.
 
 Existing spreadsheet cell values, CSV fields, formula contents, and
-comments are tool-local data. Supplied `xlsx_formula` or `xlsx_formulas`
-formulas are tool input visible to the agent. Normal XLSX results and
-errors expose only structural or operational metadata. That metadata may
-include worksheet names, ranges, dimensions, counts, merge addresses,
-hidden ranges, changed parts, and output paths. Bounded layout metadata
-can reveal limited layout and occupancy information, but not cell values
-or CSV contents. A formula patch uses `sheet` and exactly one of
-`xlsx_formula: { cell, formula }` (single cell) or
-`xlsx_formulas: [{ cell, formula }, ...]` (1--1,000 explicit targets on
-one sheet), instead of `range` and `xlsx_patches`, with an input `path`
-and distinct `output`. Duplicate case-normalized cells, empty or
-oversized batches, extra object keys, and conflicting patch fields are
-rejected. All targets are validated before publishing one output through
-the shared formula-edit path. Absent cells are created and existing
-values/formulas are replaced with styles preserved; there is no
-fill-down or reference translation. Batch results report normalized
-`cells` and `formulaCount`; single-cell results retain `cell`, never
-contents. Each target is one explicit unmerged A1 cell; each formula
-starts with `=`, has a nonblank XML-safe body without CR, and is at most
-8,192 UTF-16 code units. Optional `dry_run` validates without writing.
-The old target contents and cache are removed, not returned; other
-caches may be stale. Automatic full recalculation flags are requested
-once per operation, not evaluation or a guarantee. Signed packages,
-calculation chains, complex formulas, unsupported extension or formula
-metadata, and ambiguous structures are rejected. Output is validated and
-atomically replaced; input is not intentionally modified. Formula text
-is not semantically validated and may trigger unsafe behavior on later
-opening, so review untrusted input and output. XLSX support does not
-calculate formulas or provide arbitrary content extraction or
-spreadsheet programming. PPTX support does not promise arbitrary XML
-editing or automatic layout repair; it preserves unsupported
-presentation parts but does not manipulate charts, SmartArt, animations,
-transitions, notes, masters, themes, or embedded objects.
+comments are tool-local data. Supplied `xlsx_formula`, `xlsx_formulas`,
+or `xlsx_formula_sheets` formulas are tool input visible to the agent.
+Normal XLSX results and errors expose only structural or operational
+metadata. That metadata may include worksheet names, ranges, dimensions,
+counts, merge addresses, hidden ranges, changed parts, and output paths.
+Bounded layout metadata can reveal limited layout and occupancy
+information, but not cell values or CSV contents. A formula patch uses
+`sheet` and exactly one of `xlsx_formula: { cell, formula }` (single
+cell) or `xlsx_formulas: [{ cell, formula }, ...]` (1--1,000 explicit
+targets on one sheet), instead of `range` and `xlsx_patches`, with an
+input `path` and distinct `output`. Duplicate case-normalized cells,
+empty or oversized batches, extra object keys, and conflicting patch
+fields are rejected. All targets are validated before publishing one
+output through the shared formula-edit path. Absent cells are created
+and existing values/formulas are replaced with styles preserved; there
+is no fill-down or reference translation. Batch results report
+normalized `cells` and `formulaCount`; single-cell results retain
+`cell`, never contents. Multi-worksheet requests instead use
+`xlsx_formula_sheets: [{sheet, formulas: [{cell, formula}, ...]}, ...]`,
+mutually exclusive with `sheet`, `xlsx_formula`, `xlsx_formulas`,
+`range`, and `xlsx_patches`. Nonempty groups accept at most 1,000
+targets total, unique normalized cells per sheet, and unique resolved
+worksheet parts. Formula sheet names resolve case-insensitively;
+ambiguous workbook names and part aliases are rejected. One shared
+engine loads the source once, validates every sheet/target before
+mutation, and publishes once; old single-sheet request/result shapes
+remain supported. Multi-sheet results contain `sheets` with canonical
+names, normalized cells and per-sheet counts, plus total `formulaCount`,
+never contents. Each target is one explicit unmerged A1 cell; each
+formula starts with `=`, has a nonblank XML-safe body without CR, and is
+at most 8,192 UTF-16 code units. Optional `dry_run` validates without
+writing. The old target contents and cache are removed, not returned;
+other caches may be stale. Automatic full recalculation flags are
+requested once per operation, not evaluation or a guarantee. Signed
+packages, calculation chains, complex formulas, unsupported extension or
+formula metadata, and ambiguous structures are rejected. Output is
+validated and atomically replaced; input is not intentionally modified.
+Formula text is not semantically validated and may trigger unsafe
+behavior on later opening, so review untrusted input and output. XLSX
+support does not calculate formulas or provide arbitrary content
+extraction or spreadsheet programming. PPTX support does not promise
+arbitrary XML editing or automatic layout repair; it preserves
+unsupported presentation parts but does not manipulate charts, SmartArt,
+animations, transitions, notes, masters, themes, or embedded objects.
 
 Model-facing schema descriptions and prompt guidance should make a valid
 format/action/view combination possible in one call, distinguish source
@@ -193,18 +204,21 @@ for recovery, exhausted attempts, client/rate-limit errors, and cleanup.
 
 ## Verification
 
-Atomic formula batches passed `make verify`: 170 tests, 169 passed, one
-skipped because `docxquisite` was unavailable on PATH. Line, function,
-and branch coverage were 97.29%, 97.86%, and 87.00%. `make site` also
-passed. The existing independent LibreOffice-produced XLSX smoke now
-covers batch formula replacement and absent-cell creation, using Python
-ElementTree to check target cache removal, unchanged non-target cells,
-and byte-identical untouched parts. Real-backend tests use synthetic
-files; they do not establish Microsoft Office compatibility. A
-previously observed LibreOffice reopen/export retained a stale dependent
-cache despite the full recalculation request; the batch path makes no
-stronger guarantee. No dependencies were installed and no tag, push, or
-release was created.
+Multi-worksheet formula batches passed `make verify`: 173 tests, 172
+passed, one skipped because `docxquisite` was unavailable on PATH. Line,
+function, and branch coverage were 97.45%, 97.92%, and 87.21%. The lint
+step retained five pre-existing explicit-any warnings in formula safety
+tests. `make site` passed. New deterministic tests cover mixed
+existing/new cells on two sheets, canonical names, per-sheet and total
+counts, later-sheet/merge failures, aliases, duplicates, conflicts,
+aggregate bounds, dry runs, privacy, and unaffected parts. The existing
+independent LibreOffice-produced XLSX single-sheet batch smoke also
+passed; multi-sheet coverage uses synthetic OOXML and does not establish
+Microsoft Office compatibility. A previously observed LibreOffice
+reopen/export retained a stale dependent cache despite the full
+recalculation request; the multi-sheet path makes no stronger guarantee.
+No dependencies were installed and no commit, tag, push, or release was
+created.
 
 ## Previous verification
 

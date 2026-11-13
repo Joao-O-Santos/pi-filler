@@ -1353,6 +1353,32 @@ export function validateXlsxFormulas(value: unknown): asserts value is XlsxFormu
 	}
 }
 
+export interface XlsxFormulaSheet {
+	sheet: string;
+	formulas: XlsxFormula[];
+}
+
+export function validateXlsxFormulaSheets(value: unknown): asserts value is XlsxFormulaSheet[] {
+	if (!Array.isArray(value) || value.length === 0 || value.length > 1000)
+		throw new Error("XLSX formula sheets must contain 1 to 1000 worksheet targets");
+	const seen = new Set<string>();
+	let count = 0;
+	for (const group of value) {
+		if (
+			!isObject(group) ||
+			Object.keys(group).some((key) => key !== "sheet" && key !== "formulas") ||
+			typeof group.sheet !== "string" ||
+			!group.sheet.trim()
+		)
+			throw new Error("Invalid XLSX formula worksheet request");
+		if (seen.has(group.sheet)) throw new Error("Duplicate XLSX formula worksheet target");
+		seen.add(group.sheet);
+		validateXlsxFormulas(group.formulas);
+		count += group.formulas.length;
+		if (count > 1000) throw new Error("XLSX formula batch exceeds 1000 total targets");
+	}
+}
+
 // This exact Calc extension contains only an empty element and literal attributes.
 // Keep unknown extensions rejected: they may carry formula or mixed-content metadata.
 function isLibreOfficeCalcExtension(value: unknown): boolean {
@@ -1564,7 +1590,7 @@ function validateFormulaPackage(pkg: Package): void {
 	validatePackage(pkg);
 	const sheets = workbookSheets(pkg).sheets;
 	if (
-		new Set(sheets.map((sheet) => sheet.name)).size !== sheets.length ||
+		new Set(sheets.map((sheet) => sheet.name.toLowerCase())).size !== sheets.length ||
 		new Set(sheets.map((sheet) => sheet.part)).size !== sheets.length
 	) {
 		throw new Error("Ambiguous XLSX sheet structure");
@@ -1623,8 +1649,29 @@ export async function patchXlsxFormula(
 	signal?: AbortSignal,
 ) {
 	const batch = Array.isArray(request);
-	const requests = batch ? request : [request];
-	validateXlsxFormulas(requests);
+	const result = await patchXlsxFormulaSheets(
+		inputPath,
+		outputPath,
+		[{ sheet: sheetName, formulas: batch ? request : [request] }],
+		dryRun,
+		signal,
+	);
+	const { sheets, formulaCount, ...metadata } = result;
+	return {
+		...metadata,
+		sheet: sheets[0].sheet,
+		...(batch ? { cells: sheets[0].cells, formulaCount } : { cell: sheets[0].cells[0] }),
+	};
+}
+
+export async function patchXlsxFormulaSheets(
+	inputPath: string,
+	outputPath: string,
+	requests: XlsxFormulaSheet[],
+	dryRun = false,
+	signal?: AbortSignal,
+) {
+	validateXlsxFormulaSheets(requests);
 	const input = resolve(inputPath);
 	const output = resolve(outputPath);
 	if (input === output) throw new Error("XLSX patch output must differ from input");
@@ -1632,48 +1679,60 @@ export async function patchXlsxFormula(
 	const canonicalOutput = await canonicalFormulaOutput(input, output);
 	const pkg = await load(input);
 	validateFormulaPackage(pkg);
-	const sheet = resolveSheet(pkg, sheetName);
-	assertFormulaEditableXml(pkg[sheet.part]);
 	assertFormulaEditableXml(pkg["xl/workbook.xml"]);
-	const document = parseXml(pkg[sheet.part], sheet.part);
-	const worksheet = rootObject(document, "worksheet", sheet.part);
-	const prefix = xmlPrefix(document, "worksheet");
-	const targets = requests.map((item) => {
-		const address = parseCellAddress(item.cell);
-		return { address, cellAddress: formatCell(address), formula: item.formula.slice(1) };
-	});
-	const merges = mergedRanges(worksheet);
-	for (const { address } of targets) {
-		if (merges.some((range) => overlaps(range, { start: address, end: address }))) {
-			throw new Error("XLSX formula target must not be merged");
+	const seenParts = new Set<string>();
+	const availableSheets = workbookSheets(pkg).sheets;
+	const plans = requests.map((group) => {
+		const sheet = availableSheets.find(
+			(candidate) => candidate.name.toLowerCase() === group.sheet.toLowerCase(),
+		);
+		if (!sheet?.worksheet) throw new Error("Requested XLSX worksheet does not exist");
+		if (seenParts.has(sheet.part)) throw new Error("Duplicate resolved XLSX worksheet target");
+		seenParts.add(sheet.part);
+		assertFormulaEditableXml(pkg[sheet.part]);
+		const document = parseXml(pkg[sheet.part], sheet.part);
+		const worksheet = rootObject(document, "worksheet", sheet.part);
+		const prefix = xmlPrefix(document, "worksheet");
+		const targets = group.formulas.map((item) => {
+			const address = parseCellAddress(item.cell);
+			return { address, cellAddress: formatCell(address), formula: item.formula.slice(1) };
+		});
+		const merges = mergedRanges(worksheet);
+		for (const { address } of targets) {
+			if (merges.some((range) => overlaps(range, { start: address, end: address }))) {
+				throw new Error("XLSX formula target must not be merged");
+			}
 		}
+		return { sheet, document, worksheet, prefix, targets };
+	});
+	for (const { sheet, document, worksheet, prefix, targets } of plans) {
+		const rows = rowsByNumber(worksheet, prefix);
+		for (const { address, cellAddress, formula } of targets) {
+			const row = ensureRow(worksheet, rows, address.row);
+			const cells = cellsByAddress(row);
+			const cell = ensureCell(cells, cellAddress);
+			removeDirect(cell, "f", "v", "is");
+			removeAttr(cell, "t");
+			insertDirectBefore(cell, "f", formula, "extLst", prefix);
+			syncCells(row, cells, prefix);
+		}
+		syncRows(worksheet, rows, prefix);
+		// Insert dimension before all schema successors, not just sheetData/cols.
+		if (!directKey(worksheet, "dimension")) {
+			const before = Object.keys(worksheet).find(
+				(key) => !key.startsWith("@_") && !["sheetPr", "#text"].includes(localName(key)),
+			);
+			insertDirectBefore(
+				worksheet,
+				"dimension",
+				{},
+				before ? localName(before) : "sheetData",
+				prefix,
+			);
+		}
+		updateDimension(worksheet, prefix);
+		pkg[sheet.part] = serializeXml(document);
 	}
-	const rows = rowsByNumber(worksheet, prefix);
-	for (const { address, cellAddress, formula } of targets) {
-		const row = ensureRow(worksheet, rows, address.row);
-		const cells = cellsByAddress(row);
-		const cell = ensureCell(cells, cellAddress);
-		removeDirect(cell, "f", "v", "is");
-		removeAttr(cell, "t");
-		insertDirectBefore(cell, "f", formula, "extLst", prefix);
-		syncCells(row, cells, prefix);
-	}
-	syncRows(worksheet, rows, prefix);
-	// Insert dimension before all schema successors, not just sheetData/cols.
-	if (!directKey(worksheet, "dimension")) {
-		const before = Object.keys(worksheet).find(
-			(key) => !key.startsWith("@_") && !["sheetPr", "#text"].includes(localName(key)),
-		);
-		insertDirectBefore(
-			worksheet,
-			"dimension",
-			{},
-			before ? localName(before) : "sheetData",
-			prefix,
-		);
-	}
-	updateDimension(worksheet, prefix);
-	pkg[sheet.part] = serializeXml(document);
 	const workbookPart = "xl/workbook.xml";
 	const workbookDocument = parseXml(pkg[workbookPart], workbookPart);
 	const workbook = rootObject(workbookDocument, "workbook", workbookPart);
@@ -1703,29 +1762,31 @@ export async function patchXlsxFormula(
 		before ? localName(before) : "extLst",
 		xmlPrefix(workbookDocument, "workbook"),
 	);
-	const changedParts = [sheet.part];
+	const changedParts = plans.map(({ sheet }) => sheet.part);
 	if (JSON.stringify(workbook) !== beforeCalc) {
 		pkg[workbookPart] = serializeXml(workbookDocument);
 		changedParts.push(workbookPart);
 	}
 	const validate = (candidate: Package) => {
 		validateFormulaPackage(candidate);
-		const checked = rootObject(
-			parseXml(candidate[sheet.part], sheet.part),
-			"worksheet",
-			sheet.part,
-		);
-		const checkedRows = rowsByNumber(checked);
-		for (const { address, cellAddress, formula } of targets) {
-			const target = cellsByAddress(checkedRows.get(address.row) ?? {}).get(cellAddress);
-			if (
-				!target ||
-				target[directKey(target, "f") ?? ""] !== formula ||
-				directKey(target, "v") ||
-				directKey(target, "is") ||
-				attr(target, "t") !== undefined
-			) {
-				throw new Error("XLSX formula output validation failed");
+		for (const { sheet, targets } of plans) {
+			const checked = rootObject(
+				parseXml(candidate[sheet.part], sheet.part),
+				"worksheet",
+				sheet.part,
+			);
+			const checkedRows = rowsByNumber(checked);
+			for (const { address, cellAddress, formula } of targets) {
+				const target = cellsByAddress(checkedRows.get(address.row) ?? {}).get(cellAddress);
+				if (
+					!target ||
+					target[directKey(target, "f") ?? ""] !== formula ||
+					directKey(target, "v") ||
+					directKey(target, "is") ||
+					attr(target, "t") !== undefined
+				) {
+					throw new Error("XLSX formula output validation failed");
+				}
 			}
 		}
 	};
@@ -1739,10 +1800,12 @@ export async function patchXlsxFormula(
 			signal,
 		);
 	return {
-		sheet: sheet.name,
-		...(batch
-			? { cells: targets.map((target) => target.cellAddress), formulaCount: targets.length }
-			: { cell: targets[0].cellAddress }),
+		sheets: plans.map(({ sheet, targets }) => ({
+			sheet: sheet.name,
+			cells: targets.map((target) => target.cellAddress),
+			formulaCount: targets.length,
+		})),
+		formulaCount: plans.reduce((count, plan) => count + plan.targets.length, 0),
 		changedParts: changedParts.sort(),
 		output,
 		wouldWrite: true,

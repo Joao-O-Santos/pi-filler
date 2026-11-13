@@ -106,7 +106,7 @@ metadata can reveal limited layout and occupancy information, but not
 cell values or CSV contents.
 
 `fflate` preserves package members and `fast-xml-parser` mutates only
-the selected worksheet and, for style patches, `xl/styles.xml`.
+the selected worksheets and, for style patches, `xl/styles.xml`.
 Worksheet names are resolved through `xl/workbook.xml` relationships
 rather than filename assumptions. `csv-parse` handles source CSV syntax.
 Writes use inline strings by default, may infer only empty, numeric, and
@@ -136,6 +136,21 @@ fill-down, or relative-reference translation. Batch results return
 normalized `cells` in request order and `formulaCount`; single-cell
 results retain `cell`. Neither returns values or formulas.
 
+Multi-worksheet batches use
+`xlsx_formula_sheets: [{sheet, formulas: [{cell, formula}, ...]}, ...]`,
+mutually exclusive with `sheet`, `xlsx_formula`, `xlsx_formulas`,
+`range`, and `xlsx_patches`. Groups and formula arrays must be nonempty,
+contain no extra keys, and have at most 1,000 cell targets total.
+Worksheet names resolve case-insensitively; duplicate exact requests,
+duplicate resolved parts, and ambiguous workbook name/part mappings are
+rejected. Normalized cells must be unique per worksheet. All sheet
+resolution, XML editability, and merged-target checks complete before
+mutation. The existing single-sheet entry point delegates to this shared
+engine while retaining its result shape. Multi-sheet results return
+`sheets` in request order with canonical `sheet` names, normalized
+`cells`, per-sheet `formulaCount`, and total `formulaCount`, never
+contents.
+
 Each cell is one explicit unmerged A1 address. The formula starts with
 `=`, has a nonblank body, contains XML-safe characters without CR, and
 is at most 8,192 UTF-16 code units; extra object keys are rejected.
@@ -162,11 +177,12 @@ exported artifact.
 
 Formula batches remove every target cache and validate every resulting
 formula and cache removal in memory and in the temporary package before
-one atomic publication. Only the selected worksheet and, when its
-recalculation flags change, the workbook part are reserialized; every
-other part is preserved byte-for-byte at the content level. Non-target
-cells in the selected worksheet retain their content under the same
-conservative XML restrictions as single-cell edits.
+one atomic publication after one source load. Only the selected
+worksheets and, when its recalculation flags change, the workbook part
+are reserialized; every other part is preserved byte-for-byte at the
+content level. Non-target cells in selected worksheets retain their
+content under the same conservative XML restrictions as single-cell
+edits.
 
 XLSX writes and patches require a distinct output path. They run through
 the file mutation queue, build and validate a temporary sibling package,
