@@ -1,22 +1,22 @@
 {
   "version": 2,
-  "confirmedAt": "2026-11-13T12:06:15.769Z",
+  "confirmedAt": "2026-11-13T12:32:23.172Z",
   "artifacts": [
     {
       "path": "PROJECT.md",
-      "fingerprint": "sha256:c2ad059802449e251c8ef19ffab3ff9c0f185dc9fc5bd92f5bf6e5aae0790113",
+      "fingerprint": "sha256:4a4f2211f2117fc58e50812113dbf139188e25cd55a1aa9d3c7e7440d2d00f29",
       "status": "current",
       "role": "project",
       "dependsOn": [],
       "acknowledgement": {
-        "at": "2026-11-13T12:06:15.769Z",
-        "reason": "Documented PDF comment editing and listing (pdf_comment_edits, view=comments), CI installation of Poppler, pdfgrep, and docxquisite, and the pending GitLab pipeline run. Checked against src/index.ts and src/pdf-annotate.ts. make verify with docxquisite and pdfgrep on PATH: 209 tests, 209 passed, 0 skipped; make site passed. AGENTS.md needed no change."
+        "at": "2026-11-13T12:32:23.172Z",
+        "reason": "Updated the CI status: pipeline 445b353 passed on GitLab with verify (209 tests, 0 skipped) and pages; tooling installs limited to verify and release jobs. Replaces the earlier note that the pipeline had not run."
       }
     },
     {
       "path": "ARCHITECTURE.md",
       "fingerprint": "sha256:861bfde843722a794d9ebefec6d6a201280104863563c1f5aaebd51a9c03c6c1",
-      "status": "current",
+      "status": "needs-review",
       "role": "architecture",
       "dependsOn": [
         "PROJECT.md"
@@ -29,7 +29,7 @@
     {
       "path": "README.md",
       "fingerprint": "sha256:dbd44689bba43907995d733ad591a8a06f705791435c7577a011ee00c312169c",
-      "status": "current",
+      "status": "needs-review",
       "role": "documentation",
       "dependsOn": [
         "PROJECT.md",
@@ -54,7 +54,7 @@
     {
       "path": "AGENTS.md",
       "fingerprint": "sha256:2ffeda3c7e802af6c573a6f735341c2d7239066891a849ddae1c9bfd871839b8",
-      "status": "current",
+      "status": "needs-review",
       "role": "agent-instructions",
       "dependsOn": [
         "PROJECT.md",
@@ -69,7 +69,7 @@
     {
       "path": "CHANGELOG.md",
       "fingerprint": "sha256:5224c6fd8a12c7337bb40e55d7679ae8d35ca5727e64585baae543a90cb54f31",
-      "status": "current",
+      "status": "needs-review",
       "role": "changelog",
       "dependsOn": [
         "PROJECT.md",

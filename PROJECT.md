@@ -211,13 +211,13 @@ interpretation only when the task actually requires semantic inspection.
 
 ## Immediate next step
 
-None for PDF comments. CI is configured to install Poppler, pdfgrep, and
-the docxquisite toolkit from its default branch so the real `pdftotext`,
-`pdfgrep`, and docxquisite tests run rather than skipping. The GitLab
-pipeline has not yet been run on that configuration; confirm it once.
-Possible follow-ups, each needing an accepted decision first:
-rotated-page support, popup or reply display in real viewers, and
-deleting comments.
+None for PDF comments. CI installs LibreOffice, Poppler, pdfgrep, and
+the docxquisite toolkit from its default branch for the verify and
+release jobs, so the real `pdftotext`, `pdfgrep`, and docxquisite tests
+run rather than skipping. The pages job installs only pandoc. Pipeline
+445b353 passed on GitLab. Possible follow-ups, each needing an accepted
+decision first: rotated-page support, popup or reply display in real
+viewers, and deleting comments.
 
 ## Previous action
 
