@@ -104,6 +104,14 @@ Untouched DOCX, PPTX, and XLSX package parts are preserved byte-for-byte
 at the part content level. Edited XML parts are reserialized and are not
 promised to be lexically identical to their originals.
 
+`xlsx_recalculate: true` is an in-scope XLSX request that recomputes
+cached formula results with headless LibreOffice on a temporary copy and
+writes only the resulting cached values into a distinct output. It
+refuses external links, forces LibreOffice to recalculate OOXML on load
+through a temporary profile, and reports counts and warnings without
+values. Results are not Excel results, and no separate recalculation
+engine is implemented.
+
 Existing spreadsheet cell values, CSV fields, formula contents, and
 comments are tool-local data. Supplied `xlsx_formula`, `xlsx_formulas`,
 or `xlsx_formula_sheets` formulas are tool input visible to the agent.

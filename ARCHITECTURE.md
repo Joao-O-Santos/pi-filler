@@ -163,6 +163,15 @@ semantically validated and may cause unsafe behavior, including external
 references, when opened in a spreadsheet application; review untrusted
 input and output before opening.
 
+`xlsx_recalculate: true` computes cached formula results with headless
+LibreOffice. The engine copies the input to a temporary directory and
+converts it under a temporary profile that sets `OOXMLRecalcMode` to
+always recalculate. The converted workbook is read only for each formula
+cell's `t` and `v`; those are copied into the original worksheet XML,
+which is validated to keep formula text and cell sets identical before
+atomic publication. External-link parts are refused. Dry runs compute
+and validate without publishing.
+
 Formula edits discard the conventional `xl/calcChain.xml` calculation
 order cache, its unique workbook relationship, and its content-type
 override before mutation. The chain XML must parse; metadata must be

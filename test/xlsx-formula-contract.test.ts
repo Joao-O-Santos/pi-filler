@@ -395,3 +395,12 @@ test("model-facing schema and prompt describe formula patch and limitations", ()
 	assert.match(prompt, /recalculat/i);
 	assert.match(prompt, /(?:not|no|without).*evaluat|(?:not|no|without).*calculat/i);
 });
+
+test("model-facing contract advertises the LibreOffice recalculation request", () => {
+	let tool: { description?: string } | undefined;
+	extension({ registerTool(definition: typeof tool) { tool = definition; } } as never);
+	const props = fillerSchema.properties as unknown as Record<string, Record<string, unknown>>;
+	assert.equal(props.xlsx_recalculate.type, "boolean");
+	assert.match(String(props.xlsx_recalculate.description), /LibreOffice/);
+	assert.match(String(tool?.description), /xlsx_recalculate/);
+});

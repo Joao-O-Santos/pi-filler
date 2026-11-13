@@ -28,6 +28,7 @@ import {
 	patchXlsx,
 	patchXlsxFormula,
 	patchXlsxFormulaSheets,
+	recalculateXlsx,
 	validateXlsxFormula,
 	validateXlsxFormulaSheets,
 	validateXlsxFormulas,
@@ -416,6 +417,12 @@ export const fillerSchema = Type.Object(
 				},
 			),
 		),
+		xlsx_recalculate: Type.Optional(
+			Type.Boolean({
+				description:
+					"XLSX recalculation request; must be true. Mutually exclusive with sheet, range, xlsx_patches, xlsx_formula, xlsx_formulas, and xlsx_formula_sheets. Requires distinct output; dry_run preserves output. Recomputes every formula cell's cached value with headless LibreOffice and writes only those cached values; formulas and inputs are unchanged. Returns counts and warnings, never formula text or values. Requires libreoffice on PATH.",
+			}),
+		),
 		dry_run: Type.Optional(
 			Type.Boolean({
 				default: false,
@@ -476,6 +483,7 @@ const controlFields: ControlField[] = [
 	"xlsx_formula",
 	"xlsx_formulas",
 	"xlsx_formula_sheets",
+	"xlsx_recalculate",
 	"dry_run",
 	"literal",
 	"ignore_case",
@@ -631,6 +639,12 @@ function assertSupported(input: FillerInput): void {
 			return;
 		}
 		if (input.view !== undefined) throw new Error("XLSX patch does not accept view");
+		if (input.xlsx_recalculate !== undefined) {
+			if (!input.output) throw new Error("XLSX recalculation requires output");
+			if (input.xlsx_recalculate !== true) throw new Error("xlsx_recalculate must be true");
+			assertParameters(input, ["output", "xlsx_recalculate", "dry_run"]);
+			return;
+		}
 		if (input.xlsx_formula_sheets !== undefined) {
 			if (!input.output) throw new Error("XLSX formula patch requires output");
 			assertParameters(input, ["output", "xlsx_formula_sheets", "dry_run"]);
@@ -904,6 +918,12 @@ export async function executeFiller(
 				details: result as unknown as Record<string, unknown>,
 			};
 		}
+		if (input.xlsx_recalculate !== undefined) {
+			const result = await withFileMutationQueue(output, () =>
+				recalculateXlsx(path, output, input.dry_run, signal),
+			);
+			return { text: JSON.stringify(result, null, 2), details: { ...result } };
+		}
 		if (input.xlsx_formula_sheets !== undefined) {
 			const result = await withFileMutationQueue(output, () =>
 				patchXlsxFormulaSheets(
@@ -977,7 +997,7 @@ export default function extension(pi: ExtensionAPI): void {
 		name: "filler",
 		label: "Filler",
 		description:
-			"Work directly with local DOCX, PDF, PPTX, and XLSX files. Read, search, or render DOCX/PPTX and PDF; write DOCX/PPTX from Markdown; inspect or render XLSX, fill XLSX templates from CSV, patch supported formatting, or set ordinary XLSX formulas atomically without evaluation.",
+			"Work directly with local DOCX, PDF, PPTX, and XLSX files. Read, search, or render DOCX/PPTX and PDF; write DOCX/PPTX from Markdown; inspect or render XLSX, fill XLSX templates from CSV, patch supported formatting, set ordinary XLSX formulas atomically without evaluation, or recalculate cached XLSX formula values with LibreOffice (xlsx_recalculate).",
 		promptSnippet:
 			"Work directly with local DOCX, PDF, PPTX, and XLSX files using supported format/action/view combinations.",
 		promptGuidelines: [
@@ -988,6 +1008,7 @@ export default function extension(pi: ExtensionAPI): void {
 			"For DOCX/PPTX writes, path is Markdown and output is the new document; reference_docx/reference_pptx is optional. DOCX uses Pandoc Markdown (smart typography disabled), including native review spans; PPTX uses GFM Markdown. DOCX generation is not a lossless round trip of an existing Word layout. For XLSX writes, path is the template and source_csv, sheet, A1-style start_cell, and output are required; column_map optionally maps all CSV ordinals or all exact headers to XLSX columns.",
 			"When an XLSX write or patch can perform the requested deterministic transformation without inspecting CSV or cell contents, do not read those contents into model context merely to carry out the transformation. Processing stays local and results do not return cell or CSV contents.",
 			"For filler patches, provide a new output path plus DOCX patches, PPTX pptx_patches, or XLSX sheet, A1-style range, and xlsx_patches. PPTX text replacements target slide text paragraphs and may name a 1-based slide. dry_run: true still requires output but does not create or replace it.",
+			"Use filler XLSX patch with output and xlsx_recalculate: true alone to recompute all formula cached values with headless LibreOffice (requires libreoffice on PATH); it writes only cached values, never formulas or results, and refuses external links. Its results are LibreOffice results, not Excel results.",
 			"Use filler XLSX patch with sheet and either xlsx_formula {cell, formula} or xlsx_formulas [{cell, formula}, ...], mutually exclusive with each other and range/xlsx_patches. Alternatively use xlsx_formula_sheets [{sheet, formulas:[{cell, formula}, ...]}, ...] without sheet/xlsx_formula/xlsx_formulas/range/xlsx_patches for one atomic multi-worksheet edit: 1–1000 total targets, unique case-insensitive resolved worksheets; returns sheets with normalized cells and per-sheet formulaCount plus total formulaCount. Batches contain 1–1000 explicit cells on one sheet, with no duplicate case-normalized addresses; every target is validated before atomic publication. Creates absent cells or replaces existing values/formulas, preserving styles. cell must be one explicit unmerged A1 address; formula must start with =, have a nonblank body, use valid XML characters without CR, and be at most 8192 UTF-16 code units. Batch results contain normalized cells and formulaCount, never values/formulas. Requires distinct output; dry_run preserves output. Stores an ordinary formula without evaluating it, requests full automatic recalculation on open, and leaves other formula caches unchanged (possibly stale). Conventional xl/calcChain.xml calculation order caches are discarded with their relationship/content type (included in changedParts); nonstandard or ambiguous chains are rejected. This does not calculate dependent caches. Signed packages, shared/array/dataTable formulas, ambiguous rows/cells, and unsupported formula metadata are rejected. Formula and workbook values stay local and are not returned.",
 			"DOCX patch alternatively accepts exactly one tracked_replace {old, new, author, expected_sha256?}, not patches. Requires independently installed docxquisite on PATH, a distinct nonexistent output, no view or dry_run (even false). old and author must be nonempty; empty new deletes. The optional source SHA-256 is lowercase 64 hex. Restricted to one unique single-run main-story match; existing revisions and complex documents may be rejected. Processing stays local; requested text/author and toolkit diagnostics are not returned. Structural checks do not prove Word rendering. Transport/protocol failure may leave an output: inspect it before retrying; no automatic cleanup or retry.",
 			"For filler DOCX text reads/searches, track_changes defaults to accept; use reject for the pre-edit text or all for insertion/deletion spans and comments. This selects an extraction view, not native Word acceptance/rejection. For filler defaults, PDF queries are regular expressions by default; use literal: true for literal text. XLSX writes skip a header and preserve text by default.",

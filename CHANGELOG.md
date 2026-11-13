@@ -4,6 +4,13 @@
 
 ### Added
 
+- `xlsx_recalculate: true` recomputes cached formula results with
+  headless LibreOffice (forced recalculation on load via a temporary
+  profile) and writes only those cached values, preserving formulas,
+  inputs and unrelated parts. Supports numeric, text, boolean and error
+  results across worksheets; refuses external links; dry runs validate
+  without publishing. Results are LibreOffice results, not Excel
+  results.
 - Atomic multi-worksheet formula batches via `xlsx_formula_sheets`,
   using the existing formula engine with one source load and one output
   publication. Supports 1--1,000 total targets, case-insensitive formula

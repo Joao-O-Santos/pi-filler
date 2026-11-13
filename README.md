@@ -75,7 +75,7 @@ combination and supply only its relevant fields:
 | XLSX | `read` | `structure` | none |
 | XLSX | `read` | `image` | `output`; optional `first_page`, `last_page` select resulting workbook print pages |
 | XLSX | `write` | omitted | template `path`, `source_csv`, `sheet`, A1 `start_cell`, `output`; optional `column_map` |
-| XLSX | `patch` | omitted | `output` and either `sheet` with A1 `range`/`xlsx_patches`, `sheet` with `xlsx_formula` / `xlsx_formulas`, or `xlsx_formula_sheets` without `sheet`; optional `dry_run` |
+| XLSX | `patch` | omitted | `output` and either `sheet` with A1 `range`/`xlsx_patches`, `sheet` with `xlsx_formula` / `xlsx_formulas`, `xlsx_formula_sheets` without `sheet`, or `xlsx_recalculate: true` alone; optional `dry_run` |
 
 PDF write and patch, and XLSX search, are unsupported. Parameters
 irrelevant to the chosen operation fail explicitly instead of being
@@ -345,6 +345,20 @@ perform or guarantee recalculation. In one synthetic headless
 LibreOffice 26.8.2.2 reopen/export, the edited cell recalculated but its
 dependent cell retained a stale cached value. Verify recalculation in
 the target application before relying on results.
+
+### Recalculating cached values
+
+`xlsx_recalculate: true` (with `output`, and optionally `dry_run`, but
+no other patch fields) recomputes every formula cell's cached value with
+headless LibreOffice and writes only those values. It forces LibreOffice
+to recalculate OOXML on load through a temporary profile, converts a
+copy, and copies each formula cell's result type and value (numbers,
+text, booleans, and error values such as `#DIV/0!`) into the original
+worksheet XML. Formula text, inputs, and unrelated parts are unchanged;
+worksheet XML is re-serialized. Results are calculated by LibreOffice,
+not Excel, so function coverage, locale and volatile functions can
+differ. Workbooks with external links are refused. The source is never
+modified, and values are not returned. Requires `libreoffice` on PATH.
 
 Formula edits discard a conventional `xl/calcChain.xml` calculation
 order cache and its workbook relationship and content-type override.

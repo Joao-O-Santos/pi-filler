@@ -1,34 +1,34 @@
 {
   "version": 2,
-  "confirmedAt": "2026-11-13T08:20:27Z",
+  "confirmedAt": "2026-11-13T11:10:27Z",
   "artifacts": [
     {
       "path": "PROJECT.md",
-      "fingerprint": "sha256:48ff55b19d1484640257513f378173e6bdf7d62371a705bb3deb8a38c4b95651",
+      "fingerprint": "sha256:52a478cf444495e1cee9bd5207fdcd2c870e8380efa54011f90fa4cc467f6ade",
       "status": "current",
       "role": "project",
       "dependsOn": [],
       "acknowledgement": {
-        "at": "2026-11-13T08:20:27Z",
-        "reason": "Implemented conventional calculation-chain invalidation for existing formula edit APIs. make verify: 175 passed, one unavailable-Docxquisite skip; coverage 97.56% lines, 97.98% functions, 87.10% branches. make site passed. No dependencies or commits."
+        "at": "2026-11-13T11:10:27Z",
+        "reason": "Added LibreOffice-backed xlsx_recalculate (cached-value recalculation). make verify: 194 passed, 0 skipped; make site passed."
       }
     },
     {
       "path": "ARCHITECTURE.md",
-      "fingerprint": "sha256:8fed657f89b33e796b9b47f1dad314e34eee829a52042fe8522a8d8df78e22c9",
+      "fingerprint": "sha256:2eeb6046d9ac8b96fb2ec7af3df54027bf405dcb4aa5f5657ffbb62f0838ff85",
       "status": "current",
       "role": "architecture",
       "dependsOn": [
         "PROJECT.md"
       ],
       "acknowledgement": {
-        "at": "2026-11-13T08:20:27Z",
-        "reason": "Documented conservative calculation-chain removal, metadata validation, changedParts semantics, and unchanged dependent-cache and recalculation limits after verification."
+        "at": "2026-11-13T11:10:27Z",
+        "reason": "Added LibreOffice-backed xlsx_recalculate (cached-value recalculation). make verify: 194 passed, 0 skipped; make site passed."
       }
     },
     {
       "path": "README.md",
-      "fingerprint": "sha256:e2681f5477db4dab9f34e48cab6749a11ff9d4f859878085c6895a5fa76695f1",
+      "fingerprint": "sha256:fa604727f5bbbcec951a9da0ca7f44839cd7116a06d4ad36d44d04356e9a02ec",
       "status": "current",
       "role": "documentation",
       "dependsOn": [
@@ -36,8 +36,8 @@
         "ARCHITECTURE.md"
       ],
       "acknowledgement": {
-        "at": "2026-11-13T08:20:27Z",
-        "reason": "Synchronized calculation-chain handling and refusal limits with the formula prompt and implementation; rebuilt site."
+        "at": "2026-11-13T11:10:27Z",
+        "reason": "Added LibreOffice-backed xlsx_recalculate (cached-value recalculation). make verify: 194 passed, 0 skipped; make site passed."
       }
     },
     {
@@ -68,7 +68,7 @@
     },
     {
       "path": "CHANGELOG.md",
-      "fingerprint": "sha256:1eba2355dfbc9d6c01f2cc715b43acc4315d74d48a9e7580249748d1d9bbdef3",
+      "fingerprint": "sha256:93e9963f241169367a64527ebe396895dfff1e24f90365a62e1e1ded523e1d43",
       "status": "current",
       "role": "changelog",
       "dependsOn": [
@@ -76,8 +76,8 @@
         "ARCHITECTURE.md"
       ],
       "acknowledgement": {
-        "at": "2026-11-12T22:14:57Z",
-        "reason": "Recorded atomic multi-worksheet formula batches as unreleased without a version change or tag."
+        "at": "2026-11-13T11:10:27Z",
+        "reason": "Added LibreOffice-backed xlsx_recalculate (cached-value recalculation). make verify: 194 passed, 0 skipped; make site passed."
       }
     }
   ]

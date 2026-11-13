@@ -1,9 +1,21 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, realpath, rename, rm, writeFile } from "node:fs/promises";
+import {
+	copyFile,
+	mkdir,
+	mkdtemp,
+	readFile,
+	realpath,
+	rename,
+	rm,
+	writeFile,
+} from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { basename, dirname, join, posix, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import { parse as parseCsv } from "csv-parse/sync";
 import { XMLBuilder, XMLParser } from "fast-xml-parser";
 import { type OfficePackage, packOfficePackage, unpackOfficePackage } from "./ooxml.js";
+import { commandError, runCommand } from "./process.js";
 
 const MAX_COLUMN = 16_384;
 const MAX_ROW = 1_048_576;
@@ -1966,6 +1978,182 @@ export async function patchXlsxFormulaSheets(
 		written: !dryRun,
 		warnings: [
 			"Other formula cached values are unchanged; stale cache possible until recalculation. No formula evaluation was performed.",
+		],
+	};
+}
+
+// LibreOffice recalculates on load only when told to. This profile forces it for
+// OOXML workbooks, so a plain headless conversion yields computed cached values.
+const RECALC_PROFILE = `<?xml version="1.0" encoding="UTF-8"?>
+<oor:items xmlns:oor="http://openoffice.org/2001/registry">
+<item oor:path="/org.openoffice.Office.Calc/Formula/Load"><prop oor:name="OOXMLRecalcMode" oor:op="fuse"><value>0</value></prop></item>
+</oor:items>
+`;
+const RECALC_TIMEOUT_MS = 180_000;
+const CACHE_TYPES = new Set(["b", "str", "e"]);
+
+async function libreOfficeRecalculatedPackage(
+	path: string,
+	signal?: AbortSignal,
+): Promise<Package> {
+	const temporary = await mkdtemp(join(tmpdir(), "pi-filler-recalc-"));
+	try {
+		const profile = join(temporary, "profile");
+		await mkdir(join(profile, "user"), { recursive: true });
+		await writeFile(join(profile, "user", "registrymodifications.xcu"), RECALC_PROFILE);
+		const input = join(temporary, "input.xlsx");
+		await copyFile(path, input);
+		const converted = await runCommand(
+			"libreoffice",
+			[
+				`-env:UserInstallation=${pathToFileURL(profile).href}`,
+				"--headless",
+				"--convert-to",
+				"xlsx",
+				"--outdir",
+				join(temporary, "out"),
+				input,
+			],
+			{ signal, cwd: temporary, timeoutMs: RECALC_TIMEOUT_MS },
+		);
+		if (converted.code !== 0) throw commandError(converted, "libreoffice");
+		const bytes = await readFile(join(temporary, "out", "input.xlsx")).catch(() => {
+			throw new Error("LibreOffice did not produce a recalculated workbook");
+		});
+		return unpack(new Uint8Array(bytes));
+	} finally {
+		await rm(temporary, { recursive: true, force: true });
+	}
+}
+
+// Formula cells of one worksheet, keyed by normalized address.
+function formulaCellsOf(worksheet: XmlObject, prefix?: string): Map<string, XmlObject> {
+	const result = new Map<string, XmlObject>();
+	for (const row of rowsByNumber(worksheet, prefix).values()) {
+		for (const [address, cell] of cellsByAddress(row)) {
+			if (directKey(cell, "f")) result.set(address, cell);
+		}
+	}
+	return result;
+}
+
+function cachedText(cell: XmlObject): string {
+	const key = directKey(cell, "v");
+	const value = key ? cell[key] : undefined;
+	const text = Array.isArray(value) ? value[0] : value;
+	if (text === undefined) return "";
+	if (typeof text !== "string") throw new Error("Unsupported XLSX cached value representation");
+	return text;
+}
+
+function formulaText(cell: XmlObject): string {
+	const key = directKey(cell, "f");
+	return JSON.stringify(key ? cell[key] : null);
+}
+
+export async function recalculateXlsx(
+	inputPath: string,
+	outputPath: string,
+	dryRun = false,
+	signal?: AbortSignal,
+) {
+	const input = resolve(inputPath);
+	const output = resolve(outputPath);
+	if (input === output) throw new Error("XLSX patch output must differ from input");
+	throwIfAborted(signal);
+	const canonicalOutput = await canonicalFormulaOutput(input, output);
+	const pkg = await load(input);
+	validateFormulaPackage(pkg);
+	if (Object.keys(pkg).some((part) => /(?:^|\/)externalLinks\//i.test(part))) {
+		throw new Error("XLSX external workbook links are unsupported for recalculation");
+	}
+	const engine = await libreOfficeRecalculatedPackage(input, signal);
+	throwIfAborted(signal);
+	const computed = new Map<string, Map<string, XmlObject>>();
+	for (const sheet of workbookSheets(engine).sheets) {
+		if (!sheet.worksheet) continue;
+		const document = parseXml(engine[sheet.part], sheet.part);
+		const worksheet = rootObject(document, "worksheet", sheet.part);
+		computed.set(
+			sheet.name.toLowerCase(),
+			formulaCellsOf(worksheet, xmlPrefix(document, "worksheet")),
+		);
+	}
+	const plans: { part: string; name: string; formulas: Map<string, string> }[] = [];
+	const sheets: { sheet: string; formulaCount: number }[] = [];
+	const changedParts: string[] = [];
+	let formulaCount = 0;
+	for (const sheet of workbookSheets(pkg).sheets) {
+		if (!sheet.worksheet) continue;
+		assertFormulaEditableXml(pkg[sheet.part]);
+		const document = parseXml(pkg[sheet.part], sheet.part);
+		const worksheet = rootObject(document, "worksheet", sheet.part);
+		const prefix = xmlPrefix(document, "worksheet");
+		const cells = formulaCellsOf(worksheet, prefix);
+		if (cells.size === 0) continue;
+		const source = computed.get(sheet.name.toLowerCase());
+		if (!source) throw new Error("Recalculated workbook is missing a worksheet");
+		const formulas = new Map<string, string>();
+		for (const [address, cell] of cells) {
+			const result = source.get(address);
+			if (!result) throw new Error("Recalculated workbook is missing a formula cell");
+			// Numeric results carry no t attribute; LibreOffice writes t="n" explicitly.
+			const rawType = attr(result, "t");
+			const type = rawType === undefined || rawType === "n" ? undefined : rawType;
+			if (type !== undefined && !CACHE_TYPES.has(type)) {
+				throw new Error("Unsupported recalculated XLSX cell type");
+			}
+			const text = cachedText(result);
+			removeDirect(cell, "v");
+			removeAttr(cell, "t");
+			if (type !== undefined) setAttr(cell, "t", type);
+			insertDirectBefore(cell, "v", text, "extLst", prefix);
+			formulas.set(address, formulaText(cell));
+		}
+		plans.push({ part: sheet.part, name: sheet.name, formulas });
+		sheets.push({ sheet: sheet.name, formulaCount: cells.size });
+		formulaCount += cells.size;
+		pkg[sheet.part] = serializeXml(document);
+		changedParts.push(sheet.part);
+	}
+	const validate = (candidate: Package) => {
+		validateFormulaPackage(candidate);
+		for (const plan of plans) {
+			const document = parseXml(candidate[plan.part], plan.part);
+			const checked = rootObject(document, "worksheet", plan.part);
+			const cells = formulaCellsOf(checked, xmlPrefix(document, "worksheet"));
+			if (cells.size !== plan.formulas.size)
+				throw new Error("XLSX recalculation validation failed");
+			for (const [address, cell] of cells) {
+				const expected = plan.formulas.get(address);
+				if (expected === undefined || formulaText(cell) !== expected || !directKey(cell, "v")) {
+					throw new Error("XLSX recalculation validation failed");
+				}
+			}
+		}
+	};
+	validate(pkg);
+	throwIfAborted(signal);
+	const written = !dryRun && formulaCount > 0;
+	if (written) {
+		await writePackageAtomically(
+			pkg,
+			canonicalOutput,
+			async (temporary) => validate(await load(temporary)),
+			signal,
+		);
+	}
+	return {
+		sheets,
+		formulaCount,
+		changedParts: changedParts.sort(),
+		output,
+		wouldWrite: formulaCount > 0,
+		written,
+		warnings: [
+			"Cached formula results were calculated by LibreOffice, not Microsoft Excel; function support, locale and volatile functions can differ.",
+			"Only cached values of existing formula cells were replaced; formulas and inputs are unchanged. Worksheet XML is re-serialized.",
+			"Source was not modified. Computed values are not returned.",
 		],
 	};
 }

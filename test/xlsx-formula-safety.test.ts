@@ -13,7 +13,7 @@ const enc = (s: string) => new TextEncoder().encode(s);
 const dec = (s: Uint8Array) => new TextDecoder().decode(s);
 const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "@_", parseTagValue: false, trimValues: false });
 const secret = "PRIVATE_雪_4937";
-const formula = `=  IF(A1<2,"${secret} & < > ' \"\"",A1&"é")  `;
+const formula = `=  IF(A1<2,"${secret} & < > ' """,A1&"é")  `;
 
 function packageParts(): Record<string, Uint8Array> {
 	const files: Record<string, string> = {
