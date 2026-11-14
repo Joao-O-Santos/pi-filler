@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "confirmedAt": "2026-11-14T12:22:56Z",
+  "confirmedAt": "2026-11-14T16:28:29.132Z",
   "artifacts": [
     {
       "path": "PROJECT.md",
@@ -68,7 +68,7 @@
     },
     {
       "path": "CHANGELOG.md",
-      "fingerprint": "sha256:544de1bff866b554763506aa665e00b9f0ed57fe70b7c23262aafe3362dd8e93",
+      "fingerprint": "sha256:be378f118da1e8547d131ea6841f6d594e697fb75fa572fa06c30c7afe32d681",
       "status": "current",
       "role": "changelog",
       "dependsOn": [
@@ -76,8 +76,8 @@
         "ARCHITECTURE.md"
       ],
       "acknowledgement": {
-        "at": "2026-11-14T12:22:56Z",
-        "reason": "Reviewed PDF comment IDs for effective collisions and fail-closed behavior; added regression coverage. Indirect Contents, RC, NM, and author strings and supported indirect rich-text streams are resolved. FreeText edits remove stale appearance streams. Unsupported rich-text streams are rejected. Updated docs and model guidance to match. make verify: 215 passed, 0 skipped; make site passed."
+        "at": "2026-11-14T16:28:29.132Z",
+        "reason": "Recorded the 0.6.0 release for third-party PDF comment support; make verify passed 216 tests and make site passed."
       }
     }
   ]
