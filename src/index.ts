@@ -299,7 +299,8 @@ export const fillerSchema = Type.Object(
 		view: Type.Optional(
 			Type.Enum(["text", "formatting", "image", "structure", "review", "comments"], {
 				type: "string",
-				description: "Read/search representation; omit for write and patch",
+				description:
+					"PDF comments lists annotation ids, pages, subtypes, authors, text, and reply links; otherwise read/search representation",
 			}),
 		),
 		path: Type.String({
@@ -422,7 +423,7 @@ export const fillerSchema = Type.Object(
 					minItems: 1,
 					maxItems: 100,
 					description:
-						"PDF patch: replace the text of 1–100 comments this tool created (ids from pdf_comments results or view=comments); unknown or foreign ids fail the whole call. Can be combined with pdf_comments in one atomic output",
+						"PDF patch: replace the text of 1–100 comments on supported annotations, including comments created by other PDF applications. Use ids from view=comments or prior patch results; stale or unknown ids fail the whole call. Can be combined with pdf_comments in one atomic output",
 				},
 			),
 		),
@@ -1138,7 +1139,7 @@ export default function extension(pi: ExtensionAPI): void {
 			"Use filler when a supported deterministic local DOCX, PDF, PPTX, or XLSX operation satisfies the task; choose a supported format/action/view combination and provide only that operation's fields.",
 			"For filler reads, use DOCX text, formatting, review, or image; PPTX text, formatting, or image; PDF text or image; or XLSX structure or image. DOCX review returns bounded comment text, authors, main-document anchor excerpts, and supported legacy reply/resolution metadata; review_offset defaults to 0 and review_limit to 20 (max 50). Follow nextOffset; text/excerpts may be truncated and modern thread metadata may be unsupported.",
 			"For filler searches, use DOCX, PPTX, or PDF text (or omit view); XLSX search is unsupported.",
-			"For filler PDF comments, use format pdf, action patch, path (input), output (new distinct file), and pdf_comments [{page, text, comment, author}, ...] (1–100 items, 1-based page). text is the exact case-sensitive phrase to highlight and must match exactly once on that page; comment and author are stored in the highlight annotation. Results return new comment ids. To revise comments this tool created, use pdf_comment_edits [{id, comment}, ...] (ids from results or view=comments); it can be combined with pdf_comments in one call. Use format pdf, action read, view comments to list only this tool's comments with ids, pages, author, comment, anchor, and modified date. Only unrotated, unsigned, unencrypted PDFs are supported; comments are not deletable and replies are unsupported. Results return counts, pages, and ids, but never highlighted or comment text in patch results. dry_run validates without writing. PDF write is unsupported.",
+			"For filler PDF comments, use format pdf, action patch, path (input), output (new distinct file), and pdf_comments [{page, text, comment, author}, ...] (1–100 items, 1-based page). text is the exact case-sensitive phrase to highlight and must match exactly once on that page; comment and author are stored in the highlight annotation. Results return new comment ids. To edit existing comments, including comments from other PDF applications, use pdf_comment_edits [{id, comment}, ...] with ids from a prior result or format pdf, action read, view comments. Editing preserves author and annotation geometry; rich-text formatting is removed so the replacement is consistent in viewers. FreeText edits remove the cached appearance to avoid stale text; viewers may regenerate it. Comments may be replies; view comments returns subtype and inReplyTo when available, but does not create replies. Listing excludes popup and widget annotations and includes annotations with /Contents or /RC. Existing unique pi-filler IDs are preserved; other comments use content-bound locators that an edit persists. Stale or unknown ids fail the whole call. Listing returns ids, page, subtype, author, comment text, anchor when available, and modified date. Highlight creation rejects rotated pages; patching PDFs with signature fields or PDFs that cannot be loaded without a password is unsupported. Comments are not deletable. Patch results return counts, pages, and new ids, never comment or highlighted text. dry_run validates without writing. PDF write is unsupported.",
 			"Existing distinct outputs are replaced on success. Set overwrite_original: true only when the operator or agent intends to replace the source file itself (DOCX patch, PPTX patch, XLSX patch, XLSX write, XLSX recalculation); a dry run never writes. Without it the output must differ from the input.",
 			"For filler image output, use an existing directory or PNG prefix; the operation creates numbered page/slide images, not one final PNG. DOCX, PPTX, and XLSX images convert through LibreOffice; XLSX images render workbook print pages and do not accept sheet. first_page and last_page select resulting pages.",
 			"For DOCX/PPTX writes, path is Markdown and output is the new document; reference_docx/reference_pptx is optional. DOCX uses Pandoc Markdown (smart typography disabled), including native review spans; PPTX uses GFM Markdown. DOCX generation is not a lossless round trip of an existing Word layout. For XLSX writes, path is the template and source_csv, sheet, A1-style start_cell, and output are required; column_map optionally maps all CSV ordinals or all exact headers to XLSX columns.",

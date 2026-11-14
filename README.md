@@ -47,7 +47,7 @@ The extension exposes one `filler` tool:
 ``` text
 format: docx | pdf | pptx | xlsx
 action: read | search | write | patch
-view: text | formatting | image | structure | review
+view: text | formatting | image | structure | review | comments
 ```
 
 `format` names the document or target format, not every input: DOCX and
@@ -139,16 +139,28 @@ inputs.
   once on that page, a `comment`, and an `author`. One call accepts 1 to
   100 items, validates all of them, and publishes one new output.
   Results return the new comment ids and counts, never comment or
-  highlighted text. Rotated pages and signed PDFs are rejected. Input is
-  not modified.
-- Edits (`patch`, `pdf_comment_edits`) replace the text of comments this
-  tool created, identified by `id` (1 to 100 items). Unknown or foreign
-  ids fail the whole call. Edits may be combined with `pdf_comments` in
-  one atomic output. Edits do not change the highlight or author.
-- Listing (`read`, `view: comments`) returns only this tool's comments
-  as JSON: `id`, `page`, `author`, `comment`, `anchor` (the highlighted
-  phrase), and `modified`. Other annotations are never listed. Comments
-  cannot be deleted or replied to.
+  highlighted text. Rotated pages and signature fields are rejected.
+  Input is not modified.
+- Edits (`patch`, `pdf_comment_edits`) replace text on supported PDF
+  annotations, including comments made by other applications. Use ids
+  from `view: comments` or a prior patch result; stale or unknown ids
+  fail the whole call. One call accepts 1 to 100 edits and may combine
+  them with `pdf_comments` in one atomic output. Author and geometry are
+  preserved. Rich-text formatting is removed so replacement text is
+  consistent across viewers.
+- Listing (`read`, `view: comments`) returns supported annotations with
+  `/Contents` or `/RC` as JSON: `id`, `page`, `subtype`, `author`,
+  `comment`, `anchor` (when known), `inReplyTo` (when linked), and
+  `modified`. Popup and widget annotations are excluded. Replies can be
+  listed and edited, but this tool cannot create replies or delete
+  comments. Existing unique `pi-filler:` ids are preserved. Other
+  comments get content-bound ids unless already assigned a pi-filler
+  locator; editing promotes a locator into `/NM` so it remains stable in
+  the output. Changing an annotation before editing makes its locator
+  stale. Indirect strings and supported indirect rich-text streams are
+  resolved; unsupported or undecodable rich-text streams and colliding
+  effective ids fail closed. FreeText edits discard `/AP` to avoid stale
+  visible text; viewers may regenerate a default appearance.
 - Search returns page-aware matches and supports 1-based inclusive page
   ranges, case-insensitive matching, and literal rather than
   regular-expression queries.

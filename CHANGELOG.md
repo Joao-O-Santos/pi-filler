@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- PDF comment listing and editing now cover supported existing comments
+  from other PDF applications. Foreign names, nameless annotations, and
+  duplicate names receive content-bound IDs; effective ID collisions
+  fail closed. Indirect strings and supported rich-text streams are
+  resolved; unsupported rich-text stream objects are rejected. Replies
+  can be listed and edited, and rich formatting is removed when plain
+  comment text is replaced. FreeText edits discard cached appearances to
+  prevent stale visible text; viewers may regenerate a default.
+
 ## 0.5.1 --- 2026-11-13
 
 ### Changed

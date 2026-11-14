@@ -13,7 +13,7 @@ The extension exposes one `filler` tool with explicit `format`,
 ``` text
 format: docx | pdf | pptx | xlsx
 action: read | search | write | patch
-view: text | formatting | image | structure | review
+view: text | formatting | image | structure | review | comments
 ```
 
 DOCX supports text, formatting, review, and image reads; text search;
@@ -94,20 +94,39 @@ with `pdftotext -bbox-layout` on its page: the phrase must equal a
 single run of words, and exactly one occurrence is allowed. Word boxes
 become per-word `QuadPoints`, with `Rect` covering them. Each item adds
 a Highlight annotation with `/Contents` (comment), `/T` (author), and a
-multiply-blended appearance stream. Only unrotated pages are supported;
-signature fields are refused. Editing uses `@cantoo/pdf-lib` (MIT, a
-maintained fork of pdf-lib) with metadata updates disabled, validates
-every item before writing, and publishes one atomic output. Dry runs
-validate without writing. Results contain counts and page numbers only.
+multiply-blended appearance stream. Highlight creation rejects rotated
+pages; signature fields are refused for patching. Editing uses
+`@cantoo/pdf-lib` (MIT, a maintained fork of pdf-lib) with metadata
+updates disabled, validates every item before writing, and publishes one
+atomic output. Dry runs validate without writing. Patch results include
+counts, affected pages, and ids for new comments, never comment or
+highlighted text.
 
-Edits and listing use the same ownership marker. Each created annotation
-has `/NM` set to `pi-filler:<uuid>`, which is returned as its `id`, and
-a private `/PiFillerAnchor` key holding the anchored phrase. Edits and
-`view: comments` read only annotations whose `/NM` carries that prefix;
-other annotations, including ones with identical text, are never changed
-or listed. An edit replaces `/Contents` and `/M`, keeping the highlight
-geometry, author, and appearance. Ids are checked for presence and
-duplicates before any write. Deletion and replies are not supported.
+`view: comments` lists non-popup, non-widget annotations with textual
+`/Contents` or rich-text `/RC`, including replies through `/IRT`. It
+returns subtype, author, comment text, modified date, a reply link when
+resolvable, and the highlight anchor when pi-filler stored one. Unique
+existing `pi-filler:` IDs are preserved. Other annotations get a
+`pdf-comment:v1:` locator containing the page, annotation-array
+position, and a SHA-256 fingerprint of the annotation. Duplicate or
+missing names therefore remain distinguishable. Indirect PDF strings are
+resolved for names, authors, and comment text; indirect rich-text
+streams are decoded when supported by the PDF library. The locator
+resolves only while the comment and its position are unchanged; editing
+promotes that id into `/NM` so it stays stable in the output. Effective
+ID collisions fail closed rather than selecting either annotation. This
+is a stale-target check, not a cryptographic identity or protection from
+a deliberately forged PDF. Unsupported or undecodable rich-text streams
+are rejected.
+
+Edits validate all ids before writing and preserve unrelated annotation
+dictionaries, geometry, author, and subtype. They replace `/Contents`,
+update `/M`, and remove `/RC` so an old rich-text body cannot conflict
+with the new plain text; this drops rich formatting. FreeText edits also
+remove `/AP` so an old appearance cannot keep showing stale text;
+viewers may regenerate a default appearance. Popup containers and form
+widgets are not comments for this interface. Replies are listed and
+editable as ordinary annotations, but cannot be created or deleted.
 
 Image reads render selected pages through `pdftocairo -png`. Rendering
 happens under a temporary sibling directory. Existing outputs for the

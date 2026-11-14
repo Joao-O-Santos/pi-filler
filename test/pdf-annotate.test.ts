@@ -10,6 +10,7 @@ import {
 	PDFDocument,
 	PDFHexString,
 	PDFName,
+	type PDFRef,
 	StandardFonts,
 } from "@cantoo/pdf-lib";
 import extension, { executeFiller, fillerSchema } from "../src/index.js";
@@ -54,6 +55,58 @@ async function makePdf(
 			}),
 		);
 		page.node.addAnnot(annotation);
+	}
+	await writeFile(path, await doc.save());
+}
+
+interface TestPdfAnnotation {
+	subtype?: string;
+	name?: string;
+	comment?: string;
+	richText?: string;
+	indirect?: boolean;
+	richStream?: boolean;
+	unsupportedRich?: boolean;
+	appearance?: boolean;
+	replyTo?: number;
+	direct?: boolean;
+	page?: number;
+}
+
+async function addTestAnnotations(path: string, entries: TestPdfAnnotation[]): Promise<void> {
+	const doc = await PDFDocument.load(await readFile(path));
+	if (entries.some((entry) => (entry.page ?? 1) > 1)) doc.addPage();
+	const refs: PDFRef[] = [];
+	for (const entry of entries) {
+		const page = doc.getPage((entry.page ?? 1) - 1);
+		const indirectString = (value: string) =>
+			entry.indirect
+				? doc.context.register(PDFHexString.fromText(value))
+				: PDFHexString.fromText(value);
+		const rich = entry.unsupportedRich
+			? doc.context.register(doc.context.obj({ Unsupported: true }))
+			: entry.richText === undefined
+				? undefined
+				: entry.richStream
+					? doc.context.register(doc.context.flateStream(entry.richText))
+					: indirectString(entry.richText);
+		const annotation = doc.context.obj({
+			Type: "Annot",
+			Subtype: PDFName.of(entry.subtype ?? "Highlight"),
+			Rect: [72, 690, 120, 705],
+			...(entry.name === undefined ? {} : { NM: indirectString(entry.name) }),
+			...(entry.indirect ? { T: indirectString("Indirect author") } : {}),
+			...(entry.comment === undefined ? {} : { Contents: indirectString(entry.comment) }),
+			...(rich === undefined ? {} : { RC: rich }),
+			...(entry.appearance
+				? { AP: { N: doc.context.register(doc.context.flateStream("old visible text")) } }
+				: {}),
+			...(entry.replyTo === undefined ? {} : { IRT: refs[entry.replyTo], RT: PDFName.of("R") }),
+		});
+		const reference = doc.context.register(annotation);
+		refs.push(reference);
+		if (entry.direct) page.node.Annots()?.push(annotation);
+		else page.node.addAnnot(reference);
 	}
 	await writeFile(path, await doc.save());
 }
@@ -132,6 +185,8 @@ test("adds owned highlight comments, lists them, and edits them in place", async
 		assert.deepEqual(await readFile(input), before);
 
 		const listed = await listPdfComments(first);
+		const foreignId = listed.find((entry) => entry.comment === "someone else's note")?.id;
+		assert.ok(foreignId?.startsWith("pdf-comment:v1:"));
 		assert.deepEqual(
 			listed.map((entry) => ({
 				id: entry.id,
@@ -142,6 +197,13 @@ test("adds owned highlight comments, lists them, and edits them in place", async
 			})),
 			[
 				{
+					id: foreignId,
+					page: 1,
+					author: "",
+					comment: "someone else's note",
+					anchor: "",
+				},
+				{
 					id,
 					page: 1,
 					author: "Reviewer",
@@ -149,9 +211,9 @@ test("adds owned highlight comments, lists them, and edits them in place", async
 					anchor: "quarterly revenue",
 				},
 			],
-			"foreign annotations are never listed",
+			"foreign comments are listed too",
 		);
-		assert.ok(listed[0]?.modified?.startsWith("D:"));
+		assert.ok(listed.find((entry) => entry.id === id)?.modified?.startsWith("D:"));
 
 		const [annotation] = (await pageOneAnnotations(first)).filter(
 			(dict) =>
@@ -175,11 +237,11 @@ test("adds owned highlight comments, lists them, and edits them in place", async
 		assert.equal(edited.editCount, 1);
 		assert.deepEqual(edited.comments, [], "edits do not return new ids");
 		const relisted = await listPdfComments(second);
-		assert.equal(relisted.length, 1);
-		assert.equal(relisted[0]?.id, id, "ids are stable across edits");
-		assert.equal(relisted[0]?.comment, "Revised: figure now audited");
-		assert.equal(relisted[0]?.author, "Reviewer");
-		assert.equal(relisted[0]?.anchor, "quarterly revenue");
+		const relistedOwn = relisted.find((entry) => entry.id === id);
+		assert.ok(relistedOwn, "ids are stable across edits");
+		assert.equal(relistedOwn.comment, "Revised: figure now audited");
+		assert.equal(relistedOwn.author, "Reviewer");
+		assert.equal(relistedOwn.anchor, "quarterly revenue");
 
 		const [editedAnnotation] = (await pageOneAnnotations(second)).filter((dict) =>
 			dict.get(PDFName.of("PiFillerAnchor")),
@@ -190,6 +252,252 @@ test("adds owned highlight comments, lists them, and edits them in place", async
 		assert.match(text.stdout.toString("utf8"), /quarterly revenue/);
 		const leftovers = (await readdir(directory)).filter((name) => name.endsWith(".tmp"));
 		assert.deepEqual(leftovers, []);
+	} finally {
+		await rm(directory, { recursive: true, force: true });
+	}
+});
+
+test("lists and edits an existing third-party highlight comment", async () => {
+	const directory = await mkdtemp(join(tmpdir(), "pi-filler-foreign-comment-"));
+	try {
+		const input = join(directory, "input.pdf");
+		const output = join(directory, "output.pdf");
+		await makePdf(input, { foreignHighlight: true });
+		const before = await readFile(input);
+		const comments = await listPdfComments(input);
+		assert.equal(comments.length, 1);
+		assert.equal(comments[0]?.comment, "someone else's note");
+		const id = comments[0]?.id;
+		assert.ok(id);
+		await annotatePdf(input, output, { edits: [{ id, comment: "Revised externally" }] }, false);
+		const edited = await listPdfComments(output);
+		assert.equal(edited[0]?.comment, "Revised externally");
+		assert.deepEqual(await readFile(input), before);
+	} finally {
+		await rm(directory, { recursive: true, force: true });
+	}
+});
+
+test("lists foreign annotations with duplicate and missing names and preserves IDs after edits", async () => {
+	const directory = await mkdtemp(join(tmpdir(), "pi-filler-foreign-comments-"));
+	try {
+		const input = join(directory, "input.pdf");
+		const output = join(directory, "output.pdf");
+		await makePdf(input);
+		await addTestAnnotations(input, [
+			{ name: "duplicate", comment: "first" },
+			{ name: "duplicate", comment: "second" },
+			{ comment: "nameless" },
+			{ comment: "direct dictionary", direct: true },
+			{ name: "rich", richText: "<body><p>Rich &amp; formatted</p></body>" },
+			{ name: "reply-parent", comment: "parent" },
+			{ name: "reply-child", comment: "reply", replyTo: 5 },
+			{ subtype: "Popup", comment: "popup duplicate" },
+			{ subtype: "Widget", comment: "field tooltip" },
+			{ subtype: "Text", comment: "sticky note" },
+			{ subtype: "FreeText", comment: "free text note" },
+			{ name: "second-page", comment: "second page note", page: 2 },
+		]);
+		const listed = await listPdfComments(input);
+		assert.deepEqual(
+			listed.map((comment) => comment.comment),
+			[
+				"first",
+				"second",
+				"nameless",
+				"direct dictionary",
+				"Rich & formatted",
+				"parent",
+				"reply",
+				"sticky note",
+				"free text note",
+				"second page note",
+			],
+		);
+		assert.equal(new Set(listed.map((comment) => comment.id)).size, listed.length);
+		assert.ok(listed[0]?.id.startsWith("pdf-comment:v1:"));
+		assert.ok(listed[1]?.id.startsWith("pdf-comment:v1:"));
+		assert.ok(listed[2]?.id.startsWith("pdf-comment:v1:"));
+		assert.ok(listed[3]?.id.startsWith("pdf-comment:v1:"));
+		assert.ok(listed[4]?.id.startsWith("pdf-comment:v1:"));
+		assert.equal(listed[6]?.inReplyTo, listed[5]?.id);
+		assert.equal(listed[7]?.subtype, "/Text");
+		assert.equal(listed[8]?.subtype, "/FreeText");
+		assert.equal(listed[9]?.page, 2);
+		assert.ok(listed[9]?.id.startsWith("pdf-comment:v1:"));
+
+		const duplicateId = listed[0]?.id ?? "";
+		const richId = listed[4]?.id ?? "";
+		const directId = listed[3]?.id ?? "";
+		await annotatePdf(
+			input,
+			output,
+			{
+				edits: [
+					{ id: duplicateId, comment: "Only the first duplicate changed" },
+					{ id: richId, comment: "Plain revised text" },
+					{ id: directId, comment: "Direct entry revised" },
+				],
+			},
+			false,
+		);
+		const edited = await listPdfComments(output);
+		assert.equal(edited[0]?.id, duplicateId);
+		assert.equal(edited[0]?.comment, "Only the first duplicate changed");
+		assert.equal(edited[1]?.comment, "second");
+		assert.equal(edited[3]?.id, directId);
+		assert.equal(edited[3]?.comment, "Direct entry revised");
+		assert.equal(edited[4]?.id, richId);
+		assert.equal(edited[4]?.comment, "Plain revised text");
+		const dicts = await pageOneAnnotations(output);
+		const richAnnotation = dicts.find(
+			(dict) => dict.lookupMaybe(PDFName.of("NM"), PDFHexString)?.decodeText() === richId,
+		);
+		assert.ok(richAnnotation);
+		assert.equal(
+			richAnnotation.get(PDFName.of("RC")),
+			undefined,
+			"stale rich text is removed on edit",
+		);
+	} finally {
+		await rm(directory, { recursive: true, force: true });
+	}
+});
+
+test("rejects colliding effective ids instead of editing either annotation", async () => {
+	const directory = await mkdtemp(join(tmpdir(), "pi-filler-comment-id-collision-"));
+	try {
+		const input = join(directory, "input.pdf");
+		const output = join(directory, "output.pdf");
+		await makePdf(input);
+		await addTestAnnotations(input, [{ comment: "first" }, { comment: "second" }]);
+		const firstId = (await listPdfComments(input))[0]?.id;
+		assert.ok(firstId);
+		const doc = await PDFDocument.load(await readFile(input));
+		const annots = doc.getPage(0).node.Annots();
+		const second = doc.context.lookup(annots?.get(1), PDFDict);
+		assert.ok(second);
+		second.set(PDFName.of("NM"), PDFHexString.fromText(firstId));
+		await writeFile(input, await doc.save());
+		await assert.rejects(() => listPdfComments(input), /duplicate effective ids/);
+		await assert.rejects(
+			() =>
+				annotatePdf(input, output, { edits: [{ id: firstId, comment: "wrong target" }] }, false),
+			/duplicate effective ids/,
+		);
+		await assert.rejects(() => readFile(output), /ENOENT/);
+	} finally {
+		await rm(directory, { recursive: true, force: true });
+	}
+});
+
+test("resolves indirect strings and rich-text streams and removes stale FreeText appearance", async () => {
+	const directory = await mkdtemp(join(tmpdir(), "pi-filler-indirect-comment-"));
+	try {
+		const input = join(directory, "input.pdf");
+		const output = join(directory, "output.pdf");
+		await makePdf(input);
+		await addTestAnnotations(input, [
+			{ name: "pi-filler:indirect-name", comment: "indirect body", indirect: true },
+			{ richText: "<body><p>Stream &amp; body</p></body>", richStream: true },
+			{ subtype: "FreeText", comment: "old visible body", appearance: true },
+		]);
+		const listed = await listPdfComments(input);
+		assert.equal(listed[0]?.id, "pi-filler:indirect-name");
+		assert.equal(listed[0]?.author, "Indirect author");
+		assert.equal(listed[0]?.comment, "indirect body");
+		assert.equal(listed[1]?.comment, "Stream & body");
+		const freeTextId = listed[2]?.id;
+		assert.ok(freeTextId);
+		await annotatePdf(
+			input,
+			output,
+			{ edits: [{ id: freeTextId, comment: "new visible body" }] },
+			false,
+		);
+		const annotations = await listPdfComments(output);
+		assert.equal(annotations[2]?.comment, "new visible body");
+		const dicts = await pageOneAnnotations(output);
+		const freeText = dicts.find(
+			(dict) => dict.get(PDFName.of("Subtype"))?.toString() === "/FreeText",
+		);
+		assert.ok(freeText);
+		assert.equal(
+			freeText.get(PDFName.of("AP")),
+			undefined,
+			"old appearance cannot display stale text",
+		);
+	} finally {
+		await rm(directory, { recursive: true, force: true });
+	}
+});
+
+test("rejects unsupported rich-text stream objects", async () => {
+	const directory = await mkdtemp(join(tmpdir(), "pi-filler-unsupported-rich-comment-"));
+	try {
+		const input = join(directory, "input.pdf");
+		await makePdf(input);
+		await addTestAnnotations(input, [{ unsupportedRich: true }]);
+		await assert.rejects(
+			() => listPdfComments(input),
+			/unsupported PDF rich-text comment representation/,
+		);
+	} finally {
+		await rm(directory, { recursive: true, force: true });
+	}
+});
+
+test("rejects undecodable rich-text streams without publishing an edit", async () => {
+	const directory = await mkdtemp(join(tmpdir(), "pi-filler-bad-rich-stream-"));
+	try {
+		const input = join(directory, "input.pdf");
+		const output = join(directory, "output.pdf");
+		await makePdf(input);
+		const doc = await PDFDocument.load(await readFile(input));
+		const stream = doc.context.register(
+			doc.context.stream("not compressed", { Filter: "FlateDecode" }),
+		);
+		const annotation = doc.context.register(
+			doc.context.obj({
+				Type: "Annot",
+				Subtype: "Text",
+				Rect: [1, 1, 10, 10],
+				RC: stream,
+			}),
+		);
+		doc.getPage(0).node.addAnnot(annotation);
+		await writeFile(input, await doc.save());
+		await assert.rejects(() => listPdfComments(input), /unsupported PDF rich-text comment stream/);
+		await assert.rejects(
+			() => annotatePdf(input, output, { edits: [{ id: "unknown", comment: "x" }] }, false),
+			/unsupported PDF rich-text comment stream/,
+		);
+		await assert.rejects(() => readFile(output), /ENOENT/);
+	} finally {
+		await rm(directory, { recursive: true, force: true });
+	}
+});
+
+test("stale content-bound IDs fail closed before publication", async () => {
+	const directory = await mkdtemp(join(tmpdir(), "pi-filler-stale-comment-"));
+	try {
+		const input = join(directory, "input.pdf");
+		const changed = join(directory, "changed.pdf");
+		const output = join(directory, "output.pdf");
+		await makePdf(input);
+		await addTestAnnotations(input, [{ comment: "original" }]);
+		const id = (await listPdfComments(input))[0]?.id ?? "";
+		const doc = await PDFDocument.load(await readFile(input));
+		const annots = doc.getPage(0).node.Annots();
+		const annotation = doc.context.lookup(annots?.get((annots?.size() ?? 1) - 1), PDFDict);
+		assert.ok(annotation);
+		annotation.set(PDFName.of("Contents"), PDFHexString.fromText("changed elsewhere"));
+		await writeFile(changed, await doc.save());
+		await assert.rejects(
+			() => annotatePdf(changed, output, { edits: [{ id, comment: "stale edit" }] }, false),
+			/comment id .* was not found/,
+		);
+		await assert.rejects(() => readFile(output), /ENOENT/);
 	} finally {
 		await rm(directory, { recursive: true, force: true });
 	}
@@ -235,7 +543,7 @@ test("adds and edits in one atomic call; dry runs never write", async (t) => {
 	}
 });
 
-test("rejects unknown, duplicate, and foreign comment ids", async (t) => {
+test("rejects unknown and duplicate IDs while allowing foreign comment edits", async (t) => {
 	if (!(await commandAvailable("pdftotext"))) return t.skip("pdftotext is not installed");
 	const directory = await mkdtemp(join(tmpdir(), "pi-filler-pdf-comment-ids-"));
 	try {
@@ -250,15 +558,21 @@ test("rejects unknown, duplicate, and foreign comment ids", async (t) => {
 		);
 		const id = added.comments?.[0]?.id ?? "";
 		const owned = join(directory, "owned.pdf");
+		const foreignId = (await listPdfComments(owned)).find(
+			(comment) => comment.comment === "someone else's note",
+		)?.id;
+		assert.ok(foreignId);
 
 		await assert.rejects(
 			() =>
 				annotatePdf(owned, output, { edits: [{ id: "pi-filler:missing", comment: "x" }] }, true),
 			/comment id pi-filler:missing was not found/,
 		);
-		await assert.rejects(
-			() => annotatePdf(owned, output, { edits: [{ id: "reviewer-1", comment: "x" }] }, true),
-			/comment id reviewer-1 was not found/,
+		const foreignOutput = join(directory, "foreign-output.pdf");
+		await annotatePdf(owned, foreignOutput, { edits: [{ id: foreignId, comment: "x" }] }, false);
+		assert.equal(
+			(await listPdfComments(foreignOutput)).find((comment) => comment.id === foreignId)?.comment,
+			"x",
 		);
 		await assert.rejects(
 			() =>
@@ -404,9 +718,13 @@ test("filler routes PDF comment patches and comment listing", async (t) => {
 });
 
 test("schema and prompt guidance describe PDF comment creation, edits, and listing", () => {
-	const properties = fillerSchema.properties as unknown as Record<string, { maxItems?: number }>;
+	const properties = fillerSchema.properties as unknown as Record<
+		string,
+		{ maxItems?: number; description?: string }
+	>;
 	assert.equal(properties.pdf_comments?.maxItems, 100);
 	assert.equal(properties.pdf_comment_edits?.maxItems, 100);
+	assert.match(properties.pdf_comment_edits?.description ?? "", /other PDF applications/);
 	let guidelines: string[] = [];
 	extension({
 		registerTool(definition: { promptGuidelines?: string[] }) {
@@ -415,6 +733,12 @@ test("schema and prompt guidance describe PDF comment creation, edits, and listi
 	} as never);
 	assert.ok(guidelines.some((line) => /PDF comments.*pdf_comments/.test(line)));
 	assert.ok(
-		guidelines.some((line) => /pdf_comment_edits/.test(line) && /view=comments/.test(line)),
+		guidelines.some(
+			(line) =>
+				/pdf_comment_edits/.test(line) &&
+				/view comments/.test(line) &&
+				/other PDF applications/.test(line),
+		),
 	);
+	assert.ok(guidelines.some((line) => /FreeText edits remove the cached appearance/.test(line)));
 });

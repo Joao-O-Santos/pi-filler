@@ -1,43 +1,43 @@
 {
   "version": 2,
-  "confirmedAt": "2026-11-13T13:05:26.351Z",
+  "confirmedAt": "2026-11-14T12:22:56Z",
   "artifacts": [
     {
       "path": "PROJECT.md",
-      "fingerprint": "sha256:4a4f2211f2117fc58e50812113dbf139188e25cd55a1aa9d3c7e7440d2d00f29",
+      "fingerprint": "sha256:ae5d28b457641f3951c839c74297a6dd538351bfe5f40ca9bae6bf1c6ecf9554",
       "status": "current",
       "role": "project",
       "dependsOn": [],
       "acknowledgement": {
-        "at": "2026-11-13T12:32:23.172Z",
-        "reason": "Updated the CI status: pipeline 445b353 passed on GitLab with verify (209 tests, 0 skipped) and pages; tooling installs limited to verify and release jobs. Replaces the earlier note that the pipeline had not run."
+        "at": "2026-11-14T12:22:56Z",
+        "reason": "Reviewed PDF comment IDs for effective collisions and fail-closed behavior; added regression coverage. Indirect Contents, RC, NM, and author strings and supported indirect rich-text streams are resolved. FreeText edits remove stale appearance streams. Unsupported rich-text streams are rejected. Updated docs and model guidance to match. make verify: 215 passed, 0 skipped; make site passed."
       }
     },
     {
       "path": "ARCHITECTURE.md",
-      "fingerprint": "sha256:861bfde843722a794d9ebefec6d6a201280104863563c1f5aaebd51a9c03c6c1",
-      "status": "needs-review",
+      "fingerprint": "sha256:16703d25f491f3ad772d04eccf6f60664a4787010e0edf8567b6cd58d574e61c",
+      "status": "current",
       "role": "architecture",
       "dependsOn": [
         "PROJECT.md"
       ],
       "acknowledgement": {
-        "at": "2026-11-13T12:06:15.769Z",
-        "reason": "Documented PDF comment editing and listing (pdf_comment_edits, view=comments), CI installation of Poppler, pdfgrep, and docxquisite, and the pending GitLab pipeline run. Checked against src/index.ts and src/pdf-annotate.ts. make verify with docxquisite and pdfgrep on PATH: 209 tests, 209 passed, 0 skipped; make site passed. AGENTS.md needed no change."
+        "at": "2026-11-14T12:22:56Z",
+        "reason": "Reviewed PDF comment IDs for effective collisions and fail-closed behavior; added regression coverage. Indirect Contents, RC, NM, and author strings and supported indirect rich-text streams are resolved. FreeText edits remove stale appearance streams. Unsupported rich-text streams are rejected. Updated docs and model guidance to match. make verify: 215 passed, 0 skipped; make site passed."
       }
     },
     {
       "path": "README.md",
-      "fingerprint": "sha256:dbd44689bba43907995d733ad591a8a06f705791435c7577a011ee00c312169c",
-      "status": "needs-review",
+      "fingerprint": "sha256:cda6cf570c51fe89333f9b3bf8bfdd980b7b70c352cda7a15b36a4e56fa4b82c",
+      "status": "current",
       "role": "documentation",
       "dependsOn": [
         "PROJECT.md",
         "ARCHITECTURE.md"
       ],
       "acknowledgement": {
-        "at": "2026-11-13T12:06:15.769Z",
-        "reason": "Documented PDF comment editing and listing (pdf_comment_edits, view=comments), CI installation of Poppler, pdfgrep, and docxquisite, and the pending GitLab pipeline run. Checked against src/index.ts and src/pdf-annotate.ts. make verify with docxquisite and pdfgrep on PATH: 209 tests, 209 passed, 0 skipped; make site passed. AGENTS.md needed no change."
+        "at": "2026-11-14T12:22:56Z",
+        "reason": "Reviewed PDF comment IDs for effective collisions and fail-closed behavior; added regression coverage. Indirect Contents, RC, NM, and author strings and supported indirect rich-text streams are resolved. FreeText edits remove stale appearance streams. Unsupported rich-text streams are rejected. Updated docs and model guidance to match. make verify: 215 passed, 0 skipped; make site passed."
       }
     },
     {
@@ -47,14 +47,14 @@
       "role": "style",
       "dependsOn": [],
       "acknowledgement": {
-        "at": "2026-09-14T14:06:36.788Z",
-        "reason": "Implemented the accepted narrow XLSX attendance workflow: explicit CSV column maps, mapped merged-range protection, bounded content-free layout metadata, and optional LibreOffice image rendering; synchronized the schema, implementation, tests, and documentation."
+        "at": "2026-11-14T12:13:00Z",
+        "reason": "Expanded PDF comment reads and edits to supported foreign annotations; added stable content-bound IDs, rich-text flattening and reply links. Checked model guidance, README, ARCHITECTURE, PROJECT and CHANGELOG against implementation. make verify: 212 passed, 0 skipped; make site passed."
       }
     },
     {
       "path": "AGENTS.md",
       "fingerprint": "sha256:2ffeda3c7e802af6c573a6f735341c2d7239066891a849ddae1c9bfd871839b8",
-      "status": "needs-review",
+      "status": "current",
       "role": "agent-instructions",
       "dependsOn": [
         "PROJECT.md",
@@ -62,13 +62,13 @@
         "STYLE.md"
       ],
       "acknowledgement": {
-        "at": "2026-11-13T12:06:15.769Z",
-        "reason": "Documented PDF comment editing and listing (pdf_comment_edits, view=comments), CI installation of Poppler, pdfgrep, and docxquisite, and the pending GitLab pipeline run. Checked against src/index.ts and src/pdf-annotate.ts. make verify with docxquisite and pdfgrep on PATH: 209 tests, 209 passed, 0 skipped; make site passed. AGENTS.md needed no change."
+        "at": "2026-11-14T12:13:00Z",
+        "reason": "Expanded PDF comment reads and edits to supported foreign annotations; added stable content-bound IDs, rich-text flattening and reply links. Checked model guidance, README, ARCHITECTURE, PROJECT and CHANGELOG against implementation. make verify: 212 passed, 0 skipped; make site passed."
       }
     },
     {
       "path": "CHANGELOG.md",
-      "fingerprint": "sha256:ef3cc724f9f3f7554700ec38f49df3880b26e46d6a799fe93eb79bc6ec13eca9",
+      "fingerprint": "sha256:544de1bff866b554763506aa665e00b9f0ed57fe70b7c23262aafe3362dd8e93",
       "status": "current",
       "role": "changelog",
       "dependsOn": [
@@ -76,8 +76,8 @@
         "ARCHITECTURE.md"
       ],
       "acknowledgement": {
-        "at": "2026-11-13T13:05:26.351Z",
-        "reason": "Recorded patch release 0.5.1 and removal of explicit any types from XLSX safety tests; make verify passed 209 tests, and make site passed."
+        "at": "2026-11-14T12:22:56Z",
+        "reason": "Reviewed PDF comment IDs for effective collisions and fail-closed behavior; added regression coverage. Indirect Contents, RC, NM, and author strings and supported indirect rich-text streams are resolved. FreeText edits remove stale appearance streams. Unsupported rich-text streams are rejected. Updated docs and model guidance to match. make verify: 215 passed, 0 skipped; make site passed."
       }
     }
   ]
