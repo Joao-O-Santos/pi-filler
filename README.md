@@ -46,7 +46,7 @@ The extension exposes one `filler` tool:
 
 ``` text
 format: docx | pdf | pptx | xlsx
-action: read | search | write | patch
+action: read | search | write | patch | compose | export
 view: text | formatting | image | structure | review | comments
 ```
 
@@ -59,11 +59,13 @@ combination and supply only its relevant fields:
 |---------------|---------------|---------------|---------------------------|
 | DOCX | `read` | `text` | optional `track_changes` |
 | DOCX | `read` | `formatting` | none |
+| DOCX | `read` | `structure` | optional `structure_part`, `structure_offset`, `structure_limit` |
 | DOCX | `read` | `review` | optional `review_offset`, `review_limit` |
 | DOCX | `read` | `image` | `output`; optional `first_page`, `last_page` |
 | DOCX | `search` | `text` or omitted | `query`; optional `ignore_case`, `track_changes` |
 | DOCX | `write` | omitted | Markdown `path`, `output`; optional `reference_docx` |
-| DOCX | `patch` | omitted | `output` and exactly one of `patches` or `tracked_replace`; optional `dry_run` only with `patches` |
+| DOCX | `patch` | omitted | `output` and exactly one of `patches`, `docx_layout`, `tracked_replace`; optional `dry_run` except with `tracked_replace` |
+| DOCX | `compose` | omitted | shell `path`, distinct `output`, `docx_compose`; optional `dry_run` |
 | PPTX | `read` | `text` or `formatting` | none |
 | PPTX | `read` | `image` | `output`; optional `first_page`, `last_page` |
 | PPTX | `search` | `text` or omitted | `query`; optional `ignore_case` |
@@ -74,13 +76,16 @@ combination and supply only its relevant fields:
 | PDF | `search` | `text` or omitted | `query`; optional `first_page`, `last_page`, `literal`, `ignore_case` |
 | PDF | `read` | `comments` | none |
 | PDF | `patch` | omitted | `output` and `pdf_comments` and/or `pdf_comment_edits`; optional `dry_run` |
+| PDF | `export` | omitted | DOCX/PPTX/XLSX `path`, `.pdf` `output`; requires LibreOffice |
 | XLSX | `read` | `structure` | none |
 | XLSX | `read` | `image` | `output`; optional `first_page`, `last_page` select resulting workbook print pages |
 | XLSX | `write` | omitted | template `path`, `source_csv`, `sheet`, A1 `start_cell`, `output`; optional `column_map` |
 | XLSX | `patch` | omitted | `output` and either `sheet` with A1 `range`/`xlsx_patches`, `sheet` with `xlsx_formula` / `xlsx_formulas`, `xlsx_formula_sheets` without `sheet`, or `xlsx_recalculate: true` alone; optional `dry_run` |
 
-PDF write and XLSX search are unsupported. Parameters irrelevant to the
-chosen operation fail explicitly instead of being ignored.
+PDF `write` and XLSX search are unsupported; Office-to-PDF conversion
+uses `export`, not `write`. Compose/export never accept
+`overwrite_original`. Parameters irrelevant to the chosen operation fail
+explicitly instead of being ignored.
 
 Paths resolve relative to Pi's current working directory; absolute paths
 and Pi-style paths prefixed with `@` are also accepted. A write or patch
@@ -265,6 +270,135 @@ identity-bearing property and must not be described as anonymization.
 Untouched ZIP package parts remain content-identical. Edited XML parts
 are parsed and serialized again, so their lexical formatting, prefixes,
 or element ordering may change.
+
+### Document layouts and template shells
+
+`read`, `view: structure` discovers 1-based paragraph and table indexes
+within one story. `structure_part` defaults to `word/document.xml`;
+`stories` lists available document/header/footer parts, and
+`sectionReferences` maps section number and default/first/even
+header/footer references to parts. Offset is zero-based (default 0),
+limit defaults to 50 (maximum 100), and byte limits may return fewer
+paragraphs; follow `nextOffset`. Text excerpts, runs, attributes,
+tables, and metadata are bounded. Large records may omit run/property
+details. Only explicit properties and `docDefaults` are shown, **not** a
+resolved style/theme cascade or effective appearance.
+
+Use `docx_layout` instead of `patches` for explicit presentation rules:
+
+``` json
+{
+  "format": "docx", "action": "patch",
+  "path": "body.docx", "output": "shaped.docx",
+  "docx_layout": {
+    "paragraphs": [
+      {"from": 1, "to": 8, "clearStyle": true, "clearRunStyle": true,
+       "font": "Times New Roman", "size": 11, "line": 360},
+      {"from": 1, "alignment": "center", "underline": true},
+      {"from": 2, "to": 7, "keepNext": true, "keepLines": true},
+      {"from": 8, "keepNext": false}
+    ],
+    "imageBounds": {"width": 15, "height": 9}
+  }
+}
+```
+
+Rules address indexes in the original story and run in order, before row
+clones. `to` defaults to `from`. `part` selects the same story names as
+structure reads. Font `size` uses half-point increments in points;
+`line` uses 240ths of an automatic line (360 = 1.5). `before`, `after`,
+`left`, and `hanging` use nonnegative twips. Alignment is left, center,
+right, or both. `clearStyle` removes the direct paragraph style and
+`clearRunStyle` removes direct ordinary character styles; neither clears
+inherited defaults. Explicit font/size avoid accidental Heading sizes.
+Typography applies to ordinary text runs and paragraph marks, never math
+or embedded text boxes. `keepNext`, `keepLines`, and `pageBreakBefore`
+accept true or false, so the last paragraph can terminate a grouped
+block. `clearPageBreaks` removes explicit page breaks, retaining
+line/column breaks. The audit reports explicit `pageBreaks` counts.
+
+`cloneRows: [{table, row, count, content, labels?}]` inserts copies
+after a 1-based original row in a 1-based outer table. `count` is
+1--100; `content` must be `keep` or `clear_text`. Optional `labels` has
+one first-cell replacement per new row. Widths, heights, borders,
+shading, and `gridSpan` merges survive. Vertical/legacy horizontal
+merges, nested tables, fields, drawings, references and
+unique-ID-bearing rows are conservatively refused. Paragraph identity
+attributes are removed from new rows. `clear_text` clears text, not cell
+formatting.
+
+`imageBounds` requires both width and height in cm. DrawingML image
+extents shrink proportionally without upscaling; VML is preserved but
+not resized. A 9 cm height limit can help keep a diagnostic plot with
+its options, but **rendering is still necessary**. Layout edits refuse
+revisions/content controls in the selected story, signatures, macros,
+malformed packaging, invalid XML characters, and input/output aliases.
+Dry runs validate without replacing outputs. Intentional same-path
+layout patches require `overwrite_original: true`.
+
+For cover preservation, first generate and shape a separate donor DOCX,
+then compose it into a shell:
+
+``` json
+{
+  "format": "docx", "action": "compose",
+  "path": "template.docx", "output": "new-document.docx",
+  "docx_compose": {
+    "body_path": "shaped.docx",
+    "replace_from": "REPLACE_BODY",
+    "body_from": "BODY_START"
+  }
+}
+```
+
+Anchors match exactly one direct-body paragraph, across its text runs,
+without trimming. `replace_from` and the complete following shell body
+are removed; the cover prefix and final section survive. `body_from` is
+included (omit it to import all donor body elements). Section/header/
+footer parts, cover VML/logo, images and fields are retained, not
+rebuilt from styles. Composition requires a separate output from
+**both** inputs, also rejecting filesystem aliases, and supports
+`dry_run`. Optional `expected_sha256` checks the shell hash. Results
+report both input hashes, changed parts, counts and unresolved
+dependencies (empty on success); freshness rechecks are not file locks.
+
+Imported images, content types, supported external HTTP(S)/mailto
+hyperlinks, style dependencies, ordinary numbering, drawing IDs and
+bookmarks are remapped. Donor defaults are materialized in an imported
+base style without changing cover defaults. Ambiguous or missing
+**used** styles, differing referenced themes,
+fields/notes/comments/revisions, multiple sections, donor VML, internal
+hyperlinks, picture numbering, and unsupported relationships fail before
+publication. Unused ambiguous styles are not imported. A Pandoc
+reference may lack a style Pandoc uses (`FirstParagraph` or
+`VerbatimChar`); shaping with explicit typography and
+`clearStyle`/`clearRunStyle` is one deliberate way to remove those
+dependencies.
+
+This is not a generic OOXML merge or confidentiality sanitizer. Removed
+body text is not left hidden in `document.xml`, but old ancillary
+package parts can remain. Review those before distributing confidential
+templates. Inspect a rendered copy; structure alone cannot establish
+pagination or Microsoft Word equivalence.
+
+### Final PDF export
+
+``` json
+{"format":"pdf", "action":"export",
+ "path":"new-document.docx", "output":"new-document.pdf"}
+```
+
+DOCX, PPTX and XLSX inputs are staged under an isolated temporary
+LibreOffice profile. The resulting PDF must load and contain at least
+one page before atomic output replacement; failures/cancellation leave
+an existing output intact. Results return `output`, `pageCount`, and
+backend name/version. No `dry_run`, page selection or in-place export is
+supported. Use PDF image reads separately for page images. Conversion is
+not sandboxing: use trusted local inputs.
+
+Backend evidence is not an automatic orphan/overflow detector, a visual
+comparison, or a promise of Microsoft Office rendering equivalence.
+Those remain outside the implemented surface.
 
 ## XLSX operations and privacy
 

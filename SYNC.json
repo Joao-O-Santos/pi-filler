@@ -1,34 +1,34 @@
 {
   "version": 2,
-  "confirmedAt": "2026-11-14T16:28:29.132Z",
+  "confirmedAt": "2026-11-20T17:41:38.643Z",
   "artifacts": [
     {
       "path": "PROJECT.md",
-      "fingerprint": "sha256:ae5d28b457641f3951c839c74297a6dd538351bfe5f40ca9bae6bf1c6ecf9554",
+      "fingerprint": "sha256:d7afdd6855b7ca8ac3e183c9b0b51a8b1f1fd25c61f92b00cafa514f85a7125a",
       "status": "current",
       "role": "project",
       "dependsOn": [],
       "acknowledgement": {
-        "at": "2026-11-14T12:22:56Z",
-        "reason": "Reviewed PDF comment IDs for effective collisions and fail-closed behavior; added regression coverage. Indirect Contents, RC, NM, and author strings and supported indirect rich-text streams are resolved. FreeText edits remove stale appearance streams. Unsupported rich-text streams are rejected. Updated docs and model guidance to match. make verify: 215 passed, 0 skipped; make site passed."
+        "at": "2026-11-20T17:41:38.643Z",
+        "reason": "Reviewed template composition, story layout and PDF export contracts against schema, validators, source and synthetic regression tests. Fixtures and examples use fabricated neutral content. Two independent clean-context privacy reviews found no publication blocker in the inspected repository and publication surfaces. make verify: 246 passed, one existing optional-tool skip; make site and git diff --check passed. Component commits were verified from isolated staged snapshots."
       }
     },
     {
       "path": "ARCHITECTURE.md",
-      "fingerprint": "sha256:16703d25f491f3ad772d04eccf6f60664a4787010e0edf8567b6cd58d574e61c",
+      "fingerprint": "sha256:6741fb0555e643d4f7c413964baa4dee12051246590e157fb3e39c89dd397b1e",
       "status": "current",
       "role": "architecture",
       "dependsOn": [
         "PROJECT.md"
       ],
       "acknowledgement": {
-        "at": "2026-11-14T12:22:56Z",
-        "reason": "Reviewed PDF comment IDs for effective collisions and fail-closed behavior; added regression coverage. Indirect Contents, RC, NM, and author strings and supported indirect rich-text streams are resolved. FreeText edits remove stale appearance streams. Unsupported rich-text streams are rejected. Updated docs and model guidance to match. make verify: 215 passed, 0 skipped; make site passed."
+        "at": "2026-11-20T17:41:38.643Z",
+        "reason": "Reviewed template composition, story layout and PDF export contracts against schema, validators, source and synthetic regression tests. Fixtures and examples use fabricated neutral content. Two independent clean-context privacy reviews found no publication blocker in the inspected repository and publication surfaces. make verify: 246 passed, one existing optional-tool skip; make site and git diff --check passed. Component commits were verified from isolated staged snapshots."
       }
     },
     {
       "path": "README.md",
-      "fingerprint": "sha256:cda6cf570c51fe89333f9b3bf8bfdd980b7b70c352cda7a15b36a4e56fa4b82c",
+      "fingerprint": "sha256:45d1947e46a399661a1cba4912b060c1af36fca413ac61a8842db51603020159",
       "status": "current",
       "role": "documentation",
       "dependsOn": [
@@ -36,8 +36,8 @@
         "ARCHITECTURE.md"
       ],
       "acknowledgement": {
-        "at": "2026-11-14T12:22:56Z",
-        "reason": "Reviewed PDF comment IDs for effective collisions and fail-closed behavior; added regression coverage. Indirect Contents, RC, NM, and author strings and supported indirect rich-text streams are resolved. FreeText edits remove stale appearance streams. Unsupported rich-text streams are rejected. Updated docs and model guidance to match. make verify: 215 passed, 0 skipped; make site passed."
+        "at": "2026-11-20T17:41:38.643Z",
+        "reason": "Reviewed template composition, story layout and PDF export contracts against schema, validators, source and synthetic regression tests. Fixtures and examples use fabricated neutral content. Two independent clean-context privacy reviews found no publication blocker in the inspected repository and publication surfaces. make verify: 246 passed, one existing optional-tool skip; make site and git diff --check passed. Component commits were verified from isolated staged snapshots."
       }
     },
     {
@@ -53,7 +53,7 @@
     },
     {
       "path": "AGENTS.md",
-      "fingerprint": "sha256:2ffeda3c7e802af6c573a6f735341c2d7239066891a849ddae1c9bfd871839b8",
+      "fingerprint": "sha256:e220a9da157413627a2ead874e428e9e738a7e1e760398c808c0095255902d1e",
       "status": "current",
       "role": "agent-instructions",
       "dependsOn": [
@@ -62,13 +62,13 @@
         "STYLE.md"
       ],
       "acknowledgement": {
-        "at": "2026-11-14T12:13:00Z",
-        "reason": "Expanded PDF comment reads and edits to supported foreign annotations; added stable content-bound IDs, rich-text flattening and reply links. Checked model guidance, README, ARCHITECTURE, PROJECT and CHANGELOG against implementation. make verify: 212 passed, 0 skipped; make site passed."
+        "at": "2026-11-20T17:41:38.643Z",
+        "reason": "Reviewed template composition, story layout and PDF export contracts against schema, validators, source and synthetic regression tests. Fixtures and examples use fabricated neutral content. Two independent clean-context privacy reviews found no publication blocker in the inspected repository and publication surfaces. make verify: 246 passed, one existing optional-tool skip; make site and git diff --check passed. Component commits were verified from isolated staged snapshots."
       }
     },
     {
       "path": "CHANGELOG.md",
-      "fingerprint": "sha256:be378f118da1e8547d131ea6841f6d594e697fb75fa572fa06c30c7afe32d681",
+      "fingerprint": "sha256:d3df064d8ea087664637c6a448f27aa1d2735a5f44a6d700fb32bf8825206772",
       "status": "current",
       "role": "changelog",
       "dependsOn": [
@@ -76,8 +76,8 @@
         "ARCHITECTURE.md"
       ],
       "acknowledgement": {
-        "at": "2026-11-14T16:28:29.132Z",
-        "reason": "Recorded the 0.6.0 release for third-party PDF comment support; make verify passed 216 tests and make site passed."
+        "at": "2026-11-20T17:41:38.643Z",
+        "reason": "Reviewed template composition, story layout and PDF export contracts against schema, validators, source and synthetic regression tests. Fixtures and examples use fabricated neutral content. Two independent clean-context privacy reviews found no publication blocker in the inspected repository and publication surfaces. make verify: 246 passed, one existing optional-tool skip; make site and git diff --check passed. Component commits were verified from isolated staged snapshots."
       }
     }
   ]

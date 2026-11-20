@@ -57,6 +57,15 @@ Markdown prose at 72 characters with the repository formatter.
 Do not reformat generated files or syntax whose format forbids tabs.
 YAML uses two-space indentation.
 
+## Private source documents
+
+Never add private input documents, their text/images, identifying paths,
+or derived private artifacts to this repository, including ignored build
+outputs. Repository examples and tests must use synthetic content only.
+Run private end-to-end checks outside the checkout and keep their
+inputs, outputs and identifying logs outside it. Do not commit or
+publish private material.
+
 ## Tests and verification
 
 For behavior changes, add the smallest deterministic regression test

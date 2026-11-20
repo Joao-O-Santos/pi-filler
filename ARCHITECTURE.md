@@ -12,17 +12,19 @@ The extension exposes one `filler` tool with explicit `format`,
 
 ``` text
 format: docx | pdf | pptx | xlsx
-action: read | search | write | patch
+action: read | search | write | patch | compose | export
 view: text | formatting | image | structure | review | comments
 ```
 
-DOCX supports text, formatting, review, and image reads; text search;
-Markdown-to-DOCX writes; and narrow OOXML patches. PPTX supports text,
-formatting, and image reads; text search; GFM-to-PPTX writes; and narrow
-OOXML patches. PDF supports text and image reads, text search, and
-highlight comments on existing text, their edits, and listing. XLSX
-supports content-free structure and image reads, CSV-to-template writes,
-formatting/layout patches, and restricted explicit formula patches.
+DOCX supports text, formatting, structure, review, and image reads; text
+search; Markdown-to-DOCX writes; explicit story layout patches; and
+restricted cover/body composition. PPTX supports text, formatting, and
+image reads; text search; GFM-to-PPTX writes; and narrow OOXML patches.
+PDF supports text and image reads, text search, and highlight comments
+on existing text, their edits, and listing. PDF export takes a
+DOCX/PPTX/XLSX source. XLSX supports content-free structure and image
+reads, CSV-to-template writes, formatting/layout patches, and restricted
+explicit formula patches.
 
 Schema construction and static input inference both use TypeBox. Enums
 remain flat string enums for provider compatibility.
@@ -43,9 +45,10 @@ default upper-left column; explicit XLSX map destinations are absolute.
 Unsupported combinations and operation-irrelevant parameters are
 rejected explicitly. Paths and required query/output values cannot be
 empty. Writes and patches require an output distinct from the input.
-`dry_run` is supported for ordinary DOCX and PPTX patches and XLSX
-writes and patches; it still requires an output path but does not create
-or replace it. DOCX `tracked_replace` rejects `dry_run`, even `false`.
+`dry_run` is supported for ordinary/layout DOCX patches, DOCX
+composition, PPTX patches and XLSX writes/patches; it still requires an
+output path but does not create or replace it. Export has no dry-run
+mode. DOCX `tracked_replace` rejects `dry_run`, even `false`.
 
 Prompt guidance supplies the compact operation matrix needed to choose a
 valid call without retrying through invalid combinations. It names path
@@ -312,14 +315,91 @@ Orientation-only changes keep page dimensions consistent. Untouched ZIP
 package parts remain content-identical. Edited XML parts are
 reserialized, so lexical XML details inside those parts may change.
 
+## DOCX template layout and composition
+
+`docx-package.ts` contains namespace-aware, preserve-order XML/package
+helpers shared by the two new restricted editors. It retains literal
+text, comments and CDATA, rejects DTDs, invalid UTF-8/XML characters,
+unknown entities, macros and signatures, and validates internal
+relationship targets. Numeric references are explicitly enabled and
+checked; literal XML line endings/attribute whitespace are normalized
+before decoding. Serialization escapes CR text and attribute whitespace
+while keeping structural indentation literal. No new dependencies are
+required. Untouched parts remain byte-identical; this is not an OOXML
+schema validator. Default namespaces are reused for new package metadata
+entries because the real LibreOffice integration rejected equivalent
+prefixed entries.
+
+`docx-layout.ts` supplies indexed structure reads and `docx_layout`
+patches, separate from the existing first-section patch API. Reads
+select one document/header/footer part, expose section/header/footer
+reference types, and paginate byte-bounded paragraph excerpts and
+explicit properties. They show `docDefaults`, not resolved effective
+formatting. Table indexes exclude nested tables; paragraph indexes
+include table and image-only paragraphs, but exclude math, drawings and
+embedded text-box contents. Read and write use the same coordinate
+traversal.
+
+Explicit paragraph rules cover typography, spacing, indents, alignment,
+keep chains and page breaks. Properties are inserted in OOXML sequence;
+conflicting automatic/character-unit indents are removed when overriding
+the corresponding twip property. Text runs and paragraph marks receive
+font/size edits, never math or text boxes. Header/footer parts can be
+selected explicitly. Row cloning preserves cell layout and gridSpan,
+uses original coordinates, removes paragraph identities, and requires a
+keep/clear-text policy. Unsafe merges, fields, references, drawings,
+unique identities and nested tables are refused. Optional labels replace
+only the first cell's text; other cells retain formatting under the
+selected content policy. DrawingML picture extents are bounded by both
+dimensions without upscaling; VML is preserved, not resized. Paragraph
+rules precede cloning.
+
+`docx-compose.ts` retains shell elements before an exact unique
+paragraph anchor and the final section, replacing the entire suffix with
+selected donor paragraphs/tables. Inherited namespace bindings travel
+with imported subtrees. Only required styles and their dependency
+closure are imported under fresh IDs; an imported base materializes
+donor defaults without changing shell defaults. Ordinary numbering,
+internal image parts, package content types, supported external
+hyperlinks, drawing IDs and bookmarks are remapped. Shell header/footer,
+VML, image and other retained part contents are unchanged. Ambiguous
+used styles, differing referenced themes, unsupported relationships,
+fields/notes/revisions, donor VML and unsafe section/range boundaries
+fail before publication. Removed main-body text is not kept as hidden
+markup, but old ancillary parts remain: this is not sanitization.
+
+Both editors validate before atomic sibling-file publication and support
+dry runs. Layout supports intentional same-path replacement; composition
+always rejects output aliases to either input. Composition reports
+shell/donor hashes and dependency counts, optionally checks an expected
+shell hash, and rechecks both inputs before publication; those checks
+are not a lock. None of these checks proves pagination. Repository tests
+use only synthetic preservation and safety fixtures; private documents,
+their contents and identifying paths must never be added to the
+repository.
+
+## Final PDF export
+
+`office-export.ts` stages a DOCX/PPTX/XLSX input under a temporary
+LibreOffice profile, records the backend version, and validates the
+produced PDF with the existing PDF library before replacing the output.
+Zero exit status without a valid nonempty PDF is a failure. Cancellation
+is checked before publication; temporary products are cleaned on all
+exits. Export returns page count/backend metadata, not page images.
+Existing PDF rendering provides the separate visual-evidence step.
+Inputs are trusted local Office files; conversion is not a sandbox.
+Automatic orphan/overflow detection, contact sheets, visual comparison,
+effective-style resolution and Microsoft Office equivalence remain
+unimplemented and are not implied by successful validation.
+
 ## DOCX tracked replacement
 
-A DOCX patch takes exactly one of `patches` and `tracked_replace`. The
-latter requires `path`, a distinct `output` (an existing one is replaced
-on success), and an object with nonempty string `old`, string `new`
-(empty deletes), nonempty string `author`, and optional
-`expected_sha256` (64 lowercase hex digits). Extra object keys, `view`,
-and `dry_run` are rejected.
+A DOCX patch takes exactly one of `patches`, `docx_layout` and
+`tracked_replace`. Tracked replacement requires `path`, a distinct
+`output` (an existing one is replaced on success), and an object with
+nonempty string `old`, string `new` (empty deletes), nonempty string
+`author`, and optional `expected_sha256` (64 lowercase hex digits).
+Extra object keys, `view`, and `dry_run` are rejected.
 
 This path uses a separately installed `docxquisite` executable on
 `PATH`; pi-filler does not install or download it. It probes protocol v1

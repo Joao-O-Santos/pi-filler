@@ -22,9 +22,12 @@ packages. XLSX operations parse workbook OOXML and CSV data locally,
 mutate only needed package parts, and return structural metadata rather
 than spreadsheet contents.
 
-LibreOffice provides optional DOCX/PPTX-to-PDF rendering for image
-reads. PDF comments add highlight annotations to existing text, and can
-list and edit text on supported existing annotations. General PDF
+LibreOffice provides optional Office-to-PDF rendering for image reads
+and explicit final PDF export with backend/version and page counts.
+Template-oriented DOCX operations include restricted cover/body
+composition, indexed explicit story formatting, row cloning, and image
+bounding. PDF comments add highlight annotations to existing text, and
+can list and edit text on supported existing annotations. General PDF
 writing, deleting comments, forms, and other PDF patching are outside
 the current scope.
 
@@ -62,6 +65,14 @@ The current pre-1.0 source implements:
 - optional DOCX tracked replacement via a separately installed
   `docxquisite` executable on `PATH`, without automatic installation or
   download;
+- restricted template-shell composition with hashes, imported style/
+  numbering/image dependencies, distinct-output publication and refusal
+  of unsupported dependencies;
+- indexed, bounded DOCX story audits and explicit font/spacing/indent/
+  keep-chain/page-break controls, safe row cloning and two-dimensional
+  DrawingML image bounds;
+- explicit Office-to-PDF export with validated output, backend/version,
+  page counts and isolated temporary profiles;
 - deterministic regression tests for the supported surface;
 - content-free XLSX layout inspection, mapped CSV-to-template filling,
   primitive automatic typing, formula and merged-range protection,
@@ -226,6 +237,15 @@ interpretation only when the task actually requires semantic inspection.
 
 ## Immediate next step
 
+Template layout implementation is complete for the bounded operations
+above. Effective-style resolution, generic OOXML merging, contact
+sheets, automatic orphan/overflow detection, and visual comparison
+remain outside the implemented surface. Composition is not a
+confidentiality sanitizer; old ancillary template parts may remain.
+Render and review outputs in the target application. See Verification
+below for checks and limits. Repository fixtures, names and examples are
+entirely synthetic; private inputs and identifying paths are excluded.
+
 None for PDF comments. CI installs LibreOffice, Poppler, pdfgrep, and
 the docxquisite toolkit from its default branch for the verify and
 release jobs, so the real `pdftotext`, `pdfgrep`, and docxquisite tests
@@ -256,6 +276,20 @@ private installer temporary-file cleanup, with offline subprocess tests
 for recovery, exhausted attempts, client/rate-limit errors, and cleanup.
 
 ## Verification
+
+Template composition, story layout and PDF export passed `make verify`:
+247 tests, 246 passed and one existing test skipped because
+`docxquisite` was unavailable on PATH. Line, function and branch
+coverage were 97.68%, 98.15% and 87.25%. `make site` and
+`git diff --check` passed. The synthetic end-to-end test fabricates
+raster data, a VML panel, merged/styled table rows, header/footer fields
+and grouped body text, uses isolated Pandoc user-data paths, exports two
+PDF pages, checks retained package parts and text placement, and renders
+both pages. This is not pixel comparison or Microsoft Word
+certification. No private content, identifying paths or document
+artifacts are repository fixtures. Two independent clean-context privacy
+reviews inspected repository and publication surfaces and detected no
+publication blocker; this is not a confidentiality guarantee.
 
 PDF highlight comments passed `make verify`: 200 tests, 199 passed, one
 skipped because `docxquisite` was unavailable on PATH; line, function,

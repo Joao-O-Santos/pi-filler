@@ -7,7 +7,9 @@ type Assert<T extends true> = T;
 
 export type SchemaTypeChecks = [
 	Assert<Equal<FillerInput["format"], "docx" | "pdf" | "pptx" | "xlsx">>,
-	Assert<Equal<FillerInput["action"], "read" | "search" | "write" | "patch">>,
+	Assert<
+		Equal<FillerInput["action"], "read" | "search" | "write" | "patch" | "compose" | "export">
+	>,
 	Assert<
 		Equal<
 			FillerInput["view"],

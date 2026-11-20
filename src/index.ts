@@ -10,6 +10,9 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { type Static, Type } from "typebox";
 import { type DocxPatchSet, inspectDocx, inspectDocxReview, patchDocx } from "./docx.js";
+import { composeDocx, docxComposeSchema } from "./docx-compose.js";
+import { docxLayoutSchema, inspectDocxLayout, patchDocxLayout } from "./docx-layout.js";
+import { exportOfficePdf } from "./office-export.js";
 import {
 	readDocxText,
 	readPptxText,
@@ -292,9 +295,10 @@ export const fillerSchema = Type.Object(
 			type: "string",
 			description: "Document or target format; selects supported operations and path roles",
 		}),
-		action: Type.Enum(["read", "search", "write", "patch"], {
+		action: Type.Enum(["read", "search", "write", "patch", "compose", "export"], {
 			type: "string",
-			description: "Operation; supported combinations depend on format and view",
+			description:
+				"Operation; compose is DOCX shell/body insertion, export is Office-to-PDF with format=pdf; other combinations depend on format/view",
 		}),
 		view: Type.Optional(
 			Type.Enum(["text", "formatting", "image", "structure", "review", "comments"], {
@@ -305,7 +309,7 @@ export const fillerSchema = Type.Object(
 		),
 		path: Type.String({
 			description:
-				"Input path: document for read/search/patch, Markdown source for DOCX/PPTX write, or template for XLSX write",
+				"Input path: document for read/search/patch/compose; Markdown source for DOCX/PPTX write; template for XLSX write; DOCX/PPTX/XLSX source for PDF export",
 			minLength: 1,
 		}),
 		output: Type.Optional(
@@ -344,6 +348,30 @@ export const fillerSchema = Type.Object(
 			Type.String({ description: "Reference DOCX for writes", minLength: 1 }),
 		),
 		patches: Type.Optional(docxPatchesSchema),
+		docx_compose: Type.Optional(docxComposeSchema),
+		docx_layout: Type.Optional(docxLayoutSchema),
+		structure_part: Type.Optional(
+			Type.String({
+				pattern: "^word/(document|header[0-9]+|footer[0-9]+)\\.xml$",
+				description:
+					"DOCX structure read: story part; default word/document.xml; other story names returned in stories",
+			}),
+		),
+		structure_offset: Type.Optional(
+			Type.Integer({
+				minimum: 0,
+				default: 0,
+				description: "DOCX structure read: zero-based paragraph offset per story",
+			}),
+		),
+		structure_limit: Type.Optional(
+			Type.Integer({
+				minimum: 1,
+				maximum: 100,
+				default: 50,
+				description: "DOCX structure read: maximum paragraphs per story; output byte-bounded",
+			}),
+		),
 		tracked_replace: Type.Optional(
 			Type.Object(
 				{
@@ -468,7 +496,7 @@ export const fillerSchema = Type.Object(
 			Type.Boolean({
 				default: false,
 				description:
-					"Validate and report without creating or replacing output; output remains required for DOCX/PPTX patch or XLSX write/patch. Not supported with tracked_replace",
+					"Validate and report without creating or replacing output; output remains required for DOCX compose, DOCX/PPTX patch or XLSX write/patch. Not supported with tracked_replace or PDF export",
 			}),
 		),
 		overwrite_original: Type.Optional(
@@ -519,6 +547,11 @@ const controlFields: ControlField[] = [
 	"pptx_patches",
 	"reference_pptx",
 	"patches",
+	"docx_compose",
+	"docx_layout",
+	"structure_part",
+	"structure_offset",
+	"structure_limit",
 	"tracked_replace",
 	"source_csv",
 	"sheet",
@@ -574,8 +607,29 @@ function assertParameters(input: FillerInput, allowed: readonly ControlField[]):
 
 function assertSupported(input: FillerInput): void {
 	if (!input.path) throw new Error("path must not be empty");
+	if (input.action === "export") {
+		if (input.format !== "pdf" || input.view !== undefined || !input.output)
+			throw new Error("Export requires format=pdf, output, and no view");
+		assertParameters(input, ["output"]);
+		return;
+	}
+	if (input.action === "compose") {
+		if (
+			input.format !== "docx" ||
+			input.view !== undefined ||
+			!input.output ||
+			input.docx_compose === undefined
+		)
+			throw new Error("Compose requires format=docx, output, docx_compose, and no view");
+		assertParameters(input, ["output", "docx_compose", "dry_run"]);
+		return;
+	}
 	if (input.format === "docx") {
 		if (input.action === "read") {
+			if (input.view === "structure") {
+				assertParameters(input, ["structure_part", "structure_offset", "structure_limit"]);
+				return;
+			}
 			if (input.view === "review") {
 				assertParameters(input, ["review_offset", "review_limit"]);
 				return;
@@ -587,7 +641,7 @@ function assertSupported(input: FillerInput): void {
 			}
 			if (input.view !== "text" && input.view !== "formatting") {
 				throw new Error(
-					"DOCX read requires view=text, view=formatting, view=review, or view=image",
+					"DOCX read requires view=text, view=formatting, view=structure, view=review, or view=image",
 				);
 			}
 			assertParameters(input, input.view === "text" ? ["track_changes"] : []);
@@ -611,10 +665,18 @@ function assertSupported(input: FillerInput): void {
 		if (input.view !== undefined || !input.output) {
 			throw new Error("DOCX patch requires output and does not accept view");
 		}
-		if ((input.patches === undefined) === (input.tracked_replace === undefined)) {
-			throw new Error("DOCX patch requires exactly one of patches or tracked_replace");
+		if (
+			[input.patches, input.tracked_replace, input.docx_layout].filter(
+				(value) => value !== undefined,
+			).length !== 1
+		) {
+			throw new Error(
+				"DOCX patch requires exactly one of patches or tracked_replace or docx_layout",
+			);
 		}
-		if (input.tracked_replace !== undefined) {
+		if (input.docx_layout !== undefined) {
+			assertParameters(input, ["output", "docx_layout", "dry_run", "overwrite_original"]);
+		} else if (input.tracked_replace !== undefined) {
 			assertParameters(input, ["output", "tracked_replace", "overwrite_original"]);
 			validateTrackedReplacement(input.tracked_replace);
 		} else {
@@ -782,8 +844,46 @@ export async function executeFiller(
 	validatePageRange(input);
 	const path = normalizePath(input.path, cwd);
 	const range = { firstPage: input.first_page, lastPage: input.last_page };
+	if (input.action === "export") {
+		const output = normalizePath(input.output ?? "", cwd);
+		const result = await withFileMutationQueue(output, () =>
+			exportOfficePdf(path, output, { signal }),
+		);
+		return { text: JSON.stringify(result, null, 2), details: { ...result } };
+	}
+	if (input.action === "compose") {
+		const output = normalizePath(input.output ?? "", cwd);
+		const spec = input.docx_compose;
+		if (!spec) throw new Error("Missing docx_compose");
+		const result = await withFileMutationQueue(output, () =>
+			composeDocx(
+				path,
+				output,
+				{ ...spec, body_path: normalizePath(spec.body_path, cwd) },
+				input.dry_run,
+			),
+		);
+		return { text: JSON.stringify(result, null, 2), details: { ...result } };
+	}
 
 	if (input.format === "docx") {
+		if (input.action === "read" && input.view === "structure") {
+			const result = await inspectDocxLayout(
+				path,
+				input.structure_offset,
+				input.structure_limit,
+				input.structure_part,
+			);
+			return { text: JSON.stringify(result, null, 2), details: { sha256: result.sha256 } };
+		}
+		if (input.action === "patch" && input.docx_layout !== undefined) {
+			const output = normalizePath(input.output ?? "", cwd);
+			const spec = input.docx_layout;
+			const result = await withFileMutationQueue(output, () =>
+				patchDocxLayout(path, output, spec, input.dry_run, input.overwrite_original),
+			);
+			return { text: JSON.stringify(result, null, 2), details: { ...result } };
+		}
 		if (input.action === "read" && input.view === "review") {
 			const review = await inspectDocxReview(path, input.review_offset, input.review_limit);
 			return {
@@ -1132,19 +1232,21 @@ export default function extension(pi: ExtensionAPI): void {
 		name: "filler",
 		label: "Filler",
 		description:
-			"Work directly with local DOCX, PDF, PPTX, and XLSX files. Read, search, or render DOCX/PPTX and PDF; write DOCX/PPTX from Markdown; add PDF highlight comments to existing text (pdf_comments); inspect or render XLSX, fill XLSX templates from CSV, patch supported formatting, set ordinary XLSX formulas atomically without evaluation, or recalculate cached XLSX formula values with LibreOffice (xlsx_recalculate).",
+			"Work directly with local DOCX, PDF, PPTX, and XLSX files. Read, search, or render; write DOCX/PPTX from Markdown; compose a DOCX cover/body, audit or patch indexed story layout, clone safe table rows and bound images; export Office files to PDF with backend evidence; annotate PDF comments; or inspect/fill/format XLSX, set formulas without evaluation, and recalculate cached values with LibreOffice (xlsx_recalculate).",
 		promptSnippet:
 			"Work directly with local DOCX, PDF, PPTX, and XLSX files using supported format/action/view combinations.",
 		promptGuidelines: [
 			"Use filler when a supported deterministic local DOCX, PDF, PPTX, or XLSX operation satisfies the task; choose a supported format/action/view combination and provide only that operation's fields.",
-			"For filler reads, use DOCX text, formatting, review, or image; PPTX text, formatting, or image; PDF text or image; or XLSX structure or image. DOCX review returns bounded comment text, authors, main-document anchor excerpts, and supported legacy reply/resolution metadata; review_offset defaults to 0 and review_limit to 20 (max 50). Follow nextOffset; text/excerpts may be truncated and modern thread metadata may be unsupported.",
+			"For filler reads, use DOCX structure (indexed explicit story layout), text, formatting, review, or image; PPTX text, formatting, or image; PDF text or image; or XLSX structure or image. DOCX review returns bounded comment text, authors, main-document anchor excerpts, and supported legacy reply/resolution metadata; review_offset defaults to 0 and review_limit to 20 (max 50). Follow nextOffset; text/excerpts may be truncated and modern thread metadata may be unsupported.",
 			"For filler searches, use DOCX, PPTX, or PDF text (or omit view); XLSX search is unsupported.",
-			"For filler PDF comments, use format pdf, action patch, path (input), output (new distinct file), and pdf_comments [{page, text, comment, author}, ...] (1–100 items, 1-based page). text is the exact case-sensitive phrase to highlight and must match exactly once on that page; comment and author are stored in the highlight annotation. Results return new comment ids. To edit existing comments, including comments from other PDF applications, use pdf_comment_edits [{id, comment}, ...] with ids from a prior result or format pdf, action read, view comments. Editing preserves author and annotation geometry; rich-text formatting is removed so the replacement is consistent in viewers. FreeText edits remove the cached appearance to avoid stale text; viewers may regenerate it. Comments may be replies; view comments returns subtype and inReplyTo when available, but does not create replies. Listing excludes popup and widget annotations and includes annotations with /Contents or /RC. Existing unique pi-filler IDs are preserved; other comments use content-bound locators that an edit persists. Stale or unknown ids fail the whole call. Listing returns ids, page, subtype, author, comment text, anchor when available, and modified date. Highlight creation rejects rotated pages; patching PDFs with signature fields or PDFs that cannot be loaded without a password is unsupported. Comments are not deletable. Patch results return counts, pages, and new ids, never comment or highlighted text. dry_run validates without writing. PDF write is unsupported.",
+			"For DOCX structure reads, structure_offset defaults to 0 and structure_limit to 50 (max 100); structure_part selects a story (default word/document.xml), with available names in stories; follow nextOffset. Large explicit records may omit runs/properties. Indexes are 1-based within each story part; excerpts and output are bounded. Only explicit properties and docDefaults are audited, not effective inherited appearance. For DOCX patch use docx_layout instead of patches/tracked_replace: optional part (word/document.xml by default, or word/headerN.xml/word/footerN.xml), paragraphs [{from,to?,font?,size?,clearStyle?,clearRunStyle?,clearPageBreaks?,alignment?,line?,before?,after?,left?,hanging?,underline?,keepNext?,keepLines?,pageBreakBefore?}], cloneRows [{table,row,count,content: keep|clear_text,labels?}], imageBounds {width,height}. Font size is points; spacing/indents are twips except line, in 240ths of a line (360=1.5). Rules run before clones; keepNext false ends a grouped block. clearStyle removes the paragraph style and clearRunStyle removes ordinary character styles, not inherited defaults. clearPageBreaks removes explicit page breaks, not line/column breaks. sectionReferences maps section/header/footer types to editable story parts. Row clones preserve gridSpan/widths/borders, reject vertical/legacy merges and reference-bearing rows; labels replace first-cell text. Image bounds are cm, preserve ratio and never upscale; math/text boxes and VML images are not reformatted/resized. Render to check pagination.",
+			"DOCX compose uses path (shell DOCX), output (distinct from both inputs), and docx_compose {body_path,replace_from,body_from?,expected_sha256?}; anchors are unique exact direct-body paragraph text. The shell anchor and all later body elements are replaced, keeping the cover prefix and final section/header/footer package. Donor body_from is included, or all donor body elements are used. Images, external http(s)/mailto hyperlinks, styles and ordinary numbering are remapped. Unsupported dependencies (including differing themes, fields, notes, revisions, donor VML or internal hyperlinks) fail before writing. Returns input hashes and dependency counts; dry_run validates without publication. Old ancillary template parts may remain: not a confidentiality sanitizer. Inspect/render before distribution.",
+			"For filler PDF comments, use format pdf, action patch, path (input), output (new distinct file), and pdf_comments [{page, text, comment, author}, ...] (1–100 items, 1-based page). text is the exact case-sensitive phrase to highlight and must match exactly once on that page; comment and author are stored in the highlight annotation. Results return new comment ids. To edit existing comments, including comments from other PDF applications, use pdf_comment_edits [{id, comment}, ...] with ids from a prior result or format pdf, action read, view comments. Editing preserves author and annotation geometry; rich-text formatting is removed so the replacement is consistent in viewers. FreeText edits remove the cached appearance to avoid stale text; viewers may regenerate it. Comments may be replies; view comments returns subtype and inReplyTo when available, but does not create replies. Listing excludes popup and widget annotations and includes annotations with /Contents or /RC. Existing unique pi-filler IDs are preserved; other comments use content-bound locators that an edit persists. Stale or unknown ids fail the whole call. Listing returns ids, page, subtype, author, comment text, anchor when available, and modified date. Highlight creation rejects rotated pages; patching PDFs with signature fields or PDFs that cannot be loaded without a password is unsupported. Comments are not deletable. Patch results return counts, pages, and new ids, never comment or highlighted text. dry_run validates without writing. PDF write is unsupported; final PDF export instead uses format pdf, action export, path (DOCX/PPTX/XLSX source), and output (.pdf). It requires LibreOffice and returns backend/version and pageCount, not images or automatic orphan/overflow detection. Render the PDF separately for visual inspection; LibreOffice is not Microsoft Office layout equivalence.",
 			"Existing distinct outputs are replaced on success. Set overwrite_original: true only when the operator or agent intends to replace the source file itself (DOCX patch, PPTX patch, XLSX patch, XLSX write, XLSX recalculation); a dry run never writes. Without it the output must differ from the input.",
 			"For filler image output, use an existing directory or PNG prefix; the operation creates numbered page/slide images, not one final PNG. DOCX, PPTX, and XLSX images convert through LibreOffice; XLSX images render workbook print pages and do not accept sheet. first_page and last_page select resulting pages.",
 			"For DOCX/PPTX writes, path is Markdown and output is the new document; reference_docx/reference_pptx is optional. DOCX uses Pandoc Markdown (smart typography disabled), including native review spans; PPTX uses GFM Markdown. DOCX generation is not a lossless round trip of an existing Word layout. For XLSX writes, path is the template and source_csv, sheet, A1-style start_cell, and output are required; column_map optionally maps all CSV ordinals or all exact headers to XLSX columns.",
 			"When an XLSX write or patch can perform the requested deterministic transformation without inspecting CSV or cell contents, do not read those contents into model context merely to carry out the transformation. Processing stays local and results do not return cell or CSV contents.",
-			"For filler patches, provide a new output path plus DOCX patches, PPTX pptx_patches, or XLSX sheet, A1-style range, and xlsx_patches. PPTX text replacements target slide text paragraphs and may name a 1-based slide. dry_run: true still requires output but does not create or replace it.",
+			"For filler patches, provide a new output path plus DOCX patches or docx_layout, PPTX pptx_patches, or XLSX sheet, A1-style range, and xlsx_patches. PPTX text replacements target slide text paragraphs and may name a 1-based slide. dry_run: true still requires output but does not create or replace it.",
 			"Use filler XLSX patch with output and xlsx_recalculate: true alone to recompute all formula cached values with headless LibreOffice (requires libreoffice on PATH); it writes only cached values, never formulas or results, and refuses external links. Its results are LibreOffice results, not Excel results.",
 			"Use filler XLSX patch with sheet and either xlsx_formula {cell, formula} or xlsx_formulas [{cell, formula}, ...], mutually exclusive with each other and range/xlsx_patches. Alternatively use xlsx_formula_sheets [{sheet, formulas:[{cell, formula}, ...]}, ...] without sheet/xlsx_formula/xlsx_formulas/range/xlsx_patches for one atomic multi-worksheet edit: 1–1000 total targets, unique case-insensitive resolved worksheets; returns sheets with normalized cells and per-sheet formulaCount plus total formulaCount. Batches contain 1–1000 explicit cells on one sheet, with no duplicate case-normalized addresses; every target is validated before atomic publication. Creates absent cells or replaces existing values/formulas, preserving styles. cell must be one explicit unmerged A1 address; formula must start with =, have a nonblank body, use valid XML characters without CR, and be at most 8192 UTF-16 code units. Batch results contain normalized cells and formulaCount, never values/formulas. Requires distinct output; dry_run preserves output. Stores an ordinary formula without evaluating it, requests full automatic recalculation on open, and leaves other formula caches unchanged (possibly stale). Conventional xl/calcChain.xml calculation order caches are discarded with their relationship/content type (included in changedParts); nonstandard or ambiguous chains are rejected. This does not calculate dependent caches. Signed packages, shared/array/dataTable formulas, ambiguous rows/cells, and unsupported formula metadata are rejected. Formula and workbook values stay local and are not returned.",
 			"DOCX patch alternatively accepts exactly one tracked_replace {old, new, author, expected_sha256?}, not patches. Requires independently installed docxquisite on PATH and a distinct output (an existing output is replaced on success), no view or dry_run (even false). old and author must be nonempty; empty new deletes. The optional source SHA-256 is lowercase 64 hex. Restricted to one unique single-run main-story match; existing revisions and complex documents may be rejected. Processing stays local; requested text/author and toolkit diagnostics are not returned. Structural checks do not prove Word rendering. Transport/protocol failure may leave an output: inspect it before retrying; no automatic cleanup or retry.",

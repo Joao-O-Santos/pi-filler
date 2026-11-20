@@ -1,5 +1,24 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Restricted DOCX cover/body composition with input hashes, exact
+  paragraph anchors, dependency remapping and transactional refusal of
+  unsupported structures.
+- Indexed, bounded explicit DOCX layout audits, including header/footer
+  part discovery, and story-scoped typography, spacing, keep-chain and
+  page-break rules. Safe row clones preserve gridSpan and cell
+  formatting; DrawingML images can be bounded in both dimensions without
+  upscaling.
+- Explicit Office-to-PDF export with backend/version, validated page
+  count, isolated temporary profiles and atomic output replacement.
+- Synthetic preservation/adversarial tests. Private documents, their
+  contents and identifying paths are excluded from repository fixtures.
+  No Microsoft Word equivalence, effective-style resolution or automatic
+  orphan detection is claimed.
+
 ## 0.6.0 --- 2026-11-14
 
 ### Changed
